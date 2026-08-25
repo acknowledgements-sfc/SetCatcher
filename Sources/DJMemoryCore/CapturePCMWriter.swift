@@ -50,14 +50,23 @@ public enum CapturePCMWriter {
 
     /// Writes an already-converted `writeFormat` buffer to `audioFile`.
     /// - Returns: An error detail (without a "Capture" prefix), or `nil` on success.
+    ///
+    /// Deliberately omits the buffer/file format dump: this runs on the audio callback, and
+    /// rendering two `AVAudioFormat` descriptions per failing buffer is expensive enough to
+    /// matter when a take fails persistently. Callers add that context once, via
+    /// `formatContext(buffer:file:)`, when they record the first failure.
     public static func write(buffer: AVAudioPCMBuffer, to audioFile: AVAudioFile) -> String? {
         do {
             try audioFile.write(from: buffer)
             return nil
         } catch {
             let nsError = error as NSError
-            return "could not write audio: \(error.localizedDescription) [\(nsError.domain)#\(nsError.code)] "
-                + "buffer=\(buffer.format) file=\(audioFile.processingFormat)"
+            return "could not write audio: \(error.localizedDescription) [\(nsError.domain)#\(nsError.code)]"
         }
+    }
+
+    /// Format diagnostics for the first recorded write failure of a take.
+    public static func formatContext(buffer: AVAudioPCMBuffer, file: AVAudioFile) -> String {
+        " buffer=\(buffer.format) file=\(file.processingFormat)"
     }
 }

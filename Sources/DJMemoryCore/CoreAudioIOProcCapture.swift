@@ -36,7 +36,9 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
     private var sourceLabel = "App audio Capture"
     private var filePrefix = "app-audio"
     private var resultMetadata: ResultMetadata?
-    private var lastFormatMismatchDetail: String?
+    private var writeTracker = CaptureWriteTracker()
+    /// Set when the *source* format is unusable — fatal for the take regardless of buffer writes.
+    private var formatMismatchDetail: String?
     private var prerollBuffers: [AVAudioPCMBuffer] = []
     private var prerollFrames: AVAudioFrameCount = 0
     private var prerollFrameBudget: AVAudioFrameCount = 0
@@ -87,8 +89,9 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         self.sourceLabel = sourceLabel
         self.filePrefix = filePrefix
         self.resultMetadata = resultMetadata
-        self.lastFormatMismatchDetail = nil
+        self.formatMismatchDetail = nil
         sampleHandlerQueue.sync {
+            writeTracker.reset()
             prerollBuffers.removeAll()
             prerollFrames = 0
             prerollFrameBudget = AVAudioFrameCount(max(0, prerollSeconds) * CaptureAudioFormat.sampleRate)
@@ -168,13 +171,14 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
             }
             prerollBuffers.removeAll()
             prerollFrames = 0
+            writeTracker.reset()
             audioFile = newAudioFile
             let prerollDuration = Double(flushedFrames) / CaptureAudioFormat.sampleRate
             startedAt = Date().addingTimeInterval(-prerollDuration)
             isWriting = true
         }
         stagingURL = url
-        lastFormatMismatchDetail = nil
+        formatMismatchDetail = nil
     }
 
     func endRecordingFile(discard: Bool) throws -> CaptureResult? {
@@ -195,9 +199,16 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
             try? fileManager.removeItem(at: stagingURL)
             return nil
         }
-        if let detail = lastFormatMismatchDetail {
+        if let detail = formatMismatchDetail {
             try? fileManager.removeItem(at: stagingURL)
             throw AppAudioCaptureError.engineFailed(detail)
+        }
+        // A take that lost some buffers is gapped but still the user's set: keep it and report.
+        // Only a take with no usable audio at all is discarded.
+        let writeFailure = sampleHandlerQueue.sync { writeTracker.failure }
+        if let writeFailure, writeFailure.isFatal {
+            try? fileManager.removeItem(at: stagingURL)
+            throw AppAudioCaptureError.engineFailed(writeFailure.summary)
         }
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: stagingURL.path, isDirectory: &isDirectory),
@@ -216,7 +227,8 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
             endedAt: endedAt,
             captureRoute: .appAudio,
             captureBackend: resultMetadata.captureBackend,
-            deviceTransport: resultMetadata.deviceTransport
+            deviceTransport: resultMetadata.deviceTransport,
+            writeFailure: writeFailure
         )
     }
 
@@ -232,7 +244,7 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         let isInterleaved = sourceASBD.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0
         let sourceChannels = max(1, Int(sourceASBD.mChannelsPerFrame))
         guard isFloat else {
-            lastFormatMismatchDetail = "\(sourceLabel) received non-float audio buffers. Use ScreenCaptureKit or Input device Capture."
+            formatMismatchDetail = "\(sourceLabel) received non-float audio buffers. Use ScreenCaptureKit or Input device Capture."
             return
         }
 
@@ -296,22 +308,24 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
             writeFormat: writeFormat
         )
         if let detail = conversion.error {
-            lastFormatMismatchDetail = "\(sourceLabel) \(detail)"
+            formatMismatchDetail = "\(sourceLabel) \(detail)"
             return
         }
         guard let converted = conversion.buffer else {
-            lastFormatMismatchDetail = "\(sourceLabel) could not convert to the capture format."
+            formatMismatchDetail = "\(sourceLabel) could not convert to the capture format."
             return
         }
         if isWriting, let audioFile {
             if let detail = CapturePCMWriter.write(buffer: converted, to: audioFile) {
-                lastFormatMismatchDetail = "\(sourceLabel) \(detail)"
+                writeTracker.recordFailure {
+                    "\(sourceLabel) \(detail)"
+                        + CapturePCMWriter.formatContext(buffer: converted, file: audioFile)
+                }
             } else {
-                lastFormatMismatchDetail = nil
+                writeTracker.recordSuccess()
             }
         } else {
             appendPreroll(converted)
-            lastFormatMismatchDetail = nil
         }
     }
 
@@ -336,8 +350,9 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         writeFormat = nil
         converter = nil
         resultMetadata = nil
-        lastFormatMismatchDetail = nil
+        formatMismatchDetail = nil
         sampleHandlerQueue.sync {
+            writeTracker.reset()
             prerollBuffers.removeAll()
             prerollFrames = 0
             prerollFrameBudget = 0

@@ -1601,6 +1601,20 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Surface a take that was archived with dropped buffers. The audio is kept -- a set with a
+    /// gap beats a deleted set -- but the user is told, and it lands in the activity log, because
+    /// a silently gapped archive is worse than a loud one.
+    private func reportWriteFailureIfNeeded(_ failure: CaptureWriteFailure?, sessionID: UUID) {
+        guard let failure else { return }
+        statusMessage = failure.summary
+        appendActivity(
+            kind: .error,
+            message: "Recording saved with gaps",
+            detail: "Set \(sessionID.uuidString): \(failure.failedBufferCount) buffer(s) failed "
+                + "to write. \(failure.detail)"
+        )
+    }
+
     /// After archive, pull a nearby history export from known local history folders (soft-fail).
     private func autopullTracklist(for session: RecordingSession) {
         let appIDs = TracklistAutopull.historyAppIDs(
@@ -1953,6 +1967,7 @@ extension AppModel {
                     captureDeviceTransport: result.deviceTransport?.archiveLabel
                         ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel
                 )
+                reportWriteFailureIfNeeded(result.writeFailure, sessionID: session.id)
                 notifyForNewArchive(session)
                 refresh()
                 autopullTracklist(for: session)
@@ -2270,6 +2285,7 @@ extension AppModel {
                     captureRoute: result.captureRoute ?? .inputDevice,
                     captureDeviceTransport: result.deviceTransport?.archiveLabel
                 )
+                reportWriteFailureIfNeeded(result.writeFailure, sessionID: session.id)
                 notifyForNewArchive(session)
                 refresh()
                 autopullTracklist(for: session)
@@ -2441,6 +2457,7 @@ extension AppModel {
                 captureRoute: result.captureRoute ?? .inputDevice,
                 captureDeviceTransport: result.deviceTransport?.archiveLabel
             )
+            reportWriteFailureIfNeeded(result.writeFailure, sessionID: session.id)
             notifyForNewArchive(session)
             refresh()
             autopullTracklist(for: session)

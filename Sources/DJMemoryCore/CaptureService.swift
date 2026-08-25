@@ -19,6 +19,8 @@ public struct CaptureResult: Equatable, Sendable {
     public let captureRoute: CaptureArchiveRoute?
     public let captureBackend: CaptureArchiveBackend?
     public let deviceTransport: AudioDeviceTransport?
+    /// Non-fatal write problems during the take, if any. `nil` means every buffer landed.
+    public let writeFailure: CaptureWriteFailure?
 
     public init(
         stagingURL: URL,
@@ -28,7 +30,8 @@ public struct CaptureResult: Equatable, Sendable {
         endedAt: Date,
         captureRoute: CaptureArchiveRoute? = nil,
         captureBackend: CaptureArchiveBackend? = nil,
-        deviceTransport: AudioDeviceTransport? = nil
+        deviceTransport: AudioDeviceTransport? = nil,
+        writeFailure: CaptureWriteFailure? = nil
     ) {
         self.stagingURL = stagingURL
         self.deviceID = deviceID
@@ -38,6 +41,7 @@ public struct CaptureResult: Equatable, Sendable {
         self.captureRoute = captureRoute
         self.captureBackend = captureBackend
         self.deviceTransport = deviceTransport
+        self.writeFailure = writeFailure
     }
 }
 
@@ -58,7 +62,7 @@ public final class CaptureService: @unchecked Sendable {
     private let levelLock = NSLock()
     private var writeFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
-    private var lastWriteErrorDetail: String?
+    private var writeTracker = CaptureWriteTracker()
 
     public init(stagingDirectory: URL = CaptureService.defaultStagingDirectory(), fileManager: FileManager = .default) {
         self.stagingDirectory = stagingDirectory
@@ -107,7 +111,7 @@ public final class CaptureService: @unchecked Sendable {
         deviceName = device.name
         boundTransport = device.transportType
         inputLevel = 0
-        lastWriteErrorDetail = nil
+        writeTracker.reset()
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             guard let self else { return }
@@ -156,7 +160,7 @@ public final class CaptureService: @unchecked Sendable {
         stagingURL = url
         writeFormat = destinationFormat
         converter = audioConverter
-        lastWriteErrorDetail = nil
+        writeTracker.reset()
         startedAt = Date()
         isRecording = true
     }
@@ -171,10 +175,13 @@ public final class CaptureService: @unchecked Sendable {
         let started = startedAt ?? endedAt
         startedAt = nil
         guard let stagingURL else { throw CaptureServiceError.engineFailed("Capture staging file is missing.") }
-        if let detail = lastWriteErrorDetail {
+        // Only a take with no usable audio is discarded. A take that lost some buffers is gapped
+        // but still the user's set, so it is kept and the problem is reported on the result.
+        let writeFailure = writeTracker.failure
+        if let writeFailure, writeFailure.isFatal {
             try? fileManager.removeItem(at: stagingURL)
             self.stagingURL = nil
-            throw CaptureServiceError.engineFailed(detail)
+            throw CaptureServiceError.engineFailed(writeFailure.summary)
         }
         if discard {
             try? fileManager.removeItem(at: stagingURL)
@@ -193,7 +200,8 @@ public final class CaptureService: @unchecked Sendable {
             endedAt: endedAt,
             captureRoute: .inputDevice,
             captureBackend: nil,
-            deviceTransport: boundTransport
+            deviceTransport: boundTransport,
+            writeFailure: writeFailure
         )
         self.stagingURL = nil
         return result
@@ -267,9 +275,11 @@ public final class CaptureService: @unchecked Sendable {
             writeFormat: writeFormat,
             audioFile: audioFile
         ) {
-            lastWriteErrorDetail = "Capture \(detail)"
+            writeTracker.recordFailure {
+                "Capture \(detail)" + CapturePCMWriter.formatContext(buffer: buffer, file: audioFile)
+            }
         } else {
-            lastWriteErrorDetail = nil
+            writeTracker.recordSuccess()
         }
     }
 }

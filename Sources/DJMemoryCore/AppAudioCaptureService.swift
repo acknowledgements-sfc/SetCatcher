@@ -591,7 +591,9 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
     /// Adapted Float32 source format of the current ScreenCaptureKit stream.
     private var sourceFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
-    private var lastFormatMismatchDetail: String?
+    private var writeTracker = CaptureWriteTracker()
+    /// Set when the *source* format is unusable — fatal for the take regardless of buffer writes.
+    private var formatMismatchDetail: String?
 
     /// Ring of already-converted `writeFormat` buffers captured while watching, flushed into the
     /// file on `beginRecordingFile` so a take starts at the true first signal rather than ~half a
@@ -667,7 +669,7 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
         targetBundleIdentifier = bundleIdentifier
         targetDisplayName = displayName
         isMonitoring = true
-        lastFormatMismatchDetail = nil
+        formatMismatchDetail = nil
         // Canonical write target; the pre-roll ring stores buffers already converted to this format
         // so a take can begin with the audio that played during the silence-session start hold.
         writeFormat = CaptureAudioFormat.processingFormat()
@@ -737,6 +739,7 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
             }
             prerollBuffers.removeAll()
             prerollFrames = 0
+            writeTracker.reset()
             audioFile = newAudioFile
             // Backdate the start by the flushed pre-roll so the archive timestamp lands on the
             // true first signal rather than the moment the start hold elapsed.
@@ -745,7 +748,7 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
             isWriting = true
         }
         stagingURL = url
-        lastFormatMismatchDetail = nil
+        formatMismatchDetail = nil
     }
 
     private static func writeSucceeded(_ buffer: AVAudioPCMBuffer, to audioFile: AVAudioFile) -> Bool {
@@ -773,9 +776,16 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
             return nil
         }
 
-        if let detail = lastFormatMismatchDetail {
+        if let detail = formatMismatchDetail {
             try? fileManager.removeItem(at: stagingURL)
             throw AppAudioCaptureError.engineFailed(detail)
+        }
+        // A take that lost some buffers is gapped but still the user's set: keep it and report.
+        // Only a take with no usable audio at all is discarded.
+        let writeFailure = sampleHandlerQueue.sync { writeTracker.failure }
+        if let writeFailure, writeFailure.isFatal {
+            try? fileManager.removeItem(at: stagingURL)
+            throw AppAudioCaptureError.engineFailed(writeFailure.summary)
         }
 
         var isDirectory: ObjCBool = false
@@ -790,7 +800,8 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
             startedAt: started,
             endedAt: endedAt,
             captureRoute: .appAudio,
-            captureBackend: .screenCaptureKit
+            captureBackend: .screenCaptureKit,
+            writeFailure: writeFailure
         )
     }
 
@@ -891,7 +902,7 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
         guard frameLength > 0 else { return }
 
         if !isFloat {
-            lastFormatMismatchDetail = "App audio Capture received non-float audio buffers. Arm again, or use Input device Capture."
+            formatMismatchDetail = "App audio Capture received non-float audio buffers. Arm again, or use Input device Capture."
             return
         }
 
@@ -909,7 +920,7 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
             ),
                 let adaptedConverter = CaptureAudioFormat.makeConverter(from: adaptedSource, to: writeFormat)
             else {
-                lastFormatMismatchDetail = "App audio Capture received an unsupported buffer format (\(Int(sourceRate)) Hz, \(sourceChannels) ch). Arm again, or use Input device Capture."
+                formatMismatchDetail = "App audio Capture received an unsupported buffer format (\(Int(sourceRate)) Hz, \(sourceChannels) ch). Arm again, or use Input device Capture."
                 return
             }
             self.sourceFormat = adaptedSource
@@ -954,23 +965,25 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
 
         let conversion = CapturePCMWriter.convert(buffer: pcm, converter: activeConverter, writeFormat: writeFormat)
         if let detail = conversion.error {
-            lastFormatMismatchDetail = "App audio Capture \(detail)"
+            formatMismatchDetail = "App audio Capture \(detail)"
             return
         }
         guard let converted = conversion.buffer else {
-            lastFormatMismatchDetail = "App audio Capture could not convert to 24-bit / 48 kHz."
+            formatMismatchDetail = "App audio Capture could not convert to 24-bit / 48 kHz."
             return
         }
 
         if isWriting, let audioFile {
             if let detail = CapturePCMWriter.write(buffer: converted, to: audioFile) {
-                lastFormatMismatchDetail = "App audio Capture \(detail)"
+                writeTracker.recordFailure {
+                    "App audio Capture \(detail)"
+                        + CapturePCMWriter.formatContext(buffer: converted, file: audioFile)
+                }
             } else {
-                lastFormatMismatchDetail = nil
+                writeTracker.recordSuccess()
             }
         } else {
             appendPreroll(converted)
-            lastFormatMismatchDetail = nil
         }
     }
 
@@ -1001,6 +1014,7 @@ extension ScreenCaptureKitAppAudioCaptureService: SCStreamDelegate {
         startedAt = nil
         prerollBuffers.removeAll()
         prerollFrames = 0
+        writeTracker.reset()
         setInputLevel(0)
         guard wasMonitoring || wasWriting else { return }
         let captureError = AppAudioCaptureError.streamStopped(error.localizedDescription)
