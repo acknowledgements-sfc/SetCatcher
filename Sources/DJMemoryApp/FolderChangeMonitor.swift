@@ -15,18 +15,22 @@ final class FolderChangeMonitor {
     func start(requests: [FolderScanRequest], onChange: @escaping @Sendable () -> Void) {
         let uniqueRequests = uniqueReachableRequests(from: requests)
 
-        let startedFolders = uniqueRequests.compactMap { request -> WatchedFolder? in
-            WatchedFolder(request: request, onChange: onChange)
-        }
-        let nextPaths = Set(startedFolders.map(\.watchedPath))
-
+        // Decide *before* constructing any WatchedFolder: each init opens a file descriptor and
+        // resumes a DispatchSource, so building them speculatively and discarding them on the
+        // unchanged path leaked an fd + a live event source per folder, per call — and the
+        // orphaned sources kept firing `onChange`, which re-entered this method and leaked more.
+        let nextPaths = Set(uniqueRequests.map(\.folderURL.path))
         guard nextPaths != watchedPaths else {
             return
         }
 
         stop()
-        watchedFolders = startedFolders
-        watchedPaths = nextPaths
+        watchedFolders = uniqueRequests.compactMap { request -> WatchedFolder? in
+            WatchedFolder(request: request, onChange: onChange)
+        }
+        // Record what actually opened, not what was requested, so a folder that failed to open
+        // is retried on the next call rather than being treated as already watched.
+        watchedPaths = Set(watchedFolders.map(\.watchedPath))
     }
 
     func stop() {
@@ -88,6 +92,7 @@ private final class WatchedFolder {
     private let source: DispatchSourceFileSystemObject
     private let securityScopedURL: URL?
     private let didStartAccessing: Bool
+    private var isStopped = false
     let watchedPath: String
 
     init?(request: FolderScanRequest, onChange: @escaping @Sendable () -> Void) {
@@ -134,7 +139,17 @@ private final class WatchedFolder {
         source.resume()
     }
 
+    /// Backstop: a resumed DispatchSource is retained by libdispatch and keeps invoking its
+    /// handler until cancelled, so a WatchedFolder that is dropped without `stop()` would leak
+    /// its descriptor and go on firing. Cancelling here makes that unreachable by construction.
+    deinit {
+        stop()
+    }
+
+    /// Idempotent — safe to call from both the owner and `deinit`.
     func stop() {
+        guard !isStopped else { return }
+        isStopped = true
         source.cancel()
         if didStartAccessing {
             securityScopedURL?.stopAccessingSecurityScopedResource()

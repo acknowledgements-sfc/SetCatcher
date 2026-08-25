@@ -101,7 +101,12 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
             deviceID,
             sampleHandlerQueue
         ) { [weak self] _, inputData, _, _, _ in
-            self?.handleAudioBufferList(inputData)
+            // GCD does not guarantee an autorelease-pool drain per work item on a private queue,
+            // and this fires hundreds of times a second allocating AVAudioPCMBuffers. Without an
+            // explicit pool the autoreleased temporaries accumulate for as long as capture runs.
+            autoreleasepool {
+                self?.handleAudioBufferList(inputData)
+            }
         }
         guard createStatus == noErr, let newIOProcID else {
             resetConfiguration()

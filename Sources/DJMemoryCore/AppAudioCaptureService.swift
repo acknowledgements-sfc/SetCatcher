@@ -1011,7 +1011,11 @@ extension ScreenCaptureKitAppAudioCaptureService: SCStreamDelegate {
 extension ScreenCaptureKitAppAudioCaptureService: SCStreamOutput {
     public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .audio else { return }
-        handleAudioSampleBuffer(sampleBuffer)
+        // See CoreAudioIOProcCapture: the sample-handler queue is a private serial queue, so an
+        // explicit pool is required to drain the per-callback CoreMedia/AVFoundation temporaries.
+        autoreleasepool {
+            handleAudioSampleBuffer(sampleBuffer)
+        }
     }
 }
 #endif

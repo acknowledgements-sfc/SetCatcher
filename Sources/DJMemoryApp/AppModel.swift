@@ -146,6 +146,8 @@ final class AppModel: ObservableObject {
     private let profileStore = DJProfileStore()
     private let notificationService = LocalNotificationService()
     private let folderChangeMonitor = FolderChangeMonitor()
+    /// Last value of `monitorSignature()` applied to the FS monitors; `nil` until first start.
+    private var lastMonitorSignature: [String]?
     /// Watches history-export folders so late-written exports still auto-attach.
     private let historyChangeMonitor = FolderChangeMonitor()
     private var historyIngestTask: Task<Void, Never>?
@@ -438,6 +440,15 @@ final class AppModel: ObservableObject {
             statusMessage = "Choose recording folders to start protecting sets"
         }
 
+        restartMonitorsIfNeeded()
+    }
+
+    /// Rebuild the FS monitors only when the folders they watch (or the auto-scan toggle) changed.
+    /// Pass `force` for an explicit start, where the monitors must come up regardless.
+    private func restartMonitorsIfNeeded(force: Bool = false) {
+        let signature = monitorSignature()
+        guard force || signature != lastMonitorSignature else { return }
+        lastMonitorSignature = signature
         restartFolderChangeMonitoring()
         restartHistoryMonitoring()
     }
@@ -1137,19 +1148,31 @@ final class AppModel: ObservableObject {
             folderChangeMonitor.stop()
             historyChangeMonitor.stop()
             historyIngestTask?.cancel()
+            lastMonitorSignature = nil
             return
         }
 
         let intervalSeconds = settings.scanIntervalSeconds
         scheduleNextScanIfNeeded()
-        restartFolderChangeMonitoring()
-        restartHistoryMonitoring()
+        restartMonitorsIfNeeded(force: true)
         scanTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(intervalSeconds))
                 self?.scanNow()
             }
         }
+    }
+
+    /// Signature of everything the FS monitors depend on. `refresh()` reloads the whole library
+    /// and is called from ~15 paths (including after every archive, and from the scan that an FS
+    /// event itself triggers), but the watched set only ever changes when the granted folders or
+    /// the auto-scan toggle change. Comparing this first keeps a routine reload from re-entering
+    /// monitor setup, so an FS event can no longer feed back into rebuilding its own watchers.
+    private func monitorSignature() -> [String] {
+        guard settings.automaticScanningEnabled else { return [] }
+        return (scanRequests() + historyRequests())
+            .map { "\($0.appID)\u{1}\($0.folderURL.path)" }
+            .sorted()
     }
 
     private func restartFolderChangeMonitoring() {
