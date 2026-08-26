@@ -2286,8 +2286,17 @@ extension AppModel {
         }
         // Observed app audio is what separates a laptop-software set from a standalone set
         // with rekordbox merely open for library/Link.
-        let appAudioIsProducing = appAudioCaptureService.isWriting
-            && LiveCaptureDetectionConfig.default.heardSignal(appAudioCaptureService.currentInputLevel())
+        let observedLevel = appAudioCaptureService.currentInputLevel()
+        let appAudio = AppAudioObservation(
+            capability: appAudioCapability,
+            isMonitoring: appAudioCaptureService.isMonitoring,
+            archiveBackend: appAudioCaptureService.isMonitoring
+                ? appAudioCaptureService.activeBackendKind.archiveBackend
+                : nil,
+            sourceDeviceUID: appAudioCaptureService.activeSourceDeviceUID,
+            observedSignal: LiveCaptureDetectionConfig.default.heardSignal(observedLevel),
+            applePathExhausted: appAudioCaptureService.appleAppAudioPathExhausted
+        )
         // Signal on the current route's OWN device — feeding a foreign device's level here
         // would fake a live feed.
         let currentFeedIsProducingSignal: Bool
@@ -2306,7 +2315,7 @@ extension AppModel {
             vendorVirtualEnabled: AppAudioCaptureBackendSelector.virtualAppAudioEnabled,
             runningDJSoftwareIDs: running,
             appAudioCapability: appAudioCapability,
-            appAudioIsProducing: appAudioIsProducing,
+            appAudio: appAudio,
             session: LiveCaptureSessionContext(
                 phase: phase,
                 currentKind: lastLiveCaptureKind,
@@ -2870,7 +2879,7 @@ extension AppModel {
             message = "App audio Capture failed: \(detail)"
             phase = .failed(message)
         case .streamStopped(let detail):
-            message = "App audio Capture stopped: \(detail). Arm again to resume watching. Folder Protection still works."
+            message = "App audio Capture stopped: \(detail). Retry to resume watching. Folder Protection still works."
             phase = .failed(message)
         case .alreadyMonitoring:
             message = "App audio Capture is already armed."
