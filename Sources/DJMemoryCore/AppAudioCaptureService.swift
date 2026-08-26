@@ -94,7 +94,8 @@ public enum AppAudioCaptureBackendSelector {
         environment["DJMEMORY_ENABLE_VIRTUAL_APP_AUDIO"] == "1"
     }
 
-    /// Precedence: verified virtual input device for the target app > Process Audio Tap > ScreenCaptureKit.
+    /// Precedence: Process Audio Tap > ScreenCaptureKit. Vendor input is attempted only after
+    /// both Apple paths fail at arm time (`startMonitoring`), not during route selection.
     public static func preferredSelection(
         targetSoftware: DJSoftware?,
         inputDevices: [AudioInputDevice],
@@ -103,13 +104,10 @@ public enum AppAudioCaptureBackendSelector {
         forceScreenCaptureKit: Bool = ProcessInfo.processInfo.environment["DJMEMORY_FORCE_SCK_APP_AUDIO"] == "1",
         virtualEnabled: Bool = AppAudioCaptureBackendSelector.virtualAppAudioEnabled
     ) -> AppAudioCaptureBackendSelection {
-        if virtualEnabled,
-           let target = targetSoftware,
-           runningSoftwareIDs.contains(target.id),
-           let device = AudioInputDeviceCatalog.virtualAudioDevice(for: target, in: inputDevices)
-        {
-            return .virtualInputDevice(device: device, softwareID: target.id)
-        }
+        _ = targetSoftware
+        _ = inputDevices
+        _ = runningSoftwareIDs
+        _ = virtualEnabled
         switch preferredBackend(
             processTapSupported: processTapSupported,
             forceScreenCaptureKit: forceScreenCaptureKit
@@ -121,7 +119,7 @@ public enum AppAudioCaptureBackendSelector {
         }
     }
 
-    /// Virtual bind failed: drop to Process Audio Tap / ScreenCaptureKit rather than staying silent.
+    /// Virtual bind failure still falls back to Apple paths during arm, not route selection.
     public static func fallbackAfterVirtualBindFailure(
         processTapSupported: Bool,
         forceScreenCaptureKit: Bool = ProcessInfo.processInfo.environment["DJMEMORY_FORCE_SCK_APP_AUDIO"] == "1"
@@ -136,15 +134,31 @@ public enum AppAudioCaptureBackendSelector {
             return .screenCaptureKit
         }
     }
+
+    /// After Process Tap and ScreenCaptureKit both fail, an opt-in vendor virtual device may bind.
+    public static func vendorFallbackSelection(
+        targetSoftware: DJSoftware?,
+        inputDevices: [AudioInputDevice],
+        runningSoftwareIDs: Set<String>,
+        virtualEnabled: Bool = AppAudioCaptureBackendSelector.virtualAppAudioEnabled
+    ) -> AppAudioCaptureBackendSelection? {
+        guard virtualEnabled,
+              let target = targetSoftware,
+              runningSoftwareIDs.contains(target.id),
+              let device = AudioInputDeviceCatalog.virtualAudioDevice(for: target, in: inputDevices)
+        else { return nil }
+        return .virtualInputDevice(device: device, softwareID: target.id)
+    }
 }
 
-/// Facade for app-audio capture. Prefers a verified DJ-software virtual device
-/// (direct Core Audio IOProc -- never the user's Input Device route), then
-/// Core Audio Process Taps on macOS 14.2+, then ScreenCaptureKit.
+/// Facade for app-audio capture. Process Audio Tap first on macOS 14.2+, then
+/// ScreenCaptureKit, then opt-in vendor virtual input after both Apple paths fail.
 public final class AppAudioCaptureService: @unchecked Sendable {
     public private(set) var activeBackendKind: AppAudioCaptureBackendKind = .screenCaptureKit
     public private(set) var activeVirtualDevice: AudioInputDevice?
     public private(set) var virtualBindDidFallBack = false
+    public private(set) var appleAppAudioPathExhausted = false
+    public private(set) var activeSourceDeviceUID: String?
 
     public var isMonitoring: Bool { activeBackend.isMonitoring }
     public var isWriting: Bool { activeBackend.isWriting }
@@ -226,16 +240,34 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         runningSoftwareIDs: Set<String> = []
     ) async throws {
         virtualBindDidFallBack = false
+        appleAppAudioPathExhausted = false
         activeVirtualDevice = nil
+        activeSourceDeviceUID = nil
         let software = softwareID.flatMap { id in SupportedDJSoftware.all.first { $0.id == id } }
-        let selection = AppAudioCaptureBackendSelector.preferredSelection(
+
+        do {
+            try await startProcessTapOrScreenCapture(
+                bundleIdentifier: bundleIdentifier,
+                displayName: displayName,
+                prerollSeconds: prerollSeconds
+            )
+            return
+        } catch AppAudioCaptureError.permissionDenied {
+            throw AppAudioCaptureError.permissionDenied
+        } catch AppAudioCaptureError.alreadyMonitoring {
+            throw AppAudioCaptureError.alreadyMonitoring
+        } catch {
+            appleAppAudioPathExhausted = true
+            print(
+                "app-audio-backend: Apple paths failed (\(error.localizedDescription)); trying vendor fallback if enabled"
+            )
+        }
+
+        if let selection = AppAudioCaptureBackendSelector.vendorFallbackSelection(
             targetSoftware: software,
             inputDevices: inputDevices,
-            runningSoftwareIDs: runningSoftwareIDs,
-            processTapSupported: ProcessAudioTapCaptureService.isSupported
-        )
-
-        if case .virtualInputDevice(let device, let boundSoftwareID) = selection {
+            runningSoftwareIDs: runningSoftwareIDs
+        ), case .virtualInputDevice(let device, let boundSoftwareID) = selection {
             do {
                 virtualBackend.bind(device: device, softwareID: boundSoftwareID)
                 try await virtualBackend.startMonitoring(
@@ -244,6 +276,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
                     prerollSeconds: prerollSeconds
                 )
                 adopt(virtualBackend, kind: .virtualInputDevice, virtualDevice: device)
+                activeSourceDeviceUID = device.id
                 print(
                     "app-audio-backend: virtualInputDevice device=\(device.name) uid=\(device.id) transport=\(device.transportType.archiveLabel)"
                 )
@@ -255,15 +288,13 @@ public final class AppAudioCaptureService: @unchecked Sendable {
             } catch {
                 virtualBindDidFallBack = true
                 print(
-                    "app-audio-backend: virtualInputDevice bind failed (\(error.localizedDescription)); falling back"
+                    "app-audio-backend: virtualInputDevice bind failed (\(error.localizedDescription))"
                 )
             }
         }
 
-        try await startProcessTapOrScreenCapture(
-            bundleIdentifier: bundleIdentifier,
-            displayName: displayName,
-            prerollSeconds: prerollSeconds
+        throw AppAudioCaptureError.engineFailed(
+            "DJMemory cannot hear this DJ app yet. Finish setup permissions, then try again."
         )
     }
 
@@ -304,6 +335,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
                     prerollSeconds: prerollSeconds
                 )
                 adopt(processTapBackend, kind: .processAudioTap, virtualDevice: nil)
+                activeSourceDeviceUID = processTapBackend.aggregateDeviceUID
                 print("app-audio-backend: processAudioTap")
                 return
             } catch AppAudioCaptureError.permissionDenied {
@@ -317,6 +349,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
                     prerollSeconds: prerollSeconds
                 )
                 adopt(screenCaptureBackend, kind: .screenCaptureKit, virtualDevice: nil)
+                activeSourceDeviceUID = bundleIdentifier
                 print("app-audio-backend: screenCaptureKit (process-tap fallback)")
                 return
             }
@@ -328,6 +361,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
             prerollSeconds: prerollSeconds
         )
         adopt(screenCaptureBackend, kind: .screenCaptureKit, virtualDevice: nil)
+        activeSourceDeviceUID = bundleIdentifier
         print("app-audio-backend: screenCaptureKit")
     }
 
@@ -357,6 +391,7 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
     public var startedAt: Date? { capture.startedAt }
     public private(set) var targetBundleIdentifier = ""
     public private(set) var targetDisplayName = ""
+    public private(set) var aggregateDeviceUID: String?
 
     public var onStreamStopped: ((AppAudioCaptureError) -> Void)?
 
@@ -397,12 +432,27 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
             throw AppAudioCaptureError.appNotShareable(displayName)
         }
 
-        let processObjectID = try translatePIDToProcessObject(app.processIdentifier, displayName: displayName)
-        let tapID = try createProcessTap(processObjectID: processObjectID, displayName: displayName)
+        let tapID: AudioObjectID
+        if #available(macOS 26, *) {
+            tapID = try createProcessTap(bundleIdentifier: bundleIdentifier, displayName: displayName)
+        } else {
+            let processObjectID = try translatePIDToProcessObject(app.processIdentifier, displayName: displayName)
+            tapID = try createProcessTap(
+                bundleIdentifier: bundleIdentifier,
+                processObjectID: processObjectID,
+                displayName: displayName
+            )
+        }
         do {
             let tapUID = try readTapUID(tapID)
             let sourceASBD = try readTapFormat(tapID)
-            let aggregateDeviceID = try createAggregateDevice(tapUID: tapUID, displayName: displayName)
+            let aggregateUID = "app.djmemory.process-tap.\(UUID().uuidString)"
+            let aggregateDeviceID = try createAggregateDevice(
+                tapUID: tapUID,
+                aggregateUID: aggregateUID,
+                displayName: displayName
+            )
+            self.aggregateDeviceUID = aggregateUID
             self.aggregateDeviceID = aggregateDeviceID
             try capture.start(
                 deviceID: aggregateDeviceID,
@@ -439,6 +489,7 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
         tapID = AudioObjectID(kAudioObjectUnknown)
         targetBundleIdentifier = ""
         targetDisplayName = ""
+        aggregateDeviceUID = nil
     }
 
     public func beginRecordingFile() throws {
@@ -476,14 +527,32 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
         return processObjectID
     }
 
-    private func createProcessTap(processObjectID: AudioObjectID, displayName: String) throws -> AudioObjectID {
+    private func createProcessTap(
+        bundleIdentifier: String,
+        processObjectID: AudioObjectID? = nil,
+        displayName: String
+    ) throws -> AudioObjectID {
         guard #available(macOS 14.2, *) else {
             throw AppAudioCaptureError.engineFailed("Process Audio Tap requires macOS 14.2 or later.")
         }
-        let description = CATapDescription(stereoMixdownOfProcesses: [processObjectID])
-        description.name = "DJMemory \(displayName)"
-        description.isPrivate = true
-        description.muteBehavior = CATapMuteBehavior(rawValue: 0) ?? description.muteBehavior
+        let description: CATapDescription
+        if #available(macOS 26, *) {
+            description = CATapDescription()
+            description.name = "DJMemory \(displayName)"
+            description.bundleIDs = [bundleIdentifier]
+            description.isProcessRestoreEnabled = true
+            description.isPrivate = true
+            description.isMixdown = true
+            description.muteBehavior = CATapMuteBehavior(rawValue: 0) ?? description.muteBehavior
+        } else {
+            guard let processObjectID else {
+                throw AppAudioCaptureError.appNotShareable(displayName)
+            }
+            description = CATapDescription(stereoMixdownOfProcesses: [processObjectID])
+            description.name = "DJMemory \(displayName)"
+            description.isPrivate = true
+            description.muteBehavior = CATapMuteBehavior(rawValue: 0) ?? description.muteBehavior
+        }
 
         var newTapID = AudioObjectID(kAudioObjectUnknown)
         let status = AudioHardwareCreateProcessTap(description, &newTapID)
@@ -524,15 +593,14 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
         return asbd
     }
 
-    private func createAggregateDevice(tapUID: String, displayName: String) throws -> AudioObjectID {
-        let uid = "app.djmemory.process-tap.\(UUID().uuidString)"
+    private func createAggregateDevice(tapUID: String, aggregateUID: String, displayName: String) throws -> AudioObjectID {
         let tapList: [[String: Any]] = [[
             kAudioSubTapUIDKey: tapUID,
             kAudioSubTapDriftCompensationKey: true
         ]]
         let description: [String: Any] = [
             kAudioAggregateDeviceNameKey: "DJMemory \(displayName) Tap",
-            kAudioAggregateDeviceUIDKey: uid,
+            kAudioAggregateDeviceUIDKey: aggregateUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceTapAutoStartKey: true,
             kAudioAggregateDeviceTapListKey: tapList

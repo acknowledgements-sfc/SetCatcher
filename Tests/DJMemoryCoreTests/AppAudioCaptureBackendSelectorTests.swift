@@ -43,7 +43,22 @@ final class AppAudioCaptureBackendSelectorTests: XCTestCase {
         )
     }
 
-    func testPrefersSeratoVirtualDeviceWhenSeratoIsRunning() {
+    func testVendorFallbackSelectionUsesSeratoVirtualDeviceWhenEnabled() {
+        let selection = AppAudioCaptureBackendSelector.vendorFallbackSelection(
+            targetSoftware: Self.serato,
+            inputDevices: [Self.seratoVirtualAudio],
+            runningSoftwareIDs: ["serato"],
+            virtualEnabled: true
+        )
+        guard case .virtualInputDevice(let device, let softwareID) = selection else {
+            return XCTFail("expected virtualInputDevice, got \(String(describing: selection))")
+        }
+        XCTAssertEqual(device.id, Self.seratoVirtualAudio.id)
+        XCTAssertEqual(softwareID, "serato")
+        XCTAssertEqual(selection?.kind, .virtualInputDevice)
+    }
+
+    func testPreferredSelectionAlwaysUsesApplePathsFirst() {
         let selection = AppAudioCaptureBackendSelector.preferredSelection(
             targetSoftware: Self.serato,
             inputDevices: [Self.seratoVirtualAudio],
@@ -52,12 +67,7 @@ final class AppAudioCaptureBackendSelectorTests: XCTestCase {
             forceScreenCaptureKit: false,
             virtualEnabled: true
         )
-        guard case .virtualInputDevice(let device, let softwareID) = selection else {
-            return XCTFail("expected virtualInputDevice, got \(selection)")
-        }
-        XCTAssertEqual(device.id, Self.seratoVirtualAudio.id)
-        XCTAssertEqual(softwareID, "serato")
-        XCTAssertEqual(selection.kind, .virtualInputDevice)
+        XCTAssertEqual(selection, .processAudioTap)
     }
 
     func testExplicitDisableFallsBackToProcessAudioTap() {

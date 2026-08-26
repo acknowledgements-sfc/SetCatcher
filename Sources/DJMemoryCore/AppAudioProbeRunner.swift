@@ -1,11 +1,52 @@
 import Foundation
 
 #if os(macOS)
+/// Metadata-only probe result for invisible-capture bench scripts.
+public struct InvisibleCaptureProbeResult: Encodable, Sendable {
+    public let timestamp: String
+    public let softwareID: String
+    public let bundleIdentifier: String
+    public let backend: String
+    public let sourceDeviceUID: String?
+    public let peakLevel: Float
+    public let outcome: String
+    public let stagingBytes: Int?
+    public let archivePath: String?
+    public let libraryReconciled: Bool
+    public let applePathExhausted: Bool
+    public let forcedScreenCaptureKit: Bool
+}
+
 /// Headless App audio Capture probe (shared by `djmemory` CLI and `DJMemoryApp --app-audio-probe`).
 public enum AppAudioProbeRunner {
+    public static let defaultJSONLPath = "/tmp/djmemory-invisible-capture-results.jsonl"
+
+    public static func appendJSONL(_ result: InvisibleCaptureProbeResult, to path: String = defaultJSONLPath) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(result),
+              let line = String(data: data, encoding: .utf8)
+        else { return }
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: path),
+           let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            try? handle.seekToEnd()
+            if let payload = (line + "\n").data(using: .utf8) {
+                try? handle.write(contentsOf: payload)
+            }
+        } else {
+            try? (line + "\n").write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
     public static func run(softwareID: String?, seconds: Int) {
         let seconds = max(1, seconds)
+        let jsonlPath = ProcessInfo.processInfo.environment["DJMEMORY_INVISIBLE_CAPTURE_JSONL"]
+            ?? defaultJSONLPath
+        let forceSCK = ProcessInfo.processInfo.environment["DJMEMORY_FORCE_SCK_APP_AUDIO"] == "1"
         let semaphore = DispatchSemaphore(value: 0)
+        let isoFormatter = ISO8601DateFormatter()
 
         Task {
             defer { semaphore.signal() }
@@ -22,6 +63,25 @@ public enum AppAudioProbeRunner {
                 let apps = try await service.listShareableDJApps()
                 if apps.isEmpty {
                     print("targets: (none) — open a DJ app, or grant Screen & System Audio Recording.")
+                    if let softwareID {
+                        appendJSONL(
+                            InvisibleCaptureProbeResult(
+                                timestamp: isoFormatter.string(from: Date()),
+                                softwareID: softwareID,
+                                bundleIdentifier: "",
+                                backend: "none",
+                                sourceDeviceUID: nil,
+                                peakLevel: 0,
+                                outcome: "no_target",
+                                stagingBytes: nil,
+                                archivePath: nil,
+                                libraryReconciled: false,
+                                applePathExhausted: false,
+                                forcedScreenCaptureKit: forceSCK
+                            ),
+                            to: jsonlPath
+                        )
+                    }
                     return
                 }
                 for app in apps {
@@ -54,6 +114,9 @@ public enum AppAudioProbeRunner {
                         "device: \(device.name) uid=\(device.id) transport=\(device.transportType.archiveLabel)"
                     )
                 }
+                if let sourceUID = service.activeSourceDeviceUID {
+                    print("sourceDeviceUID: \(sourceUID)")
+                }
                 var peak: Float = 0
                 let ticks = max(1, seconds * 5)
                 for i in 0..<ticks {
@@ -65,13 +128,17 @@ public enum AppAudioProbeRunner {
                     }
                 }
                 print(String(format: "peak: %.4f", peak))
+                var outcome = "silent_meter"
+                var stagingBytes: Int?
+                var archivePath: String?
+                var libraryReconciled = false
                 if peak > 0.01 {
                     let recordingStartedAt = Date()
                     try service.beginRecordingFile()
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
                     if let result = try service.endRecordingFile(discard: false) {
-                        let size = (try? FileManager.default.attributesOfItem(atPath: result.stagingURL.path)[.size] as? NSNumber)?.intValue ?? 0
-                        print("staging: \(result.stagingURL.path) bytes=\(size)")
+                        stagingBytes = (try? FileManager.default.attributesOfItem(atPath: result.stagingURL.path)[.size] as? NSNumber)?.intValue
+                        print("staging: \(result.stagingURL.path) bytes=\(stagingBytes ?? 0)")
                         let session = try ArchiveService().ingestCapture(
                             stagingURL: result.stagingURL,
                             deviceID: result.deviceID,
@@ -82,28 +149,69 @@ public enum AppAudioProbeRunner {
                             captureBackend: result.captureBackend ?? service.activeBackendKind.archiveBackend,
                             captureDeviceTransport: result.deviceTransport?.archiveLabel
                         )
-                        guard let archiveURL = session.archiveURL else {
-                            print("ERROR: archive session missing archive URL \(session.id.uuidString)")
-                            return
-                        }
-                        print("archive: \(archiveURL.path)")
-                        print("metadata: \(ArchiveService().metadataURL(for: archiveURL).path)")
-                        let archivedIDs = try SessionLibrary().archivedMetadata().map(\.id)
-                        if archivedIDs.contains(session.id) {
-                            print("library: found \(session.id.uuidString)")
+                        if let archiveURL = session.archiveURL {
+                            archivePath = archiveURL.path
+                            print("archive: \(archiveURL.path)")
+                            print("metadata: \(ArchiveService().metadataURL(for: archiveURL).path)")
+                            let archivedIDs = try SessionLibrary().archivedMetadata().map(\.id)
+                            libraryReconciled = archivedIDs.contains(session.id)
+                            if libraryReconciled {
+                                print("library: found \(session.id.uuidString)")
+                            } else {
+                                print("library: missing \(session.id.uuidString)")
+                            }
+                            print("PASS meter+archive \(chosen.software.id)")
+                            outcome = "pass_meter_archive"
                         } else {
-                            print("library: missing \(session.id.uuidString)")
+                            print("ERROR: archive session missing archive URL \(session.id.uuidString)")
+                            outcome = "archive_missing_url"
                         }
-                        print("PASS meter+archive \(chosen.software.id)")
                     }
                 } else {
                     print("SILENT_METER — play audio through system output, or use Input device Capture if the mix is hardware-only.")
                     print("ARMED_OK \(chosen.software.id) — shareable + monitoring started; meter not verified.")
+                    outcome = "armed_ok_silent"
                 }
+                appendJSONL(
+                    InvisibleCaptureProbeResult(
+                        timestamp: isoFormatter.string(from: Date()),
+                        softwareID: chosen.software.id,
+                        bundleIdentifier: chosen.matchedBundleIdentifier,
+                        backend: service.activeBackendKind.rawValue,
+                        sourceDeviceUID: service.activeSourceDeviceUID,
+                        peakLevel: peak,
+                        outcome: outcome,
+                        stagingBytes: stagingBytes,
+                        archivePath: archivePath,
+                        libraryReconciled: libraryReconciled,
+                        applePathExhausted: service.appleAppAudioPathExhausted,
+                        forcedScreenCaptureKit: forceSCK
+                    ),
+                    to: jsonlPath
+                )
                 await service.stopMonitoring()
-                print("DONE")
+                print("DONE jsonl=\(jsonlPath)")
             } catch {
                 print("ERROR: \(error)")
+                if let softwareID {
+                    appendJSONL(
+                        InvisibleCaptureProbeResult(
+                            timestamp: isoFormatter.string(from: Date()),
+                            softwareID: softwareID,
+                            bundleIdentifier: "",
+                            backend: "error",
+                            sourceDeviceUID: nil,
+                            peakLevel: 0,
+                            outcome: "error:\(error)",
+                            stagingBytes: nil,
+                            archivePath: nil,
+                            libraryReconciled: false,
+                            applePathExhausted: service.appleAppAudioPathExhausted,
+                            forcedScreenCaptureKit: forceSCK
+                        ),
+                        to: jsonlPath
+                    )
+                }
             }
         }
 
