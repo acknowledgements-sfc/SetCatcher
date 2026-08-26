@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "DJMemory",
     platforms: [
-        .macOS(.v14),
+        .macOS("14.2"),
         .iOS(.v17)
     ],
     products: [
