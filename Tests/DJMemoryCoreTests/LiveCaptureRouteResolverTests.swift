@@ -217,13 +217,13 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
         let start = Date(timeIntervalSince1970: 1_000)
         let drafts = [Self.silentDJM]
 
-        _ = tracker.observe(drafts, level: 0.5, observing: true, now: start)
-        let loud = tracker.observe(drafts, level: 0.0, observing: true, now: start.addingTimeInterval(2))
+        _ = tracker.observe(drafts, monitoredDeviceID: "djm", level: 0.5, observing: true, now: start)
+        let loud = tracker.observe(drafts, monitoredDeviceID: "djm", level: 0.0, observing: true, now: start.addingTimeInterval(2))
         XCTAssertTrue(loud[0].detectionWindowComplete)
         XCTAssertTrue(LiveCaptureHardwareClassifier.isVerifiedFeed(loud[0]), "loud window should verify")
 
         // The room goes quiet. The old running-max would have latched 0.5 forever.
-        let quiet = tracker.observe(drafts, level: 0.0, observing: true, now: start.addingTimeInterval(4))
+        let quiet = tracker.observe(drafts, monitoredDeviceID: "djm", level: 0.0, observing: true, now: start.addingTimeInterval(4))
         XCTAssertTrue(quiet[0].detectionWindowComplete)
         XCTAssertFalse(LiveCaptureHardwareClassifier.isVerifiedFeed(quiet[0]), "silence must not stay verified")
     }
@@ -232,7 +232,7 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
         var tracker = LiveCaptureDetectionTracker()
         let start = Date(timeIntervalSince1970: 2_000)
         let drafts = [Self.silentDJM]
-        let idle = tracker.observe(drafts, level: 0.2, observing: false, now: start.addingTimeInterval(10))
+        let idle = tracker.observe(drafts, monitoredDeviceID: "djm", level: 0.2, observing: false, now: start.addingTimeInterval(10))
         XCTAssertFalse(idle[0].detectionWindowComplete)
         XCTAssertNil(idle[0].peakLevel)
     }
@@ -416,6 +416,65 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
         )
         XCTAssertEqual(decision.resolution.kind, .verifiedHardwareFeed)
         XCTAssertEqual(decision.resolution.feedGrade, .deckFeed)
+    }
+
+    func testMonitoringVirtualInputEmitsVendorRouteWithExactUID() {
+        let facts = LiveCaptureRouteFacts(
+            hardware: [],
+            vendorVirtualInput: Self.seratoVirtual,
+            vendorVirtualEnabled: true,
+            runningDJSoftwareIDs: ["serato"],
+            appAudioCapability: .available,
+            appAudio: AppAudioObservation(
+                capability: .available,
+                isMonitoring: true,
+                archiveBackend: .virtualInputDevice,
+                sourceDeviceUID: "sva-exact",
+                observedSignal: true
+            )
+        )
+        let decision = LiveCaptureRouteResolver.resolve(facts)
+        XCTAssertEqual(decision.resolution.kind, .vendorVirtualInput)
+        XCTAssertEqual(decision.resolution.backend, .vendorVirtualInput(deviceID: "sva-exact"))
+    }
+
+    func testMonitoringProcessTapEmitsExistingAppAudioBackend() {
+        let facts = LiveCaptureRouteFacts(
+            hardware: [],
+            runningDJSoftwareIDs: ["serato"],
+            appAudioCapability: .available,
+            appAudio: AppAudioObservation(
+                capability: .available,
+                isMonitoring: true,
+                archiveBackend: .processAudioTap,
+                observedSignal: true
+            )
+        )
+        let decision = LiveCaptureRouteResolver.resolve(facts)
+        XCTAssertEqual(decision.resolution.kind, .existingAppAudio)
+        XCTAssertEqual(decision.resolution.backend, .existingAppAudio(archiveBackend: .processAudioTap))
+    }
+
+    func testBlockedExistingAppAudioPrefersFrozenBackend() {
+        let facts = LiveCaptureRouteFacts(
+            hardware: [Self.verifiedXZ],
+            runningDJSoftwareIDs: ["serato"],
+            appAudioCapability: .available,
+            appAudio: AppAudioObservation(
+                capability: .available,
+                isMonitoring: true,
+                archiveBackend: .screenCaptureKit,
+                observedSignal: true
+            ),
+            session: LiveCaptureSessionContext(
+                phase: .recording,
+                currentKind: .existingAppAudio,
+                currentBackend: .existingAppAudio(archiveBackend: .processAudioTap),
+                recordingAlreadyActive: true
+            )
+        )
+        let decision = LiveCaptureRouteResolver.resolve(facts)
+        XCTAssertEqual(decision.resolution.backend, .existingAppAudio(archiveBackend: .processAudioTap))
     }
 
     // MARK: - Fixtures

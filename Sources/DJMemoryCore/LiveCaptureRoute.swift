@@ -196,6 +196,7 @@ public struct LiveCaptureSessionContext: Equatable, Sendable {
     public var phase: CapturePhase
     public var currentKind: LiveCaptureRouteKind?
     public var currentDeviceID: String?
+    public var currentBackend: LiveCaptureRecordingBackend?
     /// Signal observed on the *current route's own* device — not whatever input happens to
     /// be selected. Feeding a foreign device's level in here would fake a live feed.
     public var currentFeedIsProducingSignal: Bool
@@ -205,6 +206,7 @@ public struct LiveCaptureSessionContext: Equatable, Sendable {
         phase: .idle,
         currentKind: nil,
         currentDeviceID: nil,
+        currentBackend: nil,
         currentFeedIsProducingSignal: false,
         recordingAlreadyActive: false
     )
@@ -213,12 +215,14 @@ public struct LiveCaptureSessionContext: Equatable, Sendable {
         phase: CapturePhase = .idle,
         currentKind: LiveCaptureRouteKind? = nil,
         currentDeviceID: String? = nil,
+        currentBackend: LiveCaptureRecordingBackend? = nil,
         currentFeedIsProducingSignal: Bool = false,
         recordingAlreadyActive: Bool = false
     ) {
         self.phase = phase
         self.currentKind = currentKind
         self.currentDeviceID = currentDeviceID
+        self.currentBackend = currentBackend
         self.currentFeedIsProducingSignal = currentFeedIsProducingSignal
         self.recordingAlreadyActive = recordingAlreadyActive
     }

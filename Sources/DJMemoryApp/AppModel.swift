@@ -176,6 +176,7 @@ final class AppModel: ObservableObject {
     private var liveCaptureDetection = LiveCaptureDetectionTracker()
     private var lastLiveCaptureKind: LiveCaptureRouteKind?
     private var lastLiveCaptureDeviceID: String?
+    private var lastLiveCaptureBackend: LiveCaptureRecordingBackend?
     private var hardwareObservationCache: [String: (channels: Int, formatOK: Bool)] = [:]
     /// When true, profile mutations stay in memory (SwiftUI previews).
     private var suppressProfilePersistence = false
@@ -1972,8 +1973,7 @@ extension AppModel {
         next.inputLevel = tick.inputLevel
         applyLiveCaptureListening(
             to: &next,
-            observing: appAudioCaptureService.isMonitoring,
-            level: tick.inputLevel
+            hardwareMonitor: .unbound
         )
         captureState = next
 
@@ -2020,7 +2020,9 @@ extension AppModel {
                     captureBackend: result.captureBackend
                         ?? appAudioCaptureService.activeBackendKind.archiveBackend,
                     captureDeviceTransport: result.deviceTransport?.archiveLabel
-                        ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel
+                        ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel,
+                    captureInterrupted: result.captureInterrupted,
+                    captureInterruptionReason: result.captureInterruptionReason
                 )
                 notifyForNewArchive(session)
                 refresh()
@@ -2162,8 +2164,11 @@ extension AppModel {
         }
         applyLiveCaptureListening(
             to: &next,
-            observing: captureService.isMonitoring,
-            level: next.inputLevel
+            hardwareMonitor: LiveCaptureHardwareMonitorReading(
+                monitoredDeviceID: next.selectedDeviceID,
+                level: next.inputLevel,
+                observing: captureService.isMonitoring
+            )
         )
         captureState = next
         applyDualRoutePolicy()
@@ -2181,8 +2186,11 @@ extension AppModel {
         guard captureState.phase != .saving else { return }
         let observations = liveCaptureObservations(
             devices: captureState.devices,
-            level: captureState.inputLevel,
-            observing: captureService.isMonitoring
+            hardwareMonitor: LiveCaptureHardwareMonitorReading(
+                monitoredDeviceID: captureState.selectedDeviceID,
+                level: captureState.inputLevel,
+                observing: captureService.isMonitoring
+            )
         )
         // USB plug-in of a CDJ/player is not a capturable mix. Prefer a verified or
         // still-detecting mixer / all-in-one USB feed only.
@@ -2219,7 +2227,7 @@ extension AppModel {
             captureState = next
             let newSettings = settings.updating(captureMode: .appAudio)
             do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
-            publishLiveCaptureListening(observing: false, level: 0)
+            publishLiveCaptureListening(hardwareMonitor: .unbound)
             Task { await refreshAppAudioTargets(attemptAutoArm: true) }
             return
         }
@@ -2232,7 +2240,13 @@ extension AppModel {
            (captureState.phase == .idle || captureState.phase == .armed) {
             armInputCaptureWatching()
         }
-        publishLiveCaptureListening(observing: captureService.isMonitoring, level: captureState.inputLevel)
+        publishLiveCaptureListening(
+            hardwareMonitor: LiveCaptureHardwareMonitorReading(
+                monitoredDeviceID: captureState.selectedDeviceID,
+                level: captureState.inputLevel,
+                observing: captureService.isMonitoring
+            )
+        )
     }
 
     private func refreshHardwareObservationCache(from devices: [AudioInputDevice]) {
@@ -2248,25 +2262,25 @@ extension AppModel {
 
     private func liveCaptureObservations(
         devices: [AudioInputDevice],
-        level: Float,
-        observing: Bool
+        hardwareMonitor: LiveCaptureHardwareMonitorReading
     ) -> [HardwareInputObservation] {
-        let drafts = devices.filter(\.isLikelyPioneerDJHardware).map { device in
-            let cached = hardwareObservationCache[device.id]
-            return HardwareInputObservation(
-                device: device,
-                inputChannelCount: cached?.channels ?? 0,
-                formatIsSupported: cached?.formatOK ?? false
-            )
-        }
-        return liveCaptureDetection.observe(drafts, level: level, observing: observing, now: Date())
+        let drafts = LiveCaptureRouteFactsBuilder.pioneerDrafts(
+            from: devices,
+            cache: hardwareObservationCache
+        )
+        return liveCaptureDetection.observe(
+            drafts,
+            monitoredDeviceID: hardwareMonitor.monitoredDeviceID,
+            level: hardwareMonitor.level,
+            observing: hardwareMonitor.observing,
+            now: Date()
+        )
     }
 
     private func makeLiveCaptureFacts(
         devices: [AudioInputDevice],
         phase: CapturePhase,
-        level: Float,
-        observing: Bool,
+        hardwareMonitor: LiveCaptureHardwareMonitorReading,
         recordingAlreadyActive: Bool
     ) -> LiveCaptureRouteFacts {
         let running = currentDJSoftwareIDs()
@@ -2274,8 +2288,6 @@ extension AppModel {
             .compactMap { AudioInputDeviceCatalog.virtualAudioDevice(for: $0, in: devices) }
             .first
         let routingStatus = SeratoOutputRoutingAdapter().routingStatus(runningSoftwareIDs: running)
-        // Capability is permission, not process presence: a DJ app being open proves
-        // nothing about whether app audio can actually capture.
         let appAudioCapability: LiveCaptureAppAudioCapability
         if running.isEmpty {
             appAudioCapability = .unavailable
@@ -2284,8 +2296,6 @@ extension AppModel {
         } else {
             appAudioCapability = .permissionDenied
         }
-        // Observed app audio is what separates a laptop-software set from a standalone set
-        // with rekordbox merely open for library/Link.
         let observedLevel = appAudioCaptureService.currentInputLevel()
         let appAudio = AppAudioObservation(
             capability: appAudioCapability,
@@ -2297,59 +2307,59 @@ extension AppModel {
             observedSignal: LiveCaptureDetectionConfig.default.heardSignal(observedLevel),
             applePathExhausted: appAudioCaptureService.appleAppAudioPathExhausted
         )
-        // Signal on the current route's OWN device — feeding a foreign device's level here
-        // would fake a live feed.
-        let currentFeedIsProducingSignal: Bool
-        if lastLiveCaptureKind == .verifiedHardwareFeed,
-           let currentID = lastLiveCaptureDeviceID,
-           captureState.selectedDeviceID == currentID {
-            currentFeedIsProducingSignal = LiveCaptureDetectionConfig.default.heardSignal(level)
-        } else {
-            currentFeedIsProducingSignal = false
-        }
+        let hardware = liveCaptureObservations(devices: devices, hardwareMonitor: hardwareMonitor)
+        let currentFeedIsProducingSignal = LiveCaptureRouteFactsBuilder.hardwareFeedIsProducingSignal(
+            currentKind: lastLiveCaptureKind,
+            currentDeviceID: lastLiveCaptureDeviceID,
+            monitoredDeviceID: hardwareMonitor.monitoredDeviceID,
+            level: hardwareMonitor.level
+        )
 
-        return LiveCaptureRouteFacts(
-            hardware: liveCaptureObservations(devices: devices, level: level, observing: observing),
-            driverAvailability: DJMemoryAudioDriverIdentity.availability(in: devices),
-            vendorVirtualInput: vendor,
-            vendorVirtualEnabled: AppAudioCaptureBackendSelector.virtualAppAudioEnabled,
-            runningDJSoftwareIDs: running,
-            appAudioCapability: appAudioCapability,
-            appAudio: appAudio,
-            session: LiveCaptureSessionContext(
+        return LiveCaptureRouteFactsBuilder.build(
+            LiveCaptureRouteFactsBuilder.Input(
+                devices: devices,
+                hardwareObservationCache: hardwareObservationCache,
+                hardwareMonitor: hardwareMonitor,
+                hardware: hardware,
+                driverAvailability: DJMemoryAudioDriverIdentity.availability(in: devices),
+                vendorVirtualInput: vendor,
+                vendorVirtualEnabled: AppAudioCaptureBackendSelector.virtualAppAudioEnabled,
+                runningDJSoftwareIDs: running,
+                appAudioCapability: appAudioCapability,
+                appAudio: appAudio,
                 phase: phase,
                 currentKind: lastLiveCaptureKind,
                 currentDeviceID: lastLiveCaptureDeviceID,
+                currentBackend: lastLiveCaptureBackend,
                 currentFeedIsProducingSignal: currentFeedIsProducingSignal,
-                recordingAlreadyActive: recordingAlreadyActive
-            ),
-            routingAutomation: routingStatus.automation
+                recordingAlreadyActive: recordingAlreadyActive,
+                routingAutomation: routingStatus.automation
+            )
         )
     }
 
     private func applyLiveCaptureListening(
         to state: inout CaptureUIState,
-        observing: Bool,
-        level: Float
+        hardwareMonitor: LiveCaptureHardwareMonitorReading
     ) {
         let facts = makeLiveCaptureFacts(
             devices: state.devices,
             phase: state.phase,
-            level: level,
-            observing: observing,
+            hardwareMonitor: hardwareMonitor,
             recordingAlreadyActive: state.isRecording || captureService.isRecording || appAudioCaptureService.isWriting
         )
         let decision = LiveCaptureRouteResolver.resolve(facts)
         liveCaptureListening = decision.resolution.snapshot
         lastLiveCaptureKind = decision.resolution.kind
         lastLiveCaptureDeviceID = decision.resolution.sessionDeviceID
+        lastLiveCaptureBackend = decision.resolution.backend
         state.listeningState = decision.resolution.listeningState
         state.listeningSummary = decision.resolution.listeningSummary
     }
 
-    private func publishLiveCaptureListening(observing: Bool, level: Float) {
+    private func publishLiveCaptureListening(hardwareMonitor: LiveCaptureHardwareMonitorReading) {
         var next = captureState
-        applyLiveCaptureListening(to: &next, observing: observing, level: level)
+        applyLiveCaptureListening(to: &next, hardwareMonitor: hardwareMonitor)
         guard next.listeningState != captureState.listeningState
             || next.listeningSummary != captureState.listeningSummary
         else { return }
@@ -2527,8 +2537,11 @@ extension AppModel {
         next.inputLevel = tick.inputLevel
         applyLiveCaptureListening(
             to: &next,
-            observing: captureService.isMonitoring,
-            level: tick.inputLevel
+            hardwareMonitor: LiveCaptureHardwareMonitorReading(
+                monitoredDeviceID: captureState.selectedDeviceID,
+                level: tick.inputLevel,
+                observing: captureService.isMonitoring
+            )
         )
         captureState = next
 
@@ -2858,6 +2871,11 @@ extension AppModel {
     }
 
     private func applyAppAudioCaptureFailure(_ error: AppAudioCaptureError) {
+        let wasRecording = captureState.phase == .recording || appAudioCaptureService.isWriting
+        if case .streamStopped(let detail) = error, wasRecording {
+            salvageInterruptedAppAudioCapture(reason: detail)
+            return
+        }
         appAudioPollTask?.cancel()
         appAudioPollTask = nil
         let message: String
@@ -2880,7 +2898,7 @@ extension AppModel {
             phase = .failed(message)
         case .streamStopped(let detail):
             message = "App audio Capture stopped: \(detail). Retry to resume watching. Folder Protection still works."
-            phase = .failed(message)
+            phase = .armed
         case .alreadyMonitoring:
             message = "App audio Capture is already armed."
             phase = .watching
@@ -2901,13 +2919,82 @@ extension AppModel {
         failed.phase = phase
         failed.inputLevel = 0
         failed.statusMessage = message
+        if case .streamStopped = error {
+            failed.listeningState = .recoveryNeeded
+            failed.listeningSummary = message
+        }
         captureState = failed
         statusMessage = message
         switch error {
-        case .alreadyMonitoring, .alreadyWriting, .notWriting:
+        case .alreadyMonitoring, .alreadyWriting, .notWriting, .streamStopped:
             break
         default:
             Task { await appAudioCaptureService.stopMonitoring() }
         }
+    }
+
+    private func salvageInterruptedAppAudioCapture(reason: String) {
+        var saving = captureState
+        saving.phase = .saving
+        saving.statusMessage = "Saving interrupted take…"
+        captureState = saving
+        do {
+            let result = try appAudioCaptureService.endRecordingFile(discard: false)
+            if let result {
+                let interrupted = CaptureResult(
+                    stagingURL: result.stagingURL,
+                    deviceID: result.deviceID,
+                    deviceName: result.deviceName,
+                    startedAt: result.startedAt,
+                    endedAt: result.endedAt,
+                    captureRoute: result.captureRoute,
+                    captureBackend: result.captureBackend,
+                    deviceTransport: result.deviceTransport,
+                    captureInterrupted: true,
+                    captureInterruptionReason: reason
+                )
+                let session = try archiveService().ingestCapture(
+                    stagingURL: interrupted.stagingURL,
+                    deviceID: interrupted.deviceID,
+                    deviceName: interrupted.deviceName,
+                    startedAt: interrupted.startedAt,
+                    endedAt: interrupted.endedAt,
+                    sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID,
+                    captureRoute: interrupted.captureRoute ?? .appAudio,
+                    captureBackend: interrupted.captureBackend
+                        ?? appAudioCaptureService.activeBackendKind.archiveBackend,
+                    captureDeviceTransport: interrupted.deviceTransport?.archiveLabel
+                        ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel,
+                    captureInterrupted: true,
+                    captureInterruptionReason: reason
+                )
+                notifyForNewArchive(session)
+                refresh()
+                var done = captureState
+                done.phase = .armed
+                done.listeningState = .recoveryNeeded
+                done.listeningSummary = "App audio stream stopped. Retry to resume watching."
+                done.lastArchivedSessionID = session.id
+                done.statusMessage = "Interrupted take saved to your archive."
+                captureState = done
+                statusMessage = done.statusMessage
+            } else {
+                var failed = captureState
+                failed.phase = .armed
+                failed.listeningState = .recoveryNeeded
+                failed.listeningSummary = "App audio stream stopped. Retry to resume watching."
+                failed.statusMessage = "App audio stream stopped before a file could be saved."
+                captureState = failed
+            }
+        } catch {
+            var failed = captureState
+            failed.phase = .armed
+            failed.listeningState = .recoveryNeeded
+            failed.listeningSummary = "App audio stream stopped. Retry to resume watching."
+            failed.statusMessage = "Could not save interrupted take: \(error.localizedDescription)"
+            captureState = failed
+        }
+        appAudioPollTask?.cancel()
+        appAudioPollTask = nil
     }
 }

@@ -1,0 +1,105 @@
+import XCTest
+@testable import DJMemoryCore
+
+final class LiveCaptureRouteFactsBuilderTests: XCTestCase {
+    private static let djm = AudioInputDevice(
+        id: "djm", name: "DJM-V10", manufacturer: "Pioneer DJ", transportType: .usb
+    )
+
+    func testPioneerDraftsUseCacheChannelsAndFormat() {
+        let drafts = LiveCaptureRouteFactsBuilder.pioneerDrafts(
+            from: [Self.djm],
+            cache: ["djm": (channels: 2, formatOK: true)]
+        )
+        XCTAssertEqual(drafts.count, 1)
+        XCTAssertEqual(drafts[0].inputChannelCount, 2)
+        XCTAssertTrue(drafts[0].formatIsSupported)
+        XCTAssertNil(drafts[0].peakLevel)
+    }
+
+    func testHardwareFeedSignalRequiresExactMonitoredUID() {
+        XCTAssertTrue(
+            LiveCaptureRouteFactsBuilder.hardwareFeedIsProducingSignal(
+                currentKind: .verifiedHardwareFeed,
+                currentDeviceID: "djm",
+                monitoredDeviceID: "djm",
+                level: 0.5
+            )
+        )
+        XCTAssertFalse(
+            LiveCaptureRouteFactsBuilder.hardwareFeedIsProducingSignal(
+                currentKind: .verifiedHardwareFeed,
+                currentDeviceID: "djm",
+                monitoredDeviceID: "other",
+                level: 0.5
+            )
+        )
+        XCTAssertFalse(
+            LiveCaptureRouteFactsBuilder.hardwareFeedIsProducingSignal(
+                currentKind: .verifiedHardwareFeed,
+                currentDeviceID: "djm",
+                monitoredDeviceID: nil,
+                level: 0.5
+            )
+        )
+    }
+
+    func testAppAudioLevelDoesNotVerifyUnmonitoredHardware() {
+        var tracker = LiveCaptureDetectionTracker()
+        let draft = HardwareInputObservation(
+            device: Self.djm,
+            inputChannelCount: 2,
+            formatIsSupported: true
+        )
+        let start = Date(timeIntervalSince1970: 3_000)
+        let observed = tracker.observe(
+            [draft],
+            monitoredDeviceID: nil,
+            level: 0.8,
+            observing: true,
+            now: start.addingTimeInterval(3)
+        )
+        XCTAssertNil(observed[0].peakLevel)
+        XCTAssertFalse(LiveCaptureHardwareClassifier.isVerifiedFeed(observed[0]))
+    }
+
+    func testBuildIncludesFrozenBackendInSession() {
+        let facts = LiveCaptureRouteFactsBuilder.build(
+            LiveCaptureRouteFactsBuilder.Input(
+                currentKind: .existingAppAudio,
+                currentBackend: .existingAppAudio(archiveBackend: .screenCaptureKit),
+                recordingAlreadyActive: true
+            )
+        )
+        XCTAssertEqual(facts.session.currentBackend, .existingAppAudio(archiveBackend: .screenCaptureKit))
+    }
+}
+
+#if os(macOS)
+final class InvisibleCaptureProbeEvaluatorTests: XCTestCase {
+    func testPassRequiresAllGates() {
+        let good = InvisibleCaptureProbePassInput(
+            peakLevel: 0.5,
+            rmsLevel: 0.2,
+            framesWritten: 48_000,
+            stagingBytes: 192_000,
+            wavValid: true,
+            archivePath: "/tmp/test.wav",
+            libraryReconciled: true
+        )
+        XCTAssertTrue(InvisibleCaptureProbeEvaluator.passes(good))
+
+        var silent = good
+        silent = InvisibleCaptureProbePassInput(
+            peakLevel: 0.001,
+            rmsLevel: good.rmsLevel,
+            framesWritten: good.framesWritten,
+            stagingBytes: good.stagingBytes,
+            wavValid: good.wavValid,
+            archivePath: good.archivePath,
+            libraryReconciled: good.libraryReconciled
+        )
+        XCTAssertFalse(InvisibleCaptureProbeEvaluator.passes(silent))
+    }
+}
+#endif

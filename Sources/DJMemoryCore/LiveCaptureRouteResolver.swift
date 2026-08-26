@@ -97,6 +97,7 @@ public struct LiveCaptureDetectionTracker: Equatable, Sendable {
 
     public mutating func observe(
         _ drafts: [HardwareInputObservation],
+        monitoredDeviceID: String?,
         level: Float,
         observing: Bool,
         now: Date,
@@ -124,24 +125,34 @@ public struct LiveCaptureDetectionTracker: Equatable, Sendable {
             }
         }
 
-        if windowStartedAt == nil { windowStartedAt = now }
-        peakLevel = max(peakLevel, level)
-        let complete = windowStartedAt.map { now.timeIntervalSince($0) >= config.windowSeconds } == true
-        let reportedPeak = peakLevel
-        if complete {
-            // Re-arm: the next verdict must be earned by fresh audio, not by history.
-            windowStartedAt = now
-            peakLevel = level
+        var complete = false
+        var reportedPeak: Float?
+        if let monitoredDeviceID,
+           drafts.contains(where: { $0.device.id == monitoredDeviceID }) {
+            if windowStartedAt == nil { windowStartedAt = now }
+            peakLevel = max(peakLevel, level)
+            complete = windowStartedAt.map { now.timeIntervalSince($0) >= config.windowSeconds } == true
+            reportedPeak = peakLevel
+            if complete {
+                // Re-arm: the next verdict must be earned by fresh audio, not by history.
+                windowStartedAt = now
+                peakLevel = level
+            }
+            lastWindowComplete = complete
+        } else {
+            windowStartedAt = nil
+            peakLevel = 0
+            lastWindowComplete = false
         }
-        lastWindowComplete = complete
 
         return drafts.map { draft in
-            HardwareInputObservation(
+            let isMonitored = draft.device.id == monitoredDeviceID
+            return HardwareInputObservation(
                 device: draft.device,
                 inputChannelCount: draft.inputChannelCount,
                 formatIsSupported: draft.formatIsSupported,
-                peakLevel: reportedPeak,
-                detectionWindowComplete: complete
+                peakLevel: isMonitored ? reportedPeak : nil,
+                detectionWindowComplete: isMonitored ? complete : false
             )
         }
     }
@@ -282,6 +293,18 @@ public enum LiveCaptureRouteResolver {
 
         if facts.appAudio.isMonitoring {
             let active = facts.appAudioIsProducing
+            if facts.appAudio.archiveBackend == .virtualInputDevice,
+               let vendorUID = facts.appAudio.sourceDeviceUID ?? facts.vendorVirtualInput?.id,
+               !vendorUID.isEmpty
+            {
+                return LiveCaptureResolution(
+                    kind: .vendorVirtualInput,
+                    listeningState: active ? listeningState : .detecting,
+                    listeningSummary: active ? summary : LiveCaptureCopy.waitingForAudio,
+                    backend: .vendorVirtualInput(deviceID: vendorUID),
+                    rigMode: mode
+                )
+            }
             return LiveCaptureResolution(
                 kind: .existingAppAudio,
                 listeningState: active ? listeningState : .detecting,
@@ -397,13 +420,15 @@ public enum LiveCaptureRouteResolver {
             return reconstructVendor(facts)
         case .existingAppAudio:
             guard facts.appAudioCapability == .available else { return nil }
-            let backend = facts.appAudio.archiveBackend ?? .processAudioTap
+            let backend = facts.session.currentBackend ?? facts.appAudio.archiveBackend.map {
+                LiveCaptureRecordingBackend.existingAppAudio(archiveBackend: $0)
+            } ?? .existingAppAudio(archiveBackend: .processAudioTap)
             let active = facts.appAudioIsProducing
             return LiveCaptureResolution(
                 kind: .existingAppAudio,
                 listeningState: active ? .laptopDriverActive : .detecting,
                 listeningSummary: active ? LiveCaptureCopy.laptopDriverActive : LiveCaptureCopy.waitingForAudio,
-                backend: .existingAppAudio(archiveBackend: backend),
+                backend: backend,
                 rigMode: rigMode(facts)
             )
         case .unavailable:
@@ -418,6 +443,20 @@ public enum LiveCaptureRouteResolver {
     }
 
     private static func reconstructVerifiedHardware(_ facts: LiveCaptureRouteFacts) -> LiveCaptureResolution? {
+        if case .hardwareInput(let frozenID) = facts.session.currentBackend,
+           let observation = facts.hardware.first(where: { $0.device.id == frozenID }),
+           LiveCaptureHardwareClassifier.isUsable(observation) {
+            let grade = LiveCaptureHardwareClassifier.grade(for: observation.device)
+            return LiveCaptureResolution(
+                kind: .verifiedHardwareFeed,
+                listeningState: .hardwareFeedActive,
+                listeningSummary: LiveCaptureCopy.hardwareFeedActive(deviceName: observation.device.name, grade: grade),
+                backend: .hardwareInput(deviceID: frozenID),
+                hardwareDeviceID: frozenID,
+                feedGrade: grade,
+                rigMode: rigMode(facts)
+            )
+        }
         let assessment = LiveCaptureHardwareClassifier.assess(facts.hardware, detection: facts.detection)
         if case .verified(let deviceID, let displayName, let grade) = assessment {
             return LiveCaptureResolution(
@@ -467,10 +506,14 @@ public enum LiveCaptureRouteResolver {
     }
 
     private static func reconstructVendor(_ facts: LiveCaptureRouteFacts) -> LiveCaptureResolution? {
-        // Only reconstruct against a vendor device that is actually present.
-        guard let deviceID = facts.vendorVirtualInput?.id ?? facts.session.currentDeviceID,
-              !deviceID.isEmpty,
-              facts.vendorVirtualInput != nil
+        let deviceID: String?
+        if case .vendorVirtualInput(let id) = facts.session.currentBackend {
+            deviceID = id
+        } else {
+            deviceID = facts.appAudio.sourceDeviceUID ?? facts.vendorVirtualInput?.id ?? facts.session.currentDeviceID
+        }
+        guard let deviceID, !deviceID.isEmpty,
+              facts.vendorVirtualInput != nil || facts.appAudio.archiveBackend == .virtualInputDevice
         else { return nil }
         return LiveCaptureResolution(
             kind: .vendorVirtualInput,
