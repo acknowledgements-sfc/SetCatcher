@@ -8,9 +8,11 @@ struct HeaderView: View {
         HStack(alignment: .center, spacing: 16) {
             Image(systemName: model.protectionSymbolName)
                 .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(model.protectedAdapterCount > 0 ? DJToken.ok : DJToken.mutedForeground)
+                .foregroundStyle(HomeFormatting.protectionTone(model.protectionState).color)
 
             VStack(alignment: .leading, spacing: 4) {
+                Text("Protection status")
+                    .microLabelStyle()
                 Text(model.headlineStatus)
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(DJToken.foreground)

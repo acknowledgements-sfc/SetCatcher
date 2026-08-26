@@ -586,7 +586,7 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
     private var stream: SCStream?
     private var audioFile: AVAudioFile?
     private var stagingURL: URL?
-    /// Canonical 24-bit / 48 kHz write target; also the format the pre-roll ring is stored in.
+    /// Canonical 16-bit / 48 kHz write target; also the format the pre-roll ring is stored in.
     private var writeFormat: AVAudioFormat?
     /// Adapted Float32 source format of the current ScreenCaptureKit stream.
     private var sourceFormat: AVAudioFormat?
@@ -958,7 +958,7 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
             return
         }
         guard let converted = conversion.buffer else {
-            lastFormatMismatchDetail = "App audio Capture could not convert to 24-bit / 48 kHz."
+            lastFormatMismatchDetail = "App audio Capture could not convert to 16-bit / 48 kHz."
             return
         }
 

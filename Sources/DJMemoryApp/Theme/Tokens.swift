@@ -3,6 +3,10 @@ import SwiftUI
 
 /// Shared design tokens for DJMemoryApp (HANDOFF.md §2).
 /// Views use these names only — do not hardcode hex in view files.
+///
+/// Appearance note: the app is pinned to dark (`.preferredColorScheme(.dark)` at
+/// the root). The `light:` values below are kept for the token API shape but are
+/// effectively dormant — every surface resolves to its dark value in normal use.
 enum DJToken {
     static let background = Color.djDynamic(
         light: (0xF2, 0xF2, 0xF4, 1),
@@ -93,6 +97,72 @@ enum DJToken {
     static func accent(forAppID id: String) -> Color {
         appAccents[id] ?? primary
     }
+
+    /// Menu bar status-item semantic colors (design handoff: DJMemory Menu Bar).
+    /// Constant across appearance — matches the dark-only menu bar chrome.
+    enum MenuBarStatus {
+        static let watching = Color(srgbHex: 0x8A8A92)
+        static let armed = Color(srgbHex: 0xE8B800)
+        static let capturing = danger
+        static let saved = Color(srgbHex: 0x0A84FF)
+    }
+}
+
+// MARK: - Redesign hero language (dark-always)
+
+extension DJToken {
+    /// Immersive gradient grounds for the redesign's hero surfaces. Ported from the
+    /// "DJMemory Bold Directions" mockups. Fixed (not appearance-adaptive) by design.
+    enum Ground {
+        /// Near-black base painted behind every screen so panels read on one field.
+        static let base = Color(srgbHex: 0x0C0C0E)
+
+        /// Home / Status — cool, breathing from the top. `radial(120% 90% at 50% -10%)`.
+        static var home: EllipticalGradient {
+            EllipticalGradient(
+                colors: [Color(srgbHex: 0x141821), Color(srgbHex: 0x08090C)],
+                center: UnitPoint(x: 0.5, y: -0.1),
+                startRadiusFraction: 0,
+                endRadiusFraction: 0.95
+            )
+        }
+
+        /// Capture — warm red glow from the centre. `radial(90% 70% at 50% 50%)`.
+        static var capture: EllipticalGradient {
+            EllipticalGradient(
+                colors: [Color(srgbHex: 0x241012), Color(srgbHex: 0x09070A)],
+                center: .center,
+                startRadiusFraction: 0,
+                endRadiusFraction: 0.75
+            )
+        }
+
+        /// Onboarding — warm ink, first-run warmth. `linear(160deg, #17130f, #0c0a08)`.
+        static var onboarding: LinearGradient {
+            LinearGradient(
+                colors: [Color(srgbHex: 0x17130F), Color(srgbHex: 0x0C0A08)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    /// Bright, fixed signal roles. Colour always carries meaning here, never decoration;
+    /// every use is backed by a micro-label or dot so state never rests on hue alone.
+    static let signalGreen = Color(srgbHex: 0x4BD07A)       // protected / watching / ok
+    static let signalGreenBright = Color(srgbHex: 0x8EE6A8) // waveform top stop
+    static let signalGreenDeep = Color(srgbHex: 0x39B46A)   // waveform bottom stop
+    static let recordRed = Color(srgbHex: 0xFF4D3D)         // recording / danger
+    static let recordRedBright = Color(srgbHex: 0xFF8A7A)   // record waveform top stop
+    static let warmGold = Color(srgbHex: 0xE9C98A)          // onboarding / first-run warmth
+}
+
+extension DJToken.TypeSize {
+    /// Display scale for hero headlines (redesign only). Dense UI keeps the sizes above.
+    static let eyebrow: CGFloat = 11        // uppercase status eyebrows
+    static let displayHero: CGFloat = 76    // "Protected." status headline
+    static let displayTimecode: CGFloat = 96 // live capture timecode (mono)
+    static let displayOnboarding: CGFloat = 46 // first-run headline
 }
 
 enum StatusTone {

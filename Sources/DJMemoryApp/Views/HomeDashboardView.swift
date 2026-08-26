@@ -5,8 +5,8 @@ struct HomeDashboardView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HomeIdentityBand()
+        VStack(alignment: .leading, spacing: 16) {
+            HomeHeroBand()
             HomeAttentionBanners()
             HStack(alignment: .top, spacing: 12) {
                 HomeLastSetPanel()
@@ -27,7 +27,6 @@ struct HomeDashboardView: View {
                 HomeTagsPanel()
                     .frame(width: 320)
             }
-            HomeDJAppsSection()
             HomeFooter()
         }
         .frame(maxWidth: 1180, alignment: .leading)

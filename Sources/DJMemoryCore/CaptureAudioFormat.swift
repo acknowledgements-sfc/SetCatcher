@@ -1,11 +1,17 @@
 import AVFoundation
 import Foundation
 
-/// Canonical capture write format: 24-bit linear PCM stereo at 48 kHz.
+/// Canonical capture write format: 16-bit linear PCM stereo at 48 kHz.
+///
+/// Was 24-bit. `AVAudioFile` writing packed 24-bit integer PCM (`AVLinearPCMBitDepthKey: 24`)
+/// produced consistently corrupted audio across the whole recording, on both the app-audio and
+/// input-device capture paths and independent of the DSP vectorization work — 24-bit doesn't
+/// align to a byte/word boundary the way 16-bit does, and Float32→Int24 packing has known,
+/// longstanding bugs in AVFoundation. 16-bit is the standard, extensively-exercised path.
 public enum CaptureAudioFormat {
     public static let sampleRate: Double = 48_000
     public static let channelCount: AVAudioChannelCount = 2
-    public static let bitDepth: Int = 24
+    public static let bitDepth: Int = 16
 
     public static var writeSettings: [String: Any] {
         [

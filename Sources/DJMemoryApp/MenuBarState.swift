@@ -23,14 +23,27 @@ enum MenuBarState: Equatable {
         }
     }
 
+    /// Stable cache key for the rendered AppKit image. Associated app names affect the adjacent
+    /// text label, not the icon artwork.
+    var iconCacheKey: String {
+        switch self {
+        case .launching, .ready: return "watching"
+        case .armed: return "armed"
+        case .capturing: return "capturing"
+        case .saving: return "saving"
+        case .saved: return "saved"
+        case .failed: return "failed"
+        }
+    }
+
+    /// Icon/status-dot color per the menu bar design handoff.
     var tint: Color? {
         switch self {
-        case .launching: return nil
-        case .ready, .armed: return .yellow
-        case .capturing: return .red
-        case .saving: return .blue
-        case .saved: return .blue
-        case .failed: return nil
+        case .launching, .ready: return DJToken.MenuBarStatus.watching
+        case .armed: return DJToken.MenuBarStatus.armed
+        case .capturing: return DJToken.MenuBarStatus.capturing
+        case .saving, .saved: return DJToken.MenuBarStatus.saved
+        case .failed: return DJToken.danger
         }
     }
 
@@ -46,8 +59,8 @@ enum MenuBarState: Equatable {
 
     var labelColor: Color {
         switch self {
-        case .capturing: return .white
-        default: return .primary
+        case .armed, .capturing: return .white
+        default: return tint ?? .primary
         }
     }
 

@@ -1,6 +1,8 @@
 import SwiftUI
 import DJMemoryCore
 
+/// First-run onboarding (design `1c`): setup reframed as a set coming to life. Each granted
+/// folder lights another segment of a warm build-waveform. Warm-ink ground, one serif accent.
 struct OnboardingView: View {
     @EnvironmentObject private var model: AppModel
     @State private var step: Step
@@ -30,189 +32,201 @@ struct OnboardingView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            stepRail
+        VStack(alignment: .leading, spacing: 20) {
+            topBar
 
-            Group {
-                switch step {
-                case .welcome:
-                    welcomeStep
-                case .djApps:
-                    djAppsStep
-                case .folderAccess:
-                    folderAccessStep
-                case .archive:
-                    archiveStep
-                case .history:
-                    historyStep
-                case .ready:
-                    readyStep
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            HeroHeader(
+                eyebrow: step.title,
+                eyebrowColor: DJToken.warmGold,
+                headline: copy.headline,
+                accentTail: copy.accent,
+                headlineSize: DJToken.TypeSize.displayOnboarding,
+                subline: copy.subline
+            )
+
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            Waveform(
+                seed: "onboarding-build",
+                barCount: 72,
+                gradient: (DJToken.warmGold, DJToken.warmGold.opacity(0.7)),
+                litFraction: litFraction
+            )
+            .frame(height: 84)
+
+            appChips
 
             footer
         }
-        .padding(28)
-        .frame(width: 640, height: 480)
+        .padding(32)
+        .frame(width: 720, height: 560)
+        .background(DJToken.Ground.onboarding)
+        .preferredColorScheme(.dark)
     }
 
-    private var stepRail: some View {
-        HStack(spacing: 8) {
-            ForEach(Step.allCases, id: \.rawValue) { item in
-                HStack(spacing: 4) {
-                    Image(systemName: item.rawValue < step.rawValue ? "checkmark.circle.fill" : (item == step ? "circle.fill" : "circle"))
-                        .font(.system(size: 10))
-                        .foregroundStyle(item.rawValue <= step.rawValue ? DJToken.primary : DJToken.mutedForeground)
-                    Text(item.title)
-                        .font(.system(size: DJToken.TypeSize.micro, weight: .semibold))
-                        .foregroundStyle(item == step ? DJToken.foreground : DJToken.mutedForeground)
-                }
-                .accessibilityIdentifier("onboarding.step.\(item.rawValue)")
-                if item != .ready {
-                    Rectangle()
-                        .fill(DJToken.hairline)
-                        .frame(height: 1)
-                        .frame(maxWidth: .infinity)
-                }
-            }
+    private var topBar: some View {
+        HStack(spacing: 11) {
+            EQGlyph()
+                .frame(width: 24, height: 24)
+                .foregroundStyle(DJToken.warmGold)
+            Text("DJMemory")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(white: 0.94))
+            Spacer()
+            Text("Step \(step.rawValue + 1) / \(Step.allCases.count)")
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .tracking(1.5)
+                .textCase(.uppercase)
+                .foregroundStyle(DJToken.warmGold.opacity(0.7))
         }
     }
 
-    private var welcomeStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("DJMemory keeps a backup of your recorded sets.")
-                .font(.system(size: DJToken.TypeSize.title, weight: .semibold))
-            Text("Choose the folders your DJ apps already record into. DJMemory copies completed recordings into your archive and leaves the originals untouched.")
-                .font(.system(size: DJToken.TypeSize.body))
-                .foregroundStyle(DJToken.mutedForeground)
-            Text("Audio files and full tracklists stay on this Mac. Nothing is uploaded.")
+    // MARK: Per-step copy
+
+    private var copy: (headline: String, accent: String?, subline: String) {
+        switch step {
+        case .welcome:
+            return ("Every set you play,", "remembered.",
+                    "Choose the folders your DJ apps already record into. DJMemory copies completed recordings and never touches the originals.")
+        case .djApps:
+            return ("We found your", "DJ apps.",
+                    "DJMemory watches the folders these already record into. Nothing is installed, nothing is changed.")
+        case .folderAccess:
+            return ("Grant one folder, and the set", "starts to take shape.",
+                    "\(grantedFolderCount) granted so far — pick another, or move on. Nothing leaves this Mac.")
+        case .archive:
+            return ("Protected copies land", "here.",
+                    "Source recordings stay where they are. DJMemory writes protected copies to your archive.")
+        case .history:
+            return ("Track history is", "optional.",
+                    "Import set histories later from each app’s setup screen. Skipping this step is safe.")
+        case .ready:
+            return ("You’re", "ready.",
+                    "DJMemory will watch granted folders and copy completed recordings into your archive.")
+        }
+    }
+
+    // MARK: Per-step interactive detail
+
+    @ViewBuilder
+    private var detail: some View {
+        switch step {
+        case .archive:
+            VStack(alignment: .leading, spacing: 10) {
+                PathChip(path: model.archiveRoot.path)
+                Button("Change Archive Folder") { model.chooseArchiveFolder() }
+                    .buttonStyle(DJHollowButtonStyle())
+                    .accessibilityIdentifier("onboarding.reviewArchive")
+            }
+        case .ready:
+            MetricTile(
+                label: "Protected sources",
+                value: "\(model.protectedAdapterCount)",
+                tone: model.protectedAdapterCount > 0 ? .ok : .warn
+            )
+        case .folderAccess where installedCount == 0:
+            Text("Install a DJ app, or use the chips below to choose folders manually.")
                 .font(.system(size: DJToken.TypeSize.secondary))
-                .foregroundStyle(DJToken.mutedForeground)
+                .foregroundStyle(DJToken.warn)
+        default:
+            EmptyView()
         }
     }
 
-    private var djAppsStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("DJ apps found on this Mac")
-                .font(.system(size: DJToken.TypeSize.body, weight: .semibold))
-            ForEach(model.probeResults, id: \.software.id) { result in
-                HStack {
-                    RoundedRectangle(cornerRadius: DJToken.Radius.swatch)
-                        .fill(DJToken.accent(forAppID: result.software.id))
-                        .frame(width: 3, height: 14)
-                    Text(result.software.displayName)
-                    Spacer()
-                    SupportBadge(status: result.software.supportStatus)
-                    Text(result.installedApplicationURLs.isEmpty ? "Not installed" : "Found")
-                        .font(.system(size: DJToken.TypeSize.secondary))
-                        .foregroundStyle(DJToken.mutedForeground)
-                }
+    // MARK: App chips (granted gold / found dim / not installed faint)
+
+    private var appChips: some View {
+        HStack(spacing: 9) {
+            ForEach(model.probeResults.prefix(6), id: \.software.id) { result in
+                chip(result)
             }
-            if installedCount == 0 {
-                Text("Install a DJ app, or continue and choose folders manually.")
-                    .font(.system(size: DJToken.TypeSize.secondary))
-                    .foregroundStyle(DJToken.warn)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func chip(_ result: SoftwareProbeResult) -> some View {
+        let granted = model.hasConfiguredRecordingsFolder(appID: result.software.id)
+        let installed = !result.installedApplicationURLs.isEmpty
+        let interactive = step == .folderAccess && !granted
+        return Button {
+            if interactive { model.chooseFolder(appID: result.software.id, kind: .recordings) }
+        } label: {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(granted ? DJToken.warmGold : Color.white.opacity(installed ? 0.35 : 0.15))
+                    .frame(width: 7, height: 7)
+                Text(result.software.displayName)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(chipText(granted: granted, installed: installed))
+                    .lineLimit(1)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                (granted ? DJToken.warmGold.opacity(0.14) : Color.white.opacity(0.04)),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule().stroke(
+                    granted ? DJToken.warmGold.opacity(0.4) : Color.white.opacity(0.1),
+                    lineWidth: 1
+                )
+            )
         }
+        .buttonStyle(.plain)
+        .disabled(!interactive)
+        .accessibilityIdentifier("onboarding.folder.\(result.software.id)")
     }
 
-    private var folderAccessStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Grant access to at least one recordings folder.")
-                .font(.system(size: DJToken.TypeSize.body, weight: .semibold))
-            ForEach(model.probeResults.prefix(5), id: \.software.id) { result in
-                HStack {
-                    Text(result.software.displayName)
-                    Spacer()
-                    if model.hasConfiguredRecordingsFolder(appID: result.software.id) {
-                        Badge(title: "Granted", tone: .ok)
-                    } else {
-                        Button("Choose Folder") {
-                            model.chooseFolder(appID: result.software.id, kind: .recordings)
-                        }
-                        .buttonStyle(DJSecondaryButtonStyle())
-                        .accessibilityIdentifier("onboarding.folder.\(result.software.id)")
-                    }
-                }
-            }
-        }
+    private func chipText(granted: Bool, installed: Bool) -> Color {
+        if granted { return Color(red: 0.94, green: 0.88, blue: 0.75) }
+        return Color.white.opacity(installed ? 0.6 : 0.35)
     }
 
-    private var archiveStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Archive location")
-                .font(.system(size: DJToken.TypeSize.body, weight: .semibold))
-            PathChip(path: model.archiveRoot.path)
-            Text("Source recordings stay where they are. DJMemory writes protected copies here.")
-                .font(.system(size: DJToken.TypeSize.secondary))
-                .foregroundStyle(DJToken.mutedForeground)
-            Button("Change Archive Folder") {
-                model.chooseArchiveFolder()
-            }
-            .buttonStyle(DJSecondaryButtonStyle())
-            .accessibilityIdentifier("onboarding.reviewArchive")
-        }
-    }
-
-    private var historyStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Track history is optional")
-                .font(.system(size: DJToken.TypeSize.body, weight: .semibold))
-            Text("You can import set histories later from each app’s setup screen. Skipping this step is safe.")
-                .font(.system(size: DJToken.TypeSize.body))
-                .foregroundStyle(DJToken.mutedForeground)
-        }
-    }
-
-    private var readyStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("You’re ready")
-                .font(.system(size: DJToken.TypeSize.title, weight: .semibold))
-            Text("DJMemory will watch granted folders and copy completed recordings into your archive.")
-                .font(.system(size: DJToken.TypeSize.body))
-                .foregroundStyle(DJToken.mutedForeground)
-            MetricTile(label: "Protected sources", value: "\(model.protectedAdapterCount)", tone: model.protectedAdapterCount > 0 ? .ok : .warn)
-        }
-    }
+    // MARK: Footer
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 8) {
             if step != .welcome {
                 Button("Back") {
-                    if let previous = Step(rawValue: step.rawValue - 1) {
-                        step = previous
-                    }
+                    if let previous = Step(rawValue: step.rawValue - 1) { step = previous }
                 }
                 .buttonStyle(DJGhostButtonStyle())
                 .accessibilityIdentifier("onboarding.back")
             }
 
-            Button("Skip setup") {
-                model.completeOnboarding()
-            }
-            .buttonStyle(DJGhostButtonStyle())
-            .accessibilityIdentifier("onboarding.skip")
+            Button("Skip setup") { model.completeOnboarding() }
+                .buttonStyle(DJGhostButtonStyle())
+                .accessibilityIdentifier("onboarding.skip")
 
             Spacer()
 
-            Button(step == .ready ? "Finish" : "Continue") {
-                advance()
+            Button { advance() } label: {
+                Text(step == .ready ? "Finish" : "Continue")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DJToken.Ground.base)
+                    .padding(.horizontal, 22)
+                    .frame(minHeight: 40)
+                    .background(DJToken.warmGold.opacity(canContinue ? 1 : 0.4), in: Capsule())
             }
-            .buttonStyle(DJPrimaryButtonStyle())
+            .buttonStyle(.plain)
             .disabled(!canContinue)
             .keyboardShortcut(.defaultAction)
             .accessibilityIdentifier(step == .ready ? "onboarding.startSetup" : "onboarding.continue")
         }
     }
 
-    private var installedCount: Int {
-        model.installedOrRunningProbeCount
+    // MARK: Progress + gating
+
+    private var litFraction: Double {
+        let stepProgress = Double(step.rawValue) / Double(Step.allCases.count - 1)
+        let folderProgress = Double(grantedFolderCount) / Double(max(1, model.probeResults.count))
+        return min(1, max(folderProgress, stepProgress * 0.7))
     }
 
-    private var grantedFolderCount: Int {
-        model.configuredRecordingsCount
-    }
+    private var installedCount: Int { model.installedOrRunningProbeCount }
+    private var grantedFolderCount: Int { model.configuredRecordingsCount }
 
     private var canContinue: Bool {
         switch step {
@@ -231,31 +245,23 @@ struct OnboardingView: View {
             model.scanNow()
             return
         }
-        if let next = Step(rawValue: step.rawValue + 1) {
-            step = next
-        }
+        if let next = Step(rawValue: step.rawValue + 1) { step = next }
     }
 }
 
-#Preview("Onboarding Welcome / light") {
-    OnboardingView(startingStep: .welcome)
-        .environmentObject(AppModel())
-        .preferredColorScheme(.light)
-}
-
-#Preview("Onboarding Welcome / dark") {
+#Preview("Onboarding Welcome") {
     OnboardingView(startingStep: .welcome)
         .environmentObject(AppModel())
         .preferredColorScheme(.dark)
 }
 
-#Preview("Onboarding Folder Access · Continue disabled / light") {
+#Preview("Onboarding Folder Access") {
     OnboardingView(startingStep: .folderAccess)
         .environmentObject(AppModel())
-        .preferredColorScheme(.light)
+        .preferredColorScheme(.dark)
 }
 
-#Preview("Onboarding Ready / dark") {
+#Preview("Onboarding Ready") {
     onboardingReadyPreview()
 }
 

@@ -52,7 +52,7 @@ struct SettingsView: View {
                         .foregroundStyle(DJToken.mutedForeground)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Capture writes 24-bit / 48 kHz stereo WAV. Audio stays on this Mac.")
+                Text("Capture writes 16-bit / 48 kHz stereo WAV. Audio stays on this Mac.")
                     .font(.system(size: DJToken.TypeSize.secondary))
                     .foregroundStyle(DJToken.mutedForeground)
             }

@@ -1,5 +1,7 @@
 import Foundation
 import CryptoKit
+import Darwin
+import os
 
 public enum ArchiveServiceError: Error, Equatable {
     case sourceFileMissing(URL)
@@ -10,6 +12,10 @@ public enum ArchiveServiceError: Error, Equatable {
 
 public struct ArchiveService {
     public static let defaultNamingTemplate = AppSettings.defaultArchiveNamingTemplate
+    private static let captureLifecycleLogger = Logger(
+        subsystem: "app.djmemory",
+        category: "capture-lifecycle"
+    )
 
     public let archiveRoot: URL
     private let fileManager: FileManager
@@ -138,8 +144,10 @@ public struct ArchiveService {
         captureBackend: CaptureArchiveBackend?,
         captureDeviceTransport: String?
     ) throws -> RecordingSession {
+        logCaptureIngest(event: "archive-ingest-entered", stagingURL: stagingURL)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: stagingURL.path, isDirectory: &isDirectory) else {
+            logCaptureIngest(event: "archive-source-missing", stagingURL: stagingURL)
             throw ArchiveServiceError.sourceFileMissing(stagingURL)
         }
         guard !isDirectory.boolValue else {
@@ -158,6 +166,7 @@ public struct ArchiveService {
             if removeStagingAfterCopy {
                 try? fileManager.removeItem(at: stagingURL)
             }
+            logCaptureIngest(event: "archive-ingest-completed", stagingURL: stagingURL)
             let session = RecordingSession(
                 sourceAppID: sourceAppID,
                 detectedAt: startedAt,
@@ -380,5 +389,14 @@ public struct ArchiveService {
         }
 
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func logCaptureIngest(event: String, stagingURL: URL) {
+        var info = stat()
+        let result = stagingURL.path.withCString { lstat($0, &info) }
+        let state = result == 0 ? "exists(bytes=\(info.st_size))" : "missing(errno=\(errno))"
+        Self.captureLifecycleLogger.notice(
+            "capture_lifecycle event=\(event, privacy: .public) path=\(stagingURL.path, privacy: .public) state=\(state, privacy: .public)"
+        )
     }
 }

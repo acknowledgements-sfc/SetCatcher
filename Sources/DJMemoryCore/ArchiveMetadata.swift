@@ -12,6 +12,7 @@ public enum CaptureArchiveBackend: String, Codable, Equatable, Sendable {
     case virtualInputDevice
     case processAudioTap
     case screenCaptureKit
+    case djmemoryVirtualDriver
 }
 
 public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {

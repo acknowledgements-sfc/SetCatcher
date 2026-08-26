@@ -13,7 +13,7 @@ public enum CapturePCMWriter {
     ) -> String? {
         let result = convert(buffer: buffer, converter: converter, writeFormat: writeFormat)
         if let detail = result.error { return detail }
-        guard let converted = result.buffer else { return "could not convert to 24-bit / 48 kHz." }
+        guard let converted = result.buffer else { return "could not convert to 16-bit / 48 kHz." }
         return write(buffer: converted, to: audioFile)
     }
 
@@ -27,7 +27,7 @@ public enum CapturePCMWriter {
         let ratio = writeFormat.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
         guard let converted = AVAudioPCMBuffer(pcmFormat: writeFormat, frameCapacity: max(capacity, 1)) else {
-            return (nil, "could not allocate a 24-bit / 48 kHz buffer.")
+            return (nil, "could not allocate a 16-bit / 48 kHz buffer.")
         }
 
         var error: NSError?
@@ -43,7 +43,7 @@ public enum CapturePCMWriter {
         }
         let status = converter.convert(to: converted, error: &error, withInputFrom: inputBlock)
         if status == .error || converted.frameLength == 0 {
-            return (nil, "could not convert to 24-bit / 48 kHz: \(error?.localizedDescription ?? "unknown error").")
+            return (nil, "could not convert to 16-bit / 48 kHz: \(error?.localizedDescription ?? "unknown error").")
         }
         return (converted, nil)
     }

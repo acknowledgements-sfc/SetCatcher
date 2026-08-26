@@ -21,7 +21,7 @@ final class CaptureServiceTests: XCTestCase {
         }
     }
 
-    func testLivePioneerInputRecords24Bit48kCapture() async throws {
+    func testLivePioneerInputRecords16Bit48kCapture() async throws {
         guard ProcessInfo.processInfo.environment["DJMEMORY_LIVE_XZ"] == "1" else {
             throw XCTSkip("Set DJMEMORY_LIVE_XZ=1 for the hardware bench.")
         }
@@ -72,7 +72,7 @@ final class CaptureServiceTests: XCTestCase {
         let info = try afinfo(archiveURL)
         print("LIVE_AFINFO \(info)")
         XCTAssertTrue(info.contains("48 kHz") || info.contains("48000"), info)
-        XCTAssertTrue(info.contains("24 bit") || info.contains("24-bit"), info)
+        XCTAssertTrue(info.contains("16 bit") || info.contains("16-bit"), info)
         XCTAssertTrue(info.contains("2 channels") || info.contains("2 ch") || info.contains("stereo"), info)
         FileManager.default.createFile(
             atPath: "/tmp/djmemory-live-xz-result.txt",

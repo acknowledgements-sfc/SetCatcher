@@ -1,7 +1,9 @@
 #if os(macOS)
 import AVFoundation
 import CoreAudio
+import Darwin
 import Foundation
+import os
 
 /// Device-agnostic Core Audio input pipeline shared by app-audio backends.
 ///
@@ -15,14 +17,23 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         let deviceTransport: AudioDeviceTransport?
     }
 
-    private(set) var isMonitoring = false
-    private(set) var isWriting = false
-    private(set) var startedAt: Date?
+    private var monitoring = false
+    private var writing = false
+    private var recordingStartedAt: Date?
 
     private let fileManager: FileManager
     private let stagingDirectory: URL
     private let sampleHandlerQueue: DispatchQueue
+    /// Serializes public lifecycle calls. The IOProc itself remains on
+    /// `sampleHandlerQueue`; it never takes this lock, so stopping/finalizing cannot deadlock
+    /// while waiting for a pending audio callback to finish.
+    private let lifecycleLock = NSLock()
     private let levelLock = NSLock()
+
+    private static let lifecycleLogger = Logger(
+        subsystem: "app.djmemory",
+        category: "capture-lifecycle"
+    )
 
     private var inputLevel: Float = 0
     private var audioDeviceID = AudioDeviceID(kAudioObjectUnknown)
@@ -40,6 +51,23 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
     private var prerollBuffers: [AVAudioPCMBuffer] = []
     private var prerollFrames: AVAudioFrameCount = 0
     private var prerollFrameBudget: AVAudioFrameCount = 0
+    private var operationID = UUID().uuidString
+
+    var isMonitoring: Bool {
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        return monitoring
+    }
+
+    var isWriting: Bool {
+        sampleHandlerQueue.sync { writing }
+    }
+
+    var startedAt: Date? {
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        return recordingStartedAt
+    }
 
     init(
         stagingDirectory: URL,
@@ -59,7 +87,9 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         filePrefix: String,
         resultMetadata: ResultMetadata
     ) throws {
-        guard !isMonitoring else { throw AppAudioCaptureError.alreadyMonitoring }
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        guard !monitoring else { throw AppAudioCaptureError.alreadyMonitoring }
         guard deviceID != kAudioObjectUnknown else {
             throw AppAudioCaptureError.engineFailed("\(sourceLabel) input device is unavailable.")
         }
@@ -88,6 +118,7 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         self.filePrefix = filePrefix
         self.resultMetadata = resultMetadata
         self.lastFormatMismatchDetail = nil
+        operationID = UUID().uuidString
         sampleHandlerQueue.sync {
             prerollBuffers.removeAll()
             prerollFrames = 0
@@ -116,26 +147,33 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
             resetConfiguration()
             throw statusError("start \(sourceLabel)", startStatus)
         }
-        isMonitoring = true
+        monitoring = true
+        logLifecycle(event: "monitoring-started", stagingURL: nil)
     }
 
     func stop() {
-        guard isMonitoring || ioProcID != nil else { return }
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        guard monitoring || ioProcID != nil else { return }
+        logLifecycle(event: "stop-entered", stagingURL: stagingURL)
         if isWriting {
-            _ = try? endRecordingFile(discard: true)
+            _ = try? endRecordingFileLocked(discard: true)
         }
         if let ioProcID, audioDeviceID != kAudioObjectUnknown {
             _ = AudioDeviceStop(audioDeviceID, ioProcID)
             _ = AudioDeviceDestroyIOProcID(audioDeviceID, ioProcID)
         }
         ioProcID = nil
-        isMonitoring = false
+        monitoring = false
         resetConfiguration()
         setInputLevel(0)
+        logLifecycle(event: "monitoring-stopped", stagingURL: nil)
     }
 
     func beginRecordingFile() throws {
-        guard isMonitoring else { throw AppAudioCaptureError.notMonitoring }
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        guard monitoring else { throw AppAudioCaptureError.notMonitoring }
         guard !isWriting else { throw AppAudioCaptureError.alreadyWriting }
 
         try fileManager.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
@@ -152,6 +190,7 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         }
         let fileFormat = newAudioFile.processingFormat
 
+        var prerollDuration: TimeInterval = 0
         sampleHandlerQueue.sync {
             var flushedFrames: AVAudioFrameCount = 0
             if let writeFormat, fileFormat.isEqual(writeFormat) {
@@ -164,33 +203,51 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
             prerollBuffers.removeAll()
             prerollFrames = 0
             audioFile = newAudioFile
-            let prerollDuration = Double(flushedFrames) / CaptureAudioFormat.sampleRate
-            startedAt = Date().addingTimeInterval(-prerollDuration)
-            isWriting = true
+            prerollDuration = Double(flushedFrames) / CaptureAudioFormat.sampleRate
+            writing = true
+            lastFormatMismatchDetail = nil
         }
+        recordingStartedAt = Date().addingTimeInterval(-prerollDuration)
         stagingURL = url
-        lastFormatMismatchDetail = nil
+        logLifecycle(event: "recording-created", stagingURL: url)
     }
 
     func endRecordingFile(discard: Bool) throws -> CaptureResult? {
-        guard isWriting else { throw AppAudioCaptureError.notWriting }
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        return try endRecordingFileLocked(discard: discard)
+    }
+
+    private func endRecordingFileLocked(discard: Bool) throws -> CaptureResult? {
+        var wasWriting = false
+        var formatMismatchDetail: String?
         sampleHandlerQueue.sync {
+            wasWriting = writing
             audioFile = nil
-            isWriting = false
+            writing = false
+            formatMismatchDetail = lastFormatMismatchDetail
         }
+        guard wasWriting else { throw AppAudioCaptureError.notWriting }
         let endedAt = Date()
-        let started = startedAt ?? endedAt
-        startedAt = nil
+        let started = recordingStartedAt ?? endedAt
+        recordingStartedAt = nil
         guard let stagingURL else {
             throw AppAudioCaptureError.engineFailed("Capture staging file is missing.")
         }
         self.stagingURL = nil
 
         if discard {
-            try? fileManager.removeItem(at: stagingURL)
+            logLifecycle(event: "recording-discard-before-remove", stagingURL: stagingURL)
+            do {
+                try fileManager.removeItem(at: stagingURL)
+                logLifecycle(event: "recording-discard-removed", stagingURL: stagingURL)
+            } catch {
+                logLifecycle(event: "recording-discard-remove-failed", stagingURL: stagingURL, detail: error.localizedDescription)
+            }
             return nil
         }
-        if let detail = lastFormatMismatchDetail {
+        if let detail = formatMismatchDetail {
+            logLifecycle(event: "recording-format-error", stagingURL: stagingURL, detail: detail)
             try? fileManager.removeItem(at: stagingURL)
             throw AppAudioCaptureError.engineFailed(detail)
         }
@@ -203,6 +260,7 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         guard let resultMetadata else {
             throw AppAudioCaptureError.engineFailed("Capture source metadata is missing.")
         }
+        logLifecycle(event: "recording-finalized", stagingURL: stagingURL)
         return CaptureResult(
             stagingURL: stagingURL,
             deviceID: resultMetadata.deviceID,
@@ -298,7 +356,7 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
             lastFormatMismatchDetail = "\(sourceLabel) could not convert to the capture format."
             return
         }
-        if isWriting, let audioFile {
+        if writing, let audioFile {
             if let detail = CapturePCMWriter.write(buffer: converted, to: audioFile) {
                 lastFormatMismatchDetail = "\(sourceLabel) \(detail)"
             } else {
@@ -322,17 +380,17 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
 
     private func resetConfiguration() {
         audioDeviceID = AudioDeviceID(kAudioObjectUnknown)
-        audioFile = nil
         stagingURL = nil
-        startedAt = nil
-        isWriting = false
-        sourceASBD = nil
-        sourceFormat = nil
-        writeFormat = nil
-        converter = nil
+        recordingStartedAt = nil
         resultMetadata = nil
-        lastFormatMismatchDetail = nil
         sampleHandlerQueue.sync {
+            audioFile = nil
+            writing = false
+            sourceASBD = nil
+            sourceFormat = nil
+            writeFormat = nil
+            converter = nil
+            lastFormatMismatchDetail = nil
             prerollBuffers.removeAll()
             prerollFrames = 0
             prerollFrameBudget = 0
@@ -347,6 +405,23 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         levelLock.lock()
         inputLevel = value
         levelLock.unlock()
+    }
+
+    private func logLifecycle(event: String, stagingURL: URL?, detail: String? = nil) {
+        let stagingState = stagingURL.map(fileStateDescription(at:)) ?? "none"
+        let path = stagingURL?.path ?? "none"
+        let message = detail ?? "none"
+        let thread = Thread.isMainThread ? "main" : "background"
+        Self.lifecycleLogger.notice(
+            "capture_lifecycle event=\(event, privacy: .public) operation=\(self.operationID, privacy: .public) thread=\(thread, privacy: .public) path=\(path, privacy: .public) state=\(stagingState, privacy: .public) detail=\(message, privacy: .public)"
+        )
+    }
+
+    private func fileStateDescription(at url: URL) -> String {
+        var info = stat()
+        let result = url.path.withCString { lstat($0, &info) }
+        guard result == 0 else { return "missing(errno=\(errno))" }
+        return "exists(bytes=\(info.st_size))"
     }
 }
 #endif

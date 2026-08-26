@@ -49,7 +49,12 @@ public final class CaptureService: @unchecked Sendable {
 
     private let fileManager: FileManager
     private let stagingDirectory: URL
-    private let engine = AVAudioEngine()
+    /// Lazy: constructing `AVAudioEngine` triggers CoreAudio HAL bring-up (device graph
+    /// negotiation, IO thread setup), which is measurably CPU-heavy for several seconds on
+    /// some machines. `CaptureService` is instantiated unconditionally on every launch
+    /// regardless of capture mode (default mode is App audio, not Input device), so eagerly
+    /// building the engine paid that cost on every launch even when it was never used.
+    private lazy var engine = AVAudioEngine()
     private var audioFile: AVAudioFile?
     private var stagingURL: URL?
     private var deviceID = ""
@@ -148,7 +153,7 @@ public final class CaptureService: @unchecked Sendable {
         let destinationFormat = newAudioFile.processingFormat
         guard let audioConverter = CaptureAudioFormat.makeConverter(from: inputFormat, to: destinationFormat) else {
             throw CaptureServiceError.engineFailed(
-                "Could not convert \(Int(inputFormat.sampleRate)) Hz input to 24-bit / 48 kHz. Choose another device, or use App audio Capture / folder Protection."
+                "Could not convert \(Int(inputFormat.sampleRate)) Hz input to 16-bit / 48 kHz. Choose another device, or use App audio Capture / folder Protection."
             )
         }
 

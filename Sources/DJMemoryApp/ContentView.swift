@@ -38,6 +38,7 @@ struct ContentView: View {
                 .accessibilityIdentifier("toolbar.refresh")
             }
         }
+        .preferredColorScheme(.dark)
         .onOpenURL { url in
             if isAccountAuthEnabled {
                 Task {

@@ -44,7 +44,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         cloudSyncEnabled: Bool = false,
         cloudArchiveBackupEnabled: Bool = false,
         autoArmOnDJAppFound: Bool = true,
-        menuBarOnly: Bool = true,
+        menuBarOnly: Bool = false,
         showFolderScanDetailsInMenuBar: Bool = false,
         dualRoutePosture: DualRoutePosture = .both
     ) {
@@ -112,7 +112,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         cloudSyncEnabled = try c.decodeIfPresent(Bool.self, forKey: .cloudSyncEnabled) ?? false
         cloudArchiveBackupEnabled = try c.decodeIfPresent(Bool.self, forKey: .cloudArchiveBackupEnabled) ?? false
         autoArmOnDJAppFound = try c.decodeIfPresent(Bool.self, forKey: .autoArmOnDJAppFound) ?? true
-        menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? true
+        menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? false
         showFolderScanDetailsInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showFolderScanDetailsInMenuBar) ?? false
         dualRoutePosture = try c.decodeIfPresent(DualRoutePosture.self, forKey: .dualRoutePosture) ?? .both
     }

@@ -226,6 +226,25 @@ public enum AudioInputDeviceCatalog {
         }
     }
 
+    /// Input channel count for a device UID, or `0` when the device is missing or has no inputs.
+    /// USB connection alone is not enough — a device with no input channels cannot be captured.
+    public static func inputChannelCount(forUID uid: String) -> Int {
+        guard let deviceID = audioDeviceID(forUID: uid) else { return 0 }
+        return inputChannelCount(deviceID)
+    }
+
+    /// Whether the current input stream can be recorded (sample rate and at least one channel).
+    public static func isSupportedCaptureFormat(forUID uid: String) -> Bool {
+        guard let deviceID = audioDeviceID(forUID: uid),
+              let format = try? inputStreamFormat(for: deviceID)
+        else { return false }
+        return isSupportedCaptureFormat(format)
+    }
+
+    public static func isSupportedCaptureFormat(_ format: AudioStreamBasicDescription) -> Bool {
+        format.mSampleRate > 0 && format.mChannelsPerFrame >= 1
+    }
+
     /// Current input-scope stream format for a Core Audio device.
     public static func inputStreamFormat(
         for deviceID: AudioDeviceID

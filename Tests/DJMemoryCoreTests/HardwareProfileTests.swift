@@ -38,4 +38,17 @@ final class HardwareProfileTests: XCTestCase {
         XCTAssertEqual(SupportedHardware.profile(id: "cdj-3000")?.adapterListCaption, "needs mixer for master")
         XCTAssertEqual(SupportedHardware.profile(id: "djm-v10")?.adapterListCaption, "USB Capture")
     }
+
+    func testPlayersCannotProvideUSBMasterFeed() {
+        XCTAssertEqual(SupportedHardware.profile(id: "cdj-3000")?.canProvideUSBMasterFeed, false)
+        XCTAssertEqual(SupportedHardware.profile(id: "djm-v10")?.canProvideUSBMasterFeed, true)
+        XCTAssertEqual(SupportedHardware.profile(id: "xdj-xz")?.canProvideUSBMasterFeed, true)
+    }
+
+    func testProfileMatchingUsesDeviceName() {
+        let xz = AudioInputDevice(id: "xz", name: "XDJ-XZ", manufacturer: "AlphaTheta Corporation", transportType: .usb)
+        XCTAssertEqual(SupportedHardware.profile(matching: xz)?.id, "xdj-xz")
+        let unknown = AudioInputDevice(id: "mic", name: "MacBook Pro Microphone", manufacturer: "Apple Inc.", transportType: .builtIn)
+        XCTAssertNil(SupportedHardware.profile(matching: unknown))
+    }
 }

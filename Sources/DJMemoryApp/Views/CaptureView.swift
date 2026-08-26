@@ -5,6 +5,59 @@ struct CaptureView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if let pending = model.captureState.pendingAlternateSource {
+                alternateSourceBanner(pending)
+            }
+            if isHeroActive {
+                captureHero
+            } else {
+                captureConfig
+            }
+        }
+        .onAppear {
+            if model.captureState.mode == .appAudio {
+                Task { await model.refreshAppAudioTargets(attemptAutoArm: true) }
+            } else {
+                model.refreshAudioInputs()
+            }
+        }
+    }
+
+    /// DJs don't run multiple DJ apps/hardware sources at once, so DJMemory never silently
+    /// switches an already-armed/watching/recording session — it surfaces the alternate here
+    /// (and via a local notification) and waits for an explicit choice.
+    private func alternateSourceBanner(_ pending: PendingAlternateSource) -> some View {
+        Panel(tone: .warn, padding: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(DJToken.warn)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(pending.displayName) is also \(pending.kind.isInputDevice ? "connected" : "running")")
+                        .font(.system(size: DJToken.TypeSize.body, weight: .semibold))
+                    Text("Still watching the current source. Switch if you meant to use \(pending.displayName) instead.")
+                        .font(.system(size: DJToken.TypeSize.secondary))
+                        .foregroundStyle(DJToken.mutedForeground)
+                }
+                Spacer()
+                Button("Keep Current") { model.dismissPendingAlternateSource() }
+                    .buttonStyle(DJGhostButtonStyle())
+                    .accessibilityIdentifier("capture.alternateSource.dismiss")
+                Button("Switch") { model.switchToPendingAlternateSource() }
+                    .buttonStyle(DJPrimaryButtonStyle())
+                    .accessibilityIdentifier("capture.alternateSource.switch")
+            }
+        }
+        .accessibilityIdentifier("capture.alternateSourceBanner")
+    }
+
+    /// The immersive recording moment (design `1b`): huge timecode, live waveform, and
+    /// the two decisive actions. Shown while watching, recording, or saving.
+    private var isHeroActive: Bool {
+        model.captureState.isWatchingOrRecording || model.captureState.phase == .saving
+    }
+
+    private var captureConfig: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 Text("Capture")
@@ -37,6 +90,15 @@ struct CaptureView: View {
 
             Panel(title: "Session", padding: 12) {
                 VStack(alignment: .leading, spacing: 10) {
+                    Text(model.captureState.listeningSummary)
+                        .font(.system(size: DJToken.TypeSize.body))
+                        .foregroundStyle(
+                            model.captureState.listeningState == .recoveryNeeded
+                                ? DJToken.warn
+                                : DJToken.mutedForeground
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("capture.listeningSummary")
                     Text(model.captureState.statusMessage)
                         .font(.system(size: DJToken.TypeSize.body))
                         .fixedSize(horizontal: false, vertical: true)
@@ -92,13 +154,107 @@ struct CaptureView: View {
                 }
             }
         }
-        .onAppear {
-            if model.captureState.mode == .appAudio {
-                Task { await model.refreshAppAudioTargets(attemptAutoArm: true) }
-            } else {
-                model.refreshAudioInputs()
+    }
+
+    // MARK: - Capture hero (design 1b)
+
+    private var captureHero: some View {
+        VStack(spacing: 30) {
+            HStack(spacing: 10) {
+                PulsingDot(color: heroTint)
+                Text(heroEyebrow)
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .tracking(2.5)
+                    .textCase(.uppercase)
+                    .foregroundStyle(heroTint.opacity(0.85))
             }
+
+            heroTimecode
+
+            LiveWaveform(level: Double(model.captureState.inputLevel), gradient: heroWaveGradient)
+                .frame(maxWidth: 760)
+                .frame(height: 170)
+
+            HStack(spacing: 12) {
+                if model.captureState.isRecording || model.captureState.phase == .saving {
+                    Button("Stop & Save") { model.stopCapture() }
+                        .buttonStyle(DJHeroFilledButtonStyle())
+                        .disabled(model.captureState.phase == .saving)
+                        .accessibilityIdentifier("capture.stop")
+                }
+                if model.captureState.isWatchingOrRecording {
+                    Button("Disarm") { model.disarmCapture() }
+                        .buttonStyle(DJHollowButtonStyle())
+                        .disabled(model.captureState.phase == .saving)
+                        .accessibilityIdentifier("capture.disarm")
+                }
+            }
+
+            Text("16-bit · 48 kHz · staying on this Mac")
+                .font(.system(size: 11, design: .monospaced))
+                .tracking(0.5)
+                .foregroundStyle(.white.opacity(0.32))
         }
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 500)
+        .padding(40)
+        .background(DJToken.Ground.capture, in: RoundedRectangle(cornerRadius: DJToken.Radius.maximum))
+        .overlay(
+            RoundedRectangle(cornerRadius: DJToken.Radius.maximum)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("capture.hero")
+    }
+
+    @ViewBuilder
+    private var heroTimecode: some View {
+        if model.captureState.isRecording, let start = model.recordingStartedAt {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(Self.timecode(from: start, to: context.date))
+                    .font(.system(size: DJToken.TypeSize.displayTimecode, weight: .thin, design: .monospaced))
+                    .foregroundStyle(.white)
+            }
+        } else {
+            Text(model.captureState.phase == .saving ? "Saving…" : "Listening…")
+                .font(.system(size: 56, weight: .thin, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.9))
+        }
+    }
+
+    private var heroTint: Color {
+        if model.captureState.isRecording { return DJToken.recordRed }
+        if model.captureState.phase == .saving { return DJToken.primary }
+        return DJToken.signalGreen
+    }
+
+    private var heroWaveGradient: (top: Color, bottom: Color) {
+        model.captureState.isRecording
+            ? (DJToken.recordRedBright, DJToken.recordRed)
+            : (DJToken.signalGreenBright, DJToken.signalGreenDeep)
+    }
+
+    private var heroEyebrow: String {
+        if model.captureState.phase == .saving { return "Saving" }
+        let verb = model.captureState.isRecording ? "Recording" : "Watching"
+        return "\(verb) · \(heroSourceName)"
+    }
+
+    private var heroSourceName: String {
+        if model.captureState.mode == .appAudio {
+            if let source = model.captureState.appAudioSourceName, !source.isEmpty {
+                return source
+            }
+            return model.captureState.targetApps
+                .first { $0.software.id == model.captureState.selectedTargetAppID }?
+                .software.displayName ?? "DJ app"
+        }
+        return model.captureState.selectedDevice?.name ?? "input"
+    }
+
+    private static func timecode(from start: Date, to now: Date) -> String {
+        let total = max(0, Int(now.timeIntervalSince(start)))
+        return String(format: "%02d:%02d:%02d", total / 3600, (total % 3600) / 60, total % 60)
     }
 
     private var introCopy: String {
@@ -241,7 +397,48 @@ struct CaptureView: View {
     }
 }
 
+/// A slowly pulsing status dot with a soft glow (the recording indicator). Static under
+/// Reduce Motion, where the dot stays fully lit.
+private struct PulsingDot: View {
+    var color: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var on = false
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 10, height: 10)
+            .shadow(color: color.opacity(0.6), radius: 8)
+            .opacity(reduceMotion ? 1 : (on ? 1 : 0.4))
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                    on = true
+                }
+            }
+    }
+}
+
 #if DEBUG
+#Preview("Capture recording hero") {
+    let model = AppModel()
+    model.previewApplyCaptureState(CaptureUIState(
+        mode: .inputDevice,
+        phase: .recording,
+        devices: [AudioInputDevice(id: "xz", name: "XDJ-XZ", manufacturer: "Pioneer DJ")],
+        selectedDeviceID: "xz",
+        inputLevel: 0.7,
+        statusMessage: "Recording the XDJ-XZ input."
+    ))
+    model.previewSetRecordingStartedAt(Date(timeIntervalSinceNow: -2472))
+    return CaptureView()
+        .environmentObject(model)
+        .padding()
+        .frame(width: 900, height: 620)
+        .preferredColorScheme(.dark)
+}
+
 #Preview("Capture idle") {
     let model = AppModel()
     model.previewApplyCaptureState(CaptureUIState(

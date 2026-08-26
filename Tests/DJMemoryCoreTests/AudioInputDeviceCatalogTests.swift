@@ -88,6 +88,8 @@ final class AudioInputDeviceCatalogTests: XCTestCase {
     func testUnknownUIDDoesNotResolveToAudioDeviceID() {
         XCTAssertNil(AudioInputDeviceCatalog.audioDeviceID(forUID: ""))
         XCTAssertNil(AudioInputDeviceCatalog.audioDeviceID(forUID: "djmemory-missing-uid-\(UUID().uuidString)"))
+        XCTAssertEqual(AudioInputDeviceCatalog.inputChannelCount(forUID: ""), 0)
+        XCTAssertFalse(AudioInputDeviceCatalog.isSupportedCaptureFormat(forUID: "djmemory-missing-uid-\(UUID().uuidString)"))
     }
 
     func testListedInputUIDsResolveToAudioDeviceIDs() {
