@@ -249,10 +249,13 @@ public enum LiveCaptureRouteResolver {
             )
 
         case .none:
-            // No hardware at all: a running DJ app with usable app audio is the laptop rig.
-            // No observed-audio requirement here — there is nothing to disambiguate against.
             if facts.appAudioUsable {
-                return laptopRoute(facts, listeningState: .laptopDriverActive, summary: LiveCaptureCopy.laptopDriverActive, mode: mode)
+                return laptopRoute(
+                    facts,
+                    listeningState: .laptopDriverActive,
+                    summary: LiveCaptureCopy.laptopDriverActive,
+                    mode: mode
+                )
             }
             if facts.hasRunningDJApp, facts.appAudioCapability == .permissionDenied {
                 return recovery(.permissionOrInstallNeeded, summary: LiveCaptureCopy.permissionOrInstallNeeded)
@@ -267,46 +270,62 @@ public enum LiveCaptureRouteResolver {
         }
     }
 
-    /// Laptop-generated audio: DJMemory driver first, then a vendor virtual input, then the
-    /// existing app-audio path.
+    /// Laptop-generated audio: Process Tap / ScreenCaptureKit first, then opt-in vendor input.
+    /// DJMemory driver availability is diagnostic only and must not select a route in v1.
     private static func laptopRoute(
         _ facts: LiveCaptureRouteFacts,
         listeningState: LiveCaptureListeningState,
         summary: String,
         mode: LiveCaptureRigMode
     ) -> LiveCaptureResolution {
-        switch facts.driverAvailability {
-        case .available:
-            return driverResolution(listeningState: listeningState, summary: summary, mode: mode)
-        case .permissionOrInstallNeeded, .presentButUnusable:
-            if facts.appAudioUsable { break }
-            return recovery(.permissionOrInstallNeeded, summary: LiveCaptureCopy.permissionOrInstallNeeded)
-        case .missing:
-            break
+        let appleBackend = facts.appAudio.archiveBackend ?? .processAudioTap
+
+        if facts.appAudio.isMonitoring {
+            let active = facts.appAudioIsProducing
+            return LiveCaptureResolution(
+                kind: .existingAppAudio,
+                listeningState: active ? listeningState : .detecting,
+                listeningSummary: active ? summary : LiveCaptureCopy.waitingForAudio,
+                backend: .existingAppAudio(archiveBackend: appleBackend),
+                rigMode: mode
+            )
         }
 
-        if facts.vendorVirtualEnabled, let vendor = facts.vendorVirtualInput {
+        if facts.appAudio.applePathExhausted,
+           facts.vendorVirtualEnabled,
+           let vendor = facts.vendorVirtualInput
+        {
+            let active = facts.appAudioIsProducing
             return LiveCaptureResolution(
                 kind: .vendorVirtualInput,
-                listeningState: listeningState,
-                listeningSummary: summary,
+                listeningState: active ? listeningState : .detecting,
+                listeningSummary: active ? summary : LiveCaptureCopy.waitingForAudio,
                 backend: .vendorVirtualInput(deviceID: vendor.id),
                 rigMode: mode
             )
         }
+
         if facts.appAudioUsable {
             return LiveCaptureResolution(
                 kind: .existingAppAudio,
-                listeningState: listeningState,
-                listeningSummary: summary,
-                backend: .existingAppAudio,
+                listeningState: .detecting,
+                listeningSummary: LiveCaptureCopy.waitingForAudio,
+                backend: .existingAppAudio(archiveBackend: appleBackend),
                 rigMode: mode
             )
         }
+
+        if facts.appAudio.applePathExhausted,
+           facts.vendorVirtualEnabled,
+           facts.vendorVirtualInput != nil
+        {
+            return recovery(.appAudioUnavailable, summary: LiveCaptureCopy.appAudioUnavailable)
+        }
+
         if facts.appAudioCapability == .permissionDenied {
             return recovery(.permissionOrInstallNeeded, summary: LiveCaptureCopy.permissionOrInstallNeeded)
         }
-        return recovery(.driverMissing, summary: LiveCaptureCopy.driverMissing)
+        return recovery(.appAudioUnavailable, summary: LiveCaptureCopy.appAudioUnavailable)
     }
 
     private static func driverResolution(
@@ -378,11 +397,13 @@ public enum LiveCaptureRouteResolver {
             return reconstructVendor(facts)
         case .existingAppAudio:
             guard facts.appAudioCapability == .available else { return nil }
+            let backend = facts.appAudio.archiveBackend ?? .processAudioTap
+            let active = facts.appAudioIsProducing
             return LiveCaptureResolution(
                 kind: .existingAppAudio,
-                listeningState: .laptopDriverActive,
-                listeningSummary: LiveCaptureCopy.laptopDriverActive,
-                backend: .existingAppAudio,
+                listeningState: active ? .laptopDriverActive : .detecting,
+                listeningSummary: active ? LiveCaptureCopy.laptopDriverActive : LiveCaptureCopy.waitingForAudio,
+                backend: .existingAppAudio(archiveBackend: backend),
                 rigMode: rigMode(facts)
             )
         case .unavailable:

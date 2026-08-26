@@ -46,6 +46,46 @@ public enum LiveCaptureAppAudioCapability: Equatable, Sendable {
     case unavailable
 }
 
+/// Platform-neutral app-audio observation for routing and UI.
+public struct AppAudioObservation: Equatable, Sendable {
+    public var capability: LiveCaptureAppAudioCapability
+    public var isMonitoring: Bool
+    public var archiveBackend: CaptureArchiveBackend?
+    public var sourceDeviceUID: String?
+    public var observedSignal: Bool
+    /// True after Process Audio Tap and ScreenCaptureKit both failed to arm.
+    public var applePathExhausted: Bool
+
+    public static let idle = AppAudioObservation(
+        capability: .unavailable,
+        isMonitoring: false,
+        archiveBackend: nil,
+        sourceDeviceUID: nil,
+        observedSignal: false,
+        applePathExhausted: false
+    )
+
+    public init(
+        capability: LiveCaptureAppAudioCapability = .unavailable,
+        isMonitoring: Bool = false,
+        archiveBackend: CaptureArchiveBackend? = nil,
+        sourceDeviceUID: String? = nil,
+        observedSignal: Bool = false,
+        applePathExhausted: Bool = false
+    ) {
+        self.capability = capability
+        self.isMonitoring = isMonitoring
+        self.archiveBackend = archiveBackend
+        self.sourceDeviceUID = sourceDeviceUID
+        self.observedSignal = observedSignal
+        self.applePathExhausted = applePathExhausted
+    }
+
+    public var isProducing: Bool {
+        isMonitoring && observedSignal
+    }
+}
+
 /// Which way the rig is being driven. The same CDJ/DJM/XDJ hardware runs both ways with a
 /// laptop connected, and neither device presence nor process presence can tell them apart —
 /// only observed audio can.
@@ -71,7 +111,7 @@ public enum LiveCaptureRecordingBackend: Equatable, Sendable {
     case hardwareInput(deviceID: String)
     case djmemoryDriver
     case vendorVirtualInput(deviceID: String)
-    case existingAppAudio
+    case existingAppAudio(archiveBackend: CaptureArchiveBackend)
     case none
 }
 
@@ -196,9 +236,7 @@ public struct LiveCaptureRouteFacts: Equatable, Sendable {
     public var runningDJSoftwareIDs: Set<String>
     /// Whether app audio *could* capture (permission), not whether an app is open.
     public var appAudioCapability: LiveCaptureAppAudioCapability
-    /// Whether app audio is actually producing samples right now. This is what
-    /// distinguishes a laptop-software set from a standalone set with rekordbox merely open.
-    public var appAudioIsProducing: Bool
+    public var appAudio: AppAudioObservation
     public var session: LiveCaptureSessionContext
     /// Pure status only. Never an apply-route outcome.
     public var routingAutomation: DJAppRoutingAutomation
@@ -211,7 +249,7 @@ public struct LiveCaptureRouteFacts: Equatable, Sendable {
         vendorVirtualEnabled: Bool = false,
         runningDJSoftwareIDs: Set<String> = [],
         appAudioCapability: LiveCaptureAppAudioCapability = .unavailable,
-        appAudioIsProducing: Bool = false,
+        appAudio: AppAudioObservation = .idle,
         session: LiveCaptureSessionContext = .idle,
         routingAutomation: DJAppRoutingAutomation = .notAutomatedYet,
         detection: LiveCaptureDetectionConfig = .default
@@ -222,7 +260,7 @@ public struct LiveCaptureRouteFacts: Equatable, Sendable {
         self.vendorVirtualEnabled = vendorVirtualEnabled
         self.runningDJSoftwareIDs = runningDJSoftwareIDs
         self.appAudioCapability = appAudioCapability
-        self.appAudioIsProducing = appAudioIsProducing
+        self.appAudio = appAudio
         self.session = session
         self.routingAutomation = routingAutomation
         self.detection = detection
@@ -236,6 +274,11 @@ public struct LiveCaptureRouteFacts: Equatable, Sendable {
 
     public var appAudioUsable: Bool {
         appAudioCapability == .available && hasRunningDJApp
+    }
+
+    /// Observed app audio — monitoring plus a heard signal, never `isWriting` alone.
+    public var appAudioIsProducing: Bool {
+        appAudio.isProducing
     }
 }
 

@@ -11,7 +11,7 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
             driverAvailability: .available(deviceID: "djmemory-audio"),
             runningDJSoftwareIDs: ["serato"],
             appAudioCapability: .available,
-            appAudioIsProducing: true
+            appAudio: Self.producingAppAudio
         )
         let decision = LiveCaptureRouteResolver.resolve(facts)
         XCTAssertEqual(decision.resolution.kind, .verifiedHardwareFeed)
@@ -59,7 +59,7 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
             driverAvailability: .available(deviceID: "djmemory-audio"),
             runningDJSoftwareIDs: ["rekordbox"],
             appAudioCapability: .available,
-            appAudioIsProducing: false
+            appAudio: Self.silentAppAudio
         )
         let decision = LiveCaptureRouteResolver.resolve(facts)
         XCTAssertEqual(decision.resolution.kind, .verifiedHardwareFeed)
@@ -73,7 +73,7 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
             driverAvailability: .available(deviceID: "djmemory-audio"),
             runningDJSoftwareIDs: ["rekordbox"],
             appAudioCapability: .available,
-            appAudioIsProducing: false
+            appAudio: Self.silentAppAudio
         )
         let decision = LiveCaptureRouteResolver.resolve(facts)
         XCTAssertEqual(decision.resolution.kind, .connectedHardwareNoUsableSignal)
@@ -82,17 +82,18 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
         XCTAssertEqual(decision.resolution.listeningSummary, LiveCaptureCopy.waitingForAudio)
     }
 
-    func testSilentHardwareWithAppAudioProducingFallsBackToDriver() {
+    func testSilentHardwareWithAppAudioProducingFallsBackToExistingAppAudio() {
         let facts = LiveCaptureRouteFacts(
             hardware: [Self.silentDJM],
             driverAvailability: .available(deviceID: "djmemory-audio"),
             runningDJSoftwareIDs: ["serato"],
             appAudioCapability: .available,
-            appAudioIsProducing: true
+            appAudio: Self.producingAppAudio
         )
         let decision = LiveCaptureRouteResolver.resolve(facts)
-        XCTAssertEqual(decision.resolution.kind, .djmemoryVirtualDriver)
+        XCTAssertEqual(decision.resolution.kind, .existingAppAudio)
         XCTAssertEqual(decision.resolution.listeningState, .fallbackActive)
+        XCTAssertEqual(decision.resolution.backend, .existingAppAudio(archiveBackend: .processAudioTap))
         XCTAssertEqual(decision.resolution.rigMode, .laptopSoftware)
     }
 
@@ -111,7 +112,7 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
         XCTAssertEqual(decision.resolution.backend, .none)
     }
 
-    func testLaptopOnlyDJAppPathChoosesDriverWhenAvailable() {
+    func testLaptopOnlyDJAppPathIgnoresDriverAvailability() {
         let facts = LiveCaptureRouteFacts(
             hardware: [],
             driverAvailability: .available(deviceID: "djmemory-audio"),
@@ -119,8 +120,9 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
             appAudioCapability: .available
         )
         let decision = LiveCaptureRouteResolver.resolve(facts)
-        XCTAssertEqual(decision.resolution.kind, .djmemoryVirtualDriver)
-        XCTAssertEqual(decision.resolution.backend, .djmemoryDriver)
+        XCTAssertEqual(decision.resolution.kind, .existingAppAudio)
+        XCTAssertEqual(decision.resolution.listeningState, .detecting)
+        XCTAssertEqual(decision.resolution.backend, .existingAppAudio(archiveBackend: .processAudioTap))
     }
 
     func testLaptopOnlyUsesExistingAppAudioWhenDriverMissing() {
@@ -132,10 +134,30 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
         )
         let decision = LiveCaptureRouteResolver.resolve(facts)
         XCTAssertEqual(decision.resolution.kind, .existingAppAudio)
-        XCTAssertEqual(decision.resolution.backend, .existingAppAudio)
+        XCTAssertEqual(decision.resolution.listeningState, .detecting)
+        XCTAssertEqual(decision.resolution.backend, .existingAppAudio(archiveBackend: .processAudioTap))
     }
 
-    func testLaptopOnlyPrefersVendorVirtualInputOverExistingAppAudio() {
+    func testLaptopOnlyUsesVendorVirtualInputOnlyAfterApplePathExhausted() {
+        let facts = LiveCaptureRouteFacts(
+            hardware: [],
+            driverAvailability: .missing,
+            vendorVirtualInput: Self.seratoVirtual,
+            vendorVirtualEnabled: true,
+            runningDJSoftwareIDs: ["serato"],
+            appAudioCapability: .available,
+            appAudio: AppAudioObservation(
+                capability: .available,
+                applePathExhausted: true
+            )
+        )
+        let decision = LiveCaptureRouteResolver.resolve(facts)
+        XCTAssertEqual(decision.resolution.kind, .vendorVirtualInput)
+        XCTAssertEqual(decision.resolution.listeningState, .detecting)
+        XCTAssertEqual(decision.resolution.backend, .vendorVirtualInput(deviceID: "sva"))
+    }
+
+    func testLaptopOnlyDoesNotPreferVendorVirtualInputBeforeApplePathExhausted() {
         let facts = LiveCaptureRouteFacts(
             hardware: [],
             driverAvailability: .missing,
@@ -145,8 +167,8 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
             appAudioCapability: .available
         )
         let decision = LiveCaptureRouteResolver.resolve(facts)
-        XCTAssertEqual(decision.resolution.kind, .vendorVirtualInput)
-        XCTAssertEqual(decision.resolution.backend, .vendorVirtualInput(deviceID: "sva"))
+        XCTAssertEqual(decision.resolution.kind, .existingAppAudio)
+        XCTAssertEqual(decision.resolution.backend, .existingAppAudio(archiveBackend: .processAudioTap))
     }
 
     func testNothingReachingTheMacIsUnavailable() {
@@ -261,7 +283,7 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
             driverAvailability: .available(deviceID: "djmemory-audio"),
             runningDJSoftwareIDs: ["serato"],
             appAudioCapability: .available,
-            appAudioIsProducing: true,
+            appAudio: Self.producingAppAudio,
             session: LiveCaptureSessionContext(
                 phase: .recording,
                 currentKind: .verifiedHardwareFeed,
@@ -291,7 +313,7 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
         let decision = LiveCaptureRouteResolver.resolve(facts)
         XCTAssertEqual(decision.transition, .blockedUntilSessionBoundary)
         XCTAssertEqual(decision.resolution.kind, .existingAppAudio)
-        XCTAssertEqual(decision.resolution.backend, .existingAppAudio)
+        XCTAssertEqual(decision.resolution.backend, .existingAppAudio(archiveBackend: .processAudioTap))
         XCTAssertTrue(decision.resolution.kindAgreesWithBackend)
     }
 
@@ -397,6 +419,20 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
     }
 
     // MARK: - Fixtures
+
+    private static let producingAppAudio = AppAudioObservation(
+        capability: .available,
+        isMonitoring: true,
+        archiveBackend: .processAudioTap,
+        observedSignal: true
+    )
+
+    private static let silentAppAudio = AppAudioObservation(
+        capability: .available,
+        isMonitoring: true,
+        archiveBackend: .processAudioTap,
+        observedSignal: false
+    )
 
     private static let xzDevice = AudioInputDevice(
         id: "xz",
