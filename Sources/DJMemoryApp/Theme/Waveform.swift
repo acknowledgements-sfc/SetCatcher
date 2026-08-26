@@ -169,7 +169,7 @@ struct LiveWaveform: View {
         Waveform(
             seed: "onboarding-build",
             barCount: 72,
-            gradient: (DJToken.warmGold, DJToken.warmGold.opacity(0.7)),
+            gradient: (DJToken.primary, DJToken.primary.opacity(0.7)),
             litFraction: 0.42
         )
         .frame(height: 70)
@@ -179,5 +179,5 @@ struct LiveWaveform: View {
     }
     .padding()
     .frame(width: 480)
-    .background(DJToken.Ground.base)
+    .background(DJToken.background)
 }

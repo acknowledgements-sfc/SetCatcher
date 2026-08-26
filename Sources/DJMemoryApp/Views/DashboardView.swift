@@ -39,6 +39,6 @@ struct DashboardView: View {
             }
             .padding(28)
         }
-        .background(DJToken.Ground.base)
+        .background(DJToken.background)
     }
 }

@@ -35,14 +35,22 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 20) {
             topBar
 
-            HeroHeader(
-                eyebrow: step.title,
-                eyebrowColor: DJToken.warmGold,
-                headline: copy.headline,
-                accentTail: copy.accent,
-                headlineSize: DJToken.TypeSize.displayOnboarding,
-                subline: copy.subline
-            )
+            VStack(alignment: .leading, spacing: 8) {
+                Text(step.title.uppercased())
+                    .microLabelStyle()
+                Text(copy.headline)
+                    .font(.system(size: DJToken.TypeSize.title, weight: .semibold))
+                    .foregroundStyle(DJToken.foreground)
+                if let accent = copy.accent {
+                    Text(accent)
+                        .font(.system(size: DJToken.TypeSize.title, weight: .semibold))
+                        .foregroundStyle(DJToken.primary)
+                }
+                Text(copy.subline)
+                    .font(.system(size: DJToken.TypeSize.body))
+                    .foregroundStyle(DJToken.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -50,7 +58,7 @@ struct OnboardingView: View {
             Waveform(
                 seed: "onboarding-build",
                 barCount: 72,
-                gradient: (DJToken.warmGold, DJToken.warmGold.opacity(0.7)),
+                gradient: (DJToken.primary, DJToken.primary.opacity(0.7)),
                 litFraction: litFraction
             )
             .frame(height: 84)
@@ -61,15 +69,14 @@ struct OnboardingView: View {
         }
         .padding(32)
         .frame(width: 720, height: 560)
-        .background(DJToken.Ground.onboarding)
-        .preferredColorScheme(.dark)
+        .background(DJToken.background)
     }
 
     private var topBar: some View {
         HStack(spacing: 11) {
             EQGlyph()
                 .frame(width: 24, height: 24)
-                .foregroundStyle(DJToken.warmGold)
+                .foregroundStyle(DJToken.primary)
             Text("DJMemory")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color(white: 0.94))
@@ -78,7 +85,7 @@ struct OnboardingView: View {
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .tracking(1.5)
                 .textCase(.uppercase)
-                .foregroundStyle(DJToken.warmGold.opacity(0.7))
+                .foregroundStyle(DJToken.primary.opacity(0.7))
         }
     }
 
@@ -154,7 +161,7 @@ struct OnboardingView: View {
         } label: {
             HStack(spacing: 7) {
                 Circle()
-                    .fill(granted ? DJToken.warmGold : Color.white.opacity(installed ? 0.35 : 0.15))
+                    .fill(granted ? DJToken.primary : DJToken.mutedForeground.opacity(installed ? 0.35 : 0.15))
                     .frame(width: 7, height: 7)
                 Text(result.software.displayName)
                     .font(.system(size: 11, weight: .semibold))
@@ -164,12 +171,12 @@ struct OnboardingView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                (granted ? DJToken.warmGold.opacity(0.14) : Color.white.opacity(0.04)),
+                (granted ? DJToken.primary.opacity(0.14) : DJToken.muted.opacity(0.6)),
                 in: Capsule()
             )
             .overlay(
                 Capsule().stroke(
-                    granted ? DJToken.warmGold.opacity(0.4) : Color.white.opacity(0.1),
+                    granted ? DJToken.primary.opacity(0.4) : DJToken.hairline,
                     lineWidth: 1
                 )
             )
@@ -205,10 +212,10 @@ struct OnboardingView: View {
             Button { advance() } label: {
                 Text(step == .ready ? "Finish" : "Continue")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(DJToken.Ground.base)
+                    .foregroundStyle(DJToken.foreground)
                     .padding(.horizontal, 22)
                     .frame(minHeight: 40)
-                    .background(DJToken.warmGold.opacity(canContinue ? 1 : 0.4), in: Capsule())
+                    .background(DJToken.primary.opacity(canContinue ? 1 : 0.4), in: Capsule())
             }
             .buttonStyle(.plain)
             .disabled(!canContinue)

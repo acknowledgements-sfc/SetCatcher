@@ -6,7 +6,7 @@ struct HomeDashboardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HomeHeroBand()
+            HomeIdentityBand()
             HomeAttentionBanners()
             HStack(alignment: .top, spacing: 12) {
                 HomeLastSetPanel()

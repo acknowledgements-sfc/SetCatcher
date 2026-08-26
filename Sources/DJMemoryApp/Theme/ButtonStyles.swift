@@ -94,7 +94,7 @@ private struct DJHeroButton: View {
     }
 
     private var foreground: Color {
-        if filled { return DJToken.Ground.base }
+        if filled { return DJToken.foreground }
         return Color.white.opacity(configuration.isPressed ? 0.55 : 0.75)
     }
 

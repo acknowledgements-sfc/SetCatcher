@@ -9,11 +9,7 @@ struct CaptureView: View {
             if let pending = model.captureState.pendingAlternateSource {
                 alternateSourceBanner(pending)
             }
-            if isHeroActive {
-                captureHero
-            } else {
-                captureConfig
-            }
+            captureConfig
         }
         .onAppear {
             if model.captureState.mode == .appAudio {
@@ -49,12 +45,6 @@ struct CaptureView: View {
             }
         }
         .accessibilityIdentifier("capture.alternateSourceBanner")
-    }
-
-    /// The immersive recording moment (design `1b`): huge timecode, live waveform, and
-    /// the two decisive actions. Shown while watching, recording, or saving.
-    private var isHeroActive: Bool {
-        model.captureState.isWatchingOrRecording || model.captureState.phase == .saving
     }
 
     private var captureConfig: some View {
@@ -163,107 +153,6 @@ struct CaptureView: View {
                 }
             }
         }
-    }
-
-    // MARK: - Capture hero (design 1b)
-
-    private var captureHero: some View {
-        VStack(spacing: 30) {
-            HStack(spacing: 10) {
-                PulsingDot(color: heroTint)
-                Text(heroEyebrow)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .tracking(2.5)
-                    .textCase(.uppercase)
-                    .foregroundStyle(heroTint.opacity(0.85))
-            }
-
-            heroTimecode
-
-            LiveWaveform(level: Double(model.captureState.inputLevel), gradient: heroWaveGradient)
-                .frame(maxWidth: 760)
-                .frame(height: 170)
-
-            HStack(spacing: 12) {
-                if model.captureState.isRecording || model.captureState.phase == .saving {
-                    Button("Stop & Save") { model.stopCapture() }
-                        .buttonStyle(DJHeroFilledButtonStyle())
-                        .disabled(model.captureState.phase == .saving)
-                        .accessibilityIdentifier("capture.stop")
-                }
-                if model.captureState.isWatchingOrRecording {
-                    Button("Disarm") { model.disarmCapture() }
-                        .buttonStyle(DJHollowButtonStyle())
-                        .disabled(model.captureState.phase == .saving)
-                        .accessibilityIdentifier("capture.disarm")
-                }
-            }
-
-            Text("16-bit · 48 kHz · staying on this Mac")
-                .font(.system(size: 11, design: .monospaced))
-                .tracking(0.5)
-                .foregroundStyle(.white.opacity(0.32))
-        }
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 500)
-        .padding(40)
-        .background(DJToken.Ground.capture, in: RoundedRectangle(cornerRadius: DJToken.Radius.maximum))
-        .overlay(
-            RoundedRectangle(cornerRadius: DJToken.Radius.maximum)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("capture.hero")
-    }
-
-    @ViewBuilder
-    private var heroTimecode: some View {
-        if model.captureState.isRecording, let start = model.recordingStartedAt {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text(Self.timecode(from: start, to: context.date))
-                    .font(.system(size: DJToken.TypeSize.displayTimecode, weight: .thin, design: .monospaced))
-                    .foregroundStyle(.white)
-            }
-        } else {
-            Text(model.captureState.phase == .saving ? "Saving…" : "Listening…")
-                .font(.system(size: 56, weight: .thin, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.9))
-        }
-    }
-
-    private var heroTint: Color {
-        if model.captureState.isRecording { return DJToken.recordRed }
-        if model.captureState.phase == .saving { return DJToken.primary }
-        return DJToken.signalGreen
-    }
-
-    private var heroWaveGradient: (top: Color, bottom: Color) {
-        model.captureState.isRecording
-            ? (DJToken.recordRedBright, DJToken.recordRed)
-            : (DJToken.signalGreenBright, DJToken.signalGreenDeep)
-    }
-
-    private var heroEyebrow: String {
-        if model.captureState.phase == .saving { return "Saving" }
-        let verb = model.captureState.isRecording ? "Recording" : "Watching"
-        return "\(verb) · \(heroSourceName)"
-    }
-
-    private var heroSourceName: String {
-        if model.captureState.mode == .appAudio {
-            if let source = model.captureState.appAudioSourceName, !source.isEmpty {
-                return source
-            }
-            return model.captureState.targetApps
-                .first { $0.software.id == model.captureState.selectedTargetAppID }?
-                .software.displayName ?? "DJ app"
-        }
-        return model.captureState.selectedDevice?.name ?? "input"
-    }
-
-    private static func timecode(from start: Date, to now: Date) -> String {
-        let total = max(0, Int(now.timeIntervalSince(start)))
-        return String(format: "%02d:%02d:%02d", total / 3600, (total % 3600) / 60, total % 60)
     }
 
     private var introCopy: String {
