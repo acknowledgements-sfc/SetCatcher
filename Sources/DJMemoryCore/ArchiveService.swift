@@ -65,7 +65,9 @@ public struct ArchiveService {
         removeStagingAfterCopy: Bool = true,
         captureRoute: CaptureArchiveRoute? = nil,
         captureBackend: CaptureArchiveBackend? = nil,
-        captureDeviceTransport: String? = nil
+        captureDeviceTransport: String? = nil,
+        captureInterrupted: Bool = false,
+        captureInterruptionReason: String? = nil
     ) throws -> RecordingSession {
         try withSecurityScopedArchiveRoot {
             try ingestCaptureWithAccess(
@@ -78,7 +80,9 @@ public struct ArchiveService {
                 removeStagingAfterCopy: removeStagingAfterCopy,
                 captureRoute: captureRoute,
                 captureBackend: captureBackend,
-                captureDeviceTransport: captureDeviceTransport
+                captureDeviceTransport: captureDeviceTransport,
+                captureInterrupted: captureInterrupted,
+                captureInterruptionReason: captureInterruptionReason
             )
         }
     }
@@ -142,7 +146,9 @@ public struct ArchiveService {
         removeStagingAfterCopy: Bool,
         captureRoute: CaptureArchiveRoute?,
         captureBackend: CaptureArchiveBackend?,
-        captureDeviceTransport: String?
+        captureDeviceTransport: String?,
+        captureInterrupted: Bool,
+        captureInterruptionReason: String?
     ) throws -> RecordingSession {
         logCaptureIngest(event: "archive-ingest-entered", stagingURL: stagingURL)
         var isDirectory: ObjCBool = false
@@ -184,7 +190,9 @@ public struct ArchiveService {
                 captureBackend: captureBackend,
                 captureDeviceUID: deviceID,
                 captureDeviceName: deviceName,
-                captureDeviceTransport: captureDeviceTransport
+                captureDeviceTransport: captureDeviceTransport,
+                captureInterrupted: captureInterrupted,
+                captureInterruptionReason: captureInterruptionReason
             )
             return session
         } catch {
@@ -310,7 +318,9 @@ public struct ArchiveService {
         captureBackend: CaptureArchiveBackend? = nil,
         captureDeviceUID: String? = nil,
         captureDeviceName: String? = nil,
-        captureDeviceTransport: String? = nil
+        captureDeviceTransport: String? = nil,
+        captureInterrupted: Bool = false,
+        captureInterruptionReason: String? = nil
     ) throws {
         guard let archiveURL = session.archiveURL else { return }
 
@@ -329,7 +339,9 @@ public struct ArchiveService {
             captureBackend: captureBackend,
             captureDeviceUID: captureDeviceUID,
             captureDeviceName: captureDeviceName,
-            captureDeviceTransport: captureDeviceTransport
+            captureDeviceTransport: captureDeviceTransport,
+            captureInterrupted: captureInterrupted,
+            captureInterruptionReason: captureInterruptionReason
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

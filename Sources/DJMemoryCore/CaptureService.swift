@@ -19,6 +19,8 @@ public struct CaptureResult: Equatable, Sendable {
     public let captureRoute: CaptureArchiveRoute?
     public let captureBackend: CaptureArchiveBackend?
     public let deviceTransport: AudioDeviceTransport?
+    public let captureInterrupted: Bool
+    public let captureInterruptionReason: String?
 
     public init(
         stagingURL: URL,
@@ -28,7 +30,9 @@ public struct CaptureResult: Equatable, Sendable {
         endedAt: Date,
         captureRoute: CaptureArchiveRoute? = nil,
         captureBackend: CaptureArchiveBackend? = nil,
-        deviceTransport: AudioDeviceTransport? = nil
+        deviceTransport: AudioDeviceTransport? = nil,
+        captureInterrupted: Bool = false,
+        captureInterruptionReason: String? = nil
     ) {
         self.stagingURL = stagingURL
         self.deviceID = deviceID
@@ -38,6 +42,8 @@ public struct CaptureResult: Equatable, Sendable {
         self.captureRoute = captureRoute
         self.captureBackend = captureBackend
         self.deviceTransport = deviceTransport
+        self.captureInterrupted = captureInterrupted
+        self.captureInterruptionReason = captureInterruptionReason
     }
 }
 
