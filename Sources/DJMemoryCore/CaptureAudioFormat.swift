@@ -42,4 +42,21 @@ public enum CaptureAudioFormat {
     public static func makeConverter(from source: AVAudioFormat, to destination: AVAudioFormat) -> AVAudioConverter? {
         AVAudioConverter(from: source, to: destination)
     }
+
+    /// Validates a readable, non-empty WAV at the canonical capture format.
+    public static func validateReadableWAV(at url: URL) -> (valid: Bool, frames: Int64, sampleRate: Double, channels: Int, bitDepth: Int) {
+        guard let file = try? AVAudioFile(forReading: url),
+              file.length > 0,
+              let format = writeFormat()
+        else { return (false, 0, 0, 0, 0) }
+        let matches = file.processingFormat.sampleRate == format.sampleRate
+            && file.processingFormat.channelCount == format.channelCount
+        return (
+            valid: matches,
+            frames: file.length,
+            sampleRate: file.processingFormat.sampleRate,
+            channels: Int(file.processingFormat.channelCount),
+            bitDepth: bitDepth
+        )
+    }
 }
