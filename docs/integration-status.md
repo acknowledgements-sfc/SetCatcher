@@ -1,6 +1,6 @@
 # DJMemory Integration Status
 
-Last updated: August 15, 2026.
+Last updated: August 26, 2026.
 
 ## Status Labels
 - Supported / Partial / Manual Setup / Research — honest labels; never round Partial up to Supported.
@@ -15,7 +15,7 @@ Last updated: August 15, 2026.
 | VirtualDJ | Supported | File watch + Network Control; App audio Capture verified end-to-end (meter + archive write). Native plugin = Research (M14) |
 | djay Pro | Supported | Documented folders; App audio Capture verified end-to-end on djay Pro 2 (meter + archive write) |
 | DJMemory Capture | Implemented | App audio backend selector prefers Process Audio Tap on macOS 14.2+ and falls back to ScreenCaptureKit; ScreenCaptureKit verified end-to-end on Serato, rekordbox, djay Pro 2, VirtualDJ, Traktor DJ 2; Input device (Core Audio); silence session split |
-| Pioneer Hardware | Manual Setup | USB PIONEERREC / RECxxx.WAV watch. Laptop + XDJ-XZ USB Input Capture: **dev-bench 15 Aug 2026** saw Core Audio `name` `XDJ-XZ` (manufacturer `AlphaTheta Corporation`, UID `USBAudioDevice:AlphaTheta Corporation:XDJ-XZ (2):1110000`), archived a 24-bit/48 kHz stereo WAV via `ingestCapture`, and grouped overlapping Serato + Capture as one Library session. Later the same day the XZ was still present and HAL bind (`setDeviceID`) is in the rebuilt app. **dev operator; Supported not flipped.** Meter-with-master, unplug, and mic-denied still need an operator, then a non-dev pass. See `docs/pioneer-hardware-setup.md`. |
+| Pioneer Hardware | Manual Setup | USB PIONEERREC / RECxxx.WAV watch. Laptop + XDJ-XZ USB Input Capture: **dev-bench 15 Aug 2026** saw Core Audio `name` `XDJ-XZ` (manufacturer `AlphaTheta Corporation`, UID `USBAudioDevice:AlphaTheta Corporation:XDJ-XZ (2):1110000`), archived a 24-bit/48 kHz stereo WAV via `ingestCapture`, and grouped overlapping Serato + Capture as one Library session. Later the same day HAL bind (`setDeviceID`) is in the rebuilt app; operator also archived Serato and rekordbox via App audio Capture (Process Audio Tap) while playing through the XZ. That is the already-Supported app path, not USB Input Capture. **dev operator; Supported not flipped.** Meter-with-master, unplug, and mic-denied still need an operator, then a non-dev pass. See `docs/pioneer-hardware-setup.md`. |
 
 ## Source map (official vs community / sandbox-safe vs research)
 
@@ -25,6 +25,7 @@ Locked Mac product paths stay **sandbox-safe**. Community live-deck hacks stay *
 | --- | --- | --- |
 | Process Audio Tap | Platform SDK | Preferred App audio Capture backend on macOS 14.2+; live-verified end-to-end (Serato, rekordbox 6, rekordbox 7) |
 | ScreenCaptureKit App audio | Platform SDK | Product Capture |
+| Invisible DJ app capture research | Product research | Current design target: after initial onboarding, no supported DJ app may require routine manual output/input changes. Research must verify the exact macOS API/driver/helper path, permissions, entitlements, process targeting, minimum OS, real-audio bench, and automatic restore behavior before implementation. See `docs/handoff-cursor-fable-invisible-capture-research-2026-08-26.md`. |
 | Folder Protection + bookmarks | Product | Copy-only archive |
 | Local history CSV / XML / NML | Official exports + documented folders | Import + autopull |
 | Input device Capture | Core Audio | Product fallback |
@@ -39,6 +40,13 @@ Locked Mac product paths stay **sandbox-safe**. Community live-deck hacks stay *
 See `docs/research.md` for per-app depth and links.
 
 ## App Audio Capture (Mac)
+
+Direction update (2026-08-26): invisible capture is now the product bar for all supported DJ apps,
+not only Serato. After onboarding, DJMemory must not require manual output/input changes inside
+Serato, rekordbox, Traktor, VirtualDJ, or djay Pro/2. Driver/helper research is tracked in
+`docs/handoff-cursor-fable-invisible-capture-research-2026-08-26.md`; the research must prove
+automatic activation, deactivation, restore-to-previous/default audio device behavior, and
+real-audio capture before any final driver claim.
 
 Primary Mac feature: when a shareable DJ app is found, **auto-arm** Capture (unless the user Disarmed)
 → Process Audio Tap captures the running DJ app on macOS 14.2+ → ScreenCaptureKit is the fallback
