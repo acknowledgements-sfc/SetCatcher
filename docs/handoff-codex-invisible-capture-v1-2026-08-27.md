@@ -3,9 +3,9 @@
 **Date:** 2026-08-27  
 **Repo:** `/Users/robcmartin/Documents/Claude/Projects/SetCatcher` (DJMemory)  
 **Branch:** `cursor/invisible-capture-v1`  
-**HEAD:** `4103628`  
-**Bookmark fix commit:** `5267a09`  
-**Corrections base:** `8600975` (on top of blocker fixes ending at `9300629`)
+**Bookmark fix:** `5267a09`  
+**Leave-off docs:** `4103628` (SHA pin fix `559c150`)  
+**Corrections merge tip before leave-off:** `5267a09` (includes `8600975` on `9300629`)
 
 Read `AGENTS.md` first. Research context: `docs/research-invisible-capture-2026-08-26.md`.  
 **HAL driver (Plan 2):** paused — do not start.
@@ -89,7 +89,8 @@ Do not conflate bookmark ingest failures with USB master silence.
 ```bash
 cd /Users/robcmartin/Documents/Claude/Projects/SetCatcher
 git checkout cursor/invisible-capture-v1
-git log -1 --oneline   # expect 4103628
+git rev-parse HEAD               # tip of cursor/invisible-capture-v1
+git merge-base --is-ancestor 5267a09 HEAD && echo "bookmark fix present"
 
 swift test
 bash scripts/build-app.sh && bash scripts/smoke-app.sh

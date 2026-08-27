@@ -11,7 +11,7 @@ Read `AGENTS.md` first. This file is the fleet leave-off, not the UI spec
 
 ## Invisible capture v1 (2026-08-27)
 
-Active branch: **`cursor/invisible-capture-v1`** @ **`4103628`** (not pushed).  
+Active branch: **`cursor/invisible-capture-v1`** (bookmark fix `5267a09`; leave-off docs through `559c150`; not pushed).  
 Codex re-review handoff: [`docs/handoff-codex-invisible-capture-v1-2026-08-27.md`](docs/handoff-codex-invisible-capture-v1-2026-08-27.md).  
 HAL driver plan remains paused.
 
