@@ -118,6 +118,51 @@ public enum LiveCaptureRouteFactsBuilder {
         )
     }
 
+    public static func vendorVirtualInput(
+        runningDJSoftwareIDs: Set<String>,
+        devices: [AudioInputDevice]
+    ) -> AudioInputDevice? {
+        runningDJSoftwareIDs.compactMap { id in SupportedDJSoftware.all.first { $0.id == id } }
+            .compactMap { AudioInputDeviceCatalog.virtualAudioDevice(for: $0, in: devices) }
+            .first
+    }
+
+    public static func appAudioCapability(
+        runningDJSoftwareIDs: Set<String>,
+        screenCapturePermissionGranted: Bool
+    ) -> LiveCaptureAppAudioCapability {
+        if runningDJSoftwareIDs.isEmpty {
+            return .unavailable
+        }
+        if screenCapturePermissionGranted {
+            return .available
+        }
+        return .permissionDenied
+    }
+
+    public static func appAudioObservation(
+        runningDJSoftwareIDs: Set<String>,
+        isMonitoring: Bool,
+        activeBackend: AppAudioCaptureBackendKind,
+        sourceDeviceUID: String?,
+        peakLevel: Float,
+        applePathExhausted: Bool,
+        screenCapturePermissionGranted: Bool,
+        detection: LiveCaptureDetectionConfig = .default
+    ) -> AppAudioObservation {
+        AppAudioObservation(
+            capability: appAudioCapability(
+                runningDJSoftwareIDs: runningDJSoftwareIDs,
+                screenCapturePermissionGranted: screenCapturePermissionGranted
+            ),
+            isMonitoring: isMonitoring,
+            archiveBackend: isMonitoring ? activeBackend.archiveBackend : nil,
+            sourceDeviceUID: sourceDeviceUID,
+            observedSignal: detection.heardSignal(peakLevel),
+            applePathExhausted: applePathExhausted
+        )
+    }
+
     /// Signal on the current route's own hardware device — never a foreign or app-audio level.
     public static func hardwareFeedIsProducingSignal(
         currentKind: LiveCaptureRouteKind?,

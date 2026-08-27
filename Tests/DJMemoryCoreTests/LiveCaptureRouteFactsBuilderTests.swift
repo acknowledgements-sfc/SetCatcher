@@ -73,6 +73,43 @@ final class LiveCaptureRouteFactsBuilderTests: XCTestCase {
         )
         XCTAssertEqual(facts.session.currentBackend, .existingAppAudio(archiveBackend: .screenCaptureKit))
     }
+
+    func testAppAudioObservationRequiresRunningAppAndPermissionAndMonitoringSignal() {
+        let unavailable = LiveCaptureRouteFactsBuilder.appAudioObservation(
+            runningDJSoftwareIDs: [],
+            isMonitoring: true,
+            activeBackend: .processAudioTap,
+            sourceDeviceUID: "tap",
+            peakLevel: 0.5,
+            applePathExhausted: false,
+            screenCapturePermissionGranted: true
+        )
+        XCTAssertEqual(unavailable.capability, .unavailable)
+
+        let denied = LiveCaptureRouteFactsBuilder.appAudioObservation(
+            runningDJSoftwareIDs: ["serato"],
+            isMonitoring: true,
+            activeBackend: .processAudioTap,
+            sourceDeviceUID: "tap",
+            peakLevel: 0.5,
+            applePathExhausted: false,
+            screenCapturePermissionGranted: false
+        )
+        XCTAssertEqual(denied.capability, .permissionDenied)
+
+        let producing = LiveCaptureRouteFactsBuilder.appAudioObservation(
+            runningDJSoftwareIDs: ["serato"],
+            isMonitoring: true,
+            activeBackend: .screenCaptureKit,
+            sourceDeviceUID: "com.serato.seratodj",
+            peakLevel: 0.5,
+            applePathExhausted: false,
+            screenCapturePermissionGranted: true
+        )
+        XCTAssertEqual(producing.capability, .available)
+        XCTAssertEqual(producing.archiveBackend, .screenCaptureKit)
+        XCTAssertTrue(producing.isProducing)
+    }
 }
 
 #if os(macOS)

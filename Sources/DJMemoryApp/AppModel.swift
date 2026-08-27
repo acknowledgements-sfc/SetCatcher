@@ -194,6 +194,11 @@ final class AppModel: ObservableObject {
                 self?.applyAppAudioCaptureFailure(error)
             }
         }
+        appAudioCaptureService.onInterruptedCapture = { [weak self] result, error in
+            Task { @MainActor in
+                self?.applyInterruptedAppAudioCapture(result, error: error)
+            }
+        }
         startCapturePolling()
         // Launch catch-up: heal any set whose history export landed while the
         // app was closed, before the user ever looks at the library.
@@ -2284,28 +2289,19 @@ extension AppModel {
         recordingAlreadyActive: Bool
     ) -> LiveCaptureRouteFacts {
         let running = currentDJSoftwareIDs()
-        let vendor = running.compactMap { id in SupportedDJSoftware.all.first { $0.id == id } }
-            .compactMap { AudioInputDeviceCatalog.virtualAudioDevice(for: $0, in: devices) }
-            .first
+        let vendor = LiveCaptureRouteFactsBuilder.vendorVirtualInput(
+            runningDJSoftwareIDs: running,
+            devices: devices
+        )
         let routingStatus = SeratoOutputRoutingAdapter().routingStatus(runningSoftwareIDs: running)
-        let appAudioCapability: LiveCaptureAppAudioCapability
-        if running.isEmpty {
-            appAudioCapability = .unavailable
-        } else if AppAudioCaptureService.screenCapturePermissionGranted() {
-            appAudioCapability = .available
-        } else {
-            appAudioCapability = .permissionDenied
-        }
-        let observedLevel = appAudioCaptureService.currentInputLevel()
-        let appAudio = AppAudioObservation(
-            capability: appAudioCapability,
+        let appAudio = LiveCaptureRouteFactsBuilder.appAudioObservation(
+            runningDJSoftwareIDs: running,
             isMonitoring: appAudioCaptureService.isMonitoring,
-            archiveBackend: appAudioCaptureService.isMonitoring
-                ? appAudioCaptureService.activeBackendKind.archiveBackend
-                : nil,
+            activeBackend: appAudioCaptureService.activeBackendKind,
             sourceDeviceUID: appAudioCaptureService.activeSourceDeviceUID,
-            observedSignal: LiveCaptureDetectionConfig.default.heardSignal(observedLevel),
-            applePathExhausted: appAudioCaptureService.appleAppAudioPathExhausted
+            peakLevel: appAudioCaptureService.currentInputLevel(),
+            applePathExhausted: appAudioCaptureService.appleAppAudioPathExhausted,
+            screenCapturePermissionGranted: AppAudioCaptureService.screenCapturePermissionGranted()
         )
         let hardware = liveCaptureObservations(devices: devices, hardwareMonitor: hardwareMonitor)
         let currentFeedIsProducingSignal = LiveCaptureRouteFactsBuilder.hardwareFeedIsProducingSignal(
@@ -2325,7 +2321,7 @@ extension AppModel {
                 vendorVirtualInput: vendor,
                 vendorVirtualEnabled: AppAudioCaptureBackendSelector.virtualAppAudioEnabled,
                 runningDJSoftwareIDs: running,
-                appAudioCapability: appAudioCapability,
+                appAudioCapability: appAudio.capability,
                 appAudio: appAudio,
                 phase: phase,
                 currentKind: lastLiveCaptureKind,
@@ -2986,6 +2982,58 @@ extension AppModel {
                 failed.statusMessage = "App audio stream stopped before a file could be saved."
                 captureState = failed
             }
+        } catch {
+            var failed = captureState
+            failed.phase = .armed
+            failed.listeningState = .recoveryNeeded
+            failed.listeningSummary = "App audio stream stopped. Retry to resume watching."
+            failed.statusMessage = "Could not save interrupted take: \(error.localizedDescription)"
+            captureState = failed
+        }
+        appAudioPollTask?.cancel()
+        appAudioPollTask = nil
+    }
+
+    private func applyInterruptedAppAudioCapture(_ result: CaptureResult, error: AppAudioCaptureError) {
+        let reason: String
+        if case .streamStopped(let detail) = error {
+            reason = detail
+        } else {
+            reason = error.localizedDescription
+        }
+        saveInterruptedAppAudioCapture(result, reason: reason)
+    }
+
+    private func saveInterruptedAppAudioCapture(_ result: CaptureResult, reason: String) {
+        var saving = captureState
+        saving.phase = .saving
+        saving.statusMessage = "Saving interrupted take…"
+        captureState = saving
+        do {
+            let session = try archiveService().ingestCapture(
+                stagingURL: result.stagingURL,
+                deviceID: result.deviceID,
+                deviceName: result.deviceName,
+                startedAt: result.startedAt,
+                endedAt: result.endedAt,
+                sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID,
+                captureRoute: result.captureRoute ?? .appAudio,
+                captureBackend: result.captureBackend ?? appAudioCaptureService.activeBackendKind.archiveBackend,
+                captureDeviceTransport: result.deviceTransport?.archiveLabel
+                    ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel,
+                captureInterrupted: true,
+                captureInterruptionReason: reason
+            )
+            notifyForNewArchive(session)
+            refresh()
+            var done = captureState
+            done.phase = .armed
+            done.listeningState = .recoveryNeeded
+            done.listeningSummary = "App audio stream stopped. Retry to resume watching."
+            done.lastArchivedSessionID = session.id
+            done.statusMessage = "Interrupted take saved to your archive."
+            captureState = done
+            statusMessage = done.statusMessage
         } catch {
             var failed = captureState
             failed.phase = .armed

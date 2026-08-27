@@ -95,14 +95,14 @@ struct CaptureView: View {
                     HStack(spacing: 10) {
                         sessionButtons
                         if case .needsScreenRecordingPermission = model.captureState.phase {
-                            Button("Retry") { Task { await model.armAppAudioCapture() } }
+                            Button("Retry") { model.armAppAudioCapture() }
                                 .accessibilityIdentifier("capture.retryAppAudio")
                             Button("Open Screen Recording Settings") { model.openScreenRecordingPrivacySettings() }
                                 .accessibilityIdentifier("capture.openScreenRecordingSettings")
                         }
                         if model.captureState.listeningState == .recoveryNeeded,
                            model.captureState.mode == .appAudio {
-                            Button("Retry") { Task { await model.armAppAudioCapture() } }
+                            Button("Retry") { model.armAppAudioCapture() }
                                 .accessibilityIdentifier("capture.retryListening")
                             Button("Open Screen Recording Settings") { model.openScreenRecordingPrivacySettings() }
                                 .accessibilityIdentifier("capture.openScreenRecordingSettings")

@@ -1,8 +1,8 @@
 import SwiftUI
 import DJMemoryCore
 
-/// First-run onboarding (design `1c`): setup reframed as a set coming to life. Each granted
-/// folder lights another segment of a warm build-waveform. Warm-ink ground, one serif accent.
+/// First-run onboarding: setup reframed as a set coming to life. Each granted folder lights
+/// another segment of the build waveform.
 struct OnboardingView: View {
     @EnvironmentObject private var model: AppModel
     @State private var step: Step
@@ -58,7 +58,7 @@ struct OnboardingView: View {
             Waveform(
                 seed: "onboarding-build",
                 barCount: 72,
-                gradient: (DJToken.primary, DJToken.primary.opacity(0.7)),
+                tint: DJToken.primary,
                 litFraction: litFraction
             )
             .frame(height: 84)
@@ -73,23 +73,8 @@ struct OnboardingView: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 11) {
-            EQGlyph()
-                .frame(width: 24, height: 24)
-                .foregroundStyle(DJToken.primary)
-            Text("DJMemory")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color(white: 0.94))
-            Spacer()
-            Text("Step \(step.rawValue + 1) / \(Step.allCases.count)")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .tracking(1.5)
-                .textCase(.uppercase)
-                .foregroundStyle(DJToken.primary.opacity(0.7))
-        }
+        OnboardingTopBar(currentStep: step.rawValue + 1, totalSteps: Step.allCases.count)
     }
-
-    // MARK: Per-step copy
 
     private var copy: (headline: String, accent: String?, subline: String) {
         switch step {
@@ -113,8 +98,6 @@ struct OnboardingView: View {
                     "DJMemory will watch granted folders and copy completed recordings into your archive.")
         }
     }
-
-    // MARK: Per-step interactive detail
 
     @ViewBuilder
     private var detail: some View {
@@ -141,57 +124,20 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: App chips (granted gold / found dim / not installed faint)
-
     private var appChips: some View {
         HStack(spacing: 9) {
             ForEach(model.probeResults.prefix(6), id: \.software.id) { result in
-                chip(result)
+                OnboardingAppChip(
+                    result: result,
+                    granted: model.hasConfiguredRecordingsFolder(appID: result.software.id),
+                    canChooseFolder: step == .folderAccess
+                ) {
+                    model.chooseFolder(appID: result.software.id, kind: .recordings)
+                }
             }
             Spacer(minLength: 0)
         }
     }
-
-    private func chip(_ result: SoftwareProbeResult) -> some View {
-        let granted = model.hasConfiguredRecordingsFolder(appID: result.software.id)
-        let installed = !result.installedApplicationURLs.isEmpty
-        let interactive = step == .folderAccess && !granted
-        return Button {
-            if interactive { model.chooseFolder(appID: result.software.id, kind: .recordings) }
-        } label: {
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(granted ? DJToken.primary : DJToken.mutedForeground.opacity(installed ? 0.35 : 0.15))
-                    .frame(width: 7, height: 7)
-                Text(result.software.displayName)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(chipText(granted: granted, installed: installed))
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                (granted ? DJToken.primary.opacity(0.14) : DJToken.muted.opacity(0.6)),
-                in: Capsule()
-            )
-            .overlay(
-                Capsule().stroke(
-                    granted ? DJToken.primary.opacity(0.4) : DJToken.hairline,
-                    lineWidth: 1
-                )
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(!interactive)
-        .accessibilityIdentifier("onboarding.folder.\(result.software.id)")
-    }
-
-    private func chipText(granted: Bool, installed: Bool) -> Color {
-        if granted { return Color(red: 0.94, green: 0.88, blue: 0.75) }
-        return Color.white.opacity(installed ? 0.6 : 0.35)
-    }
-
-    // MARK: Footer
 
     private var footer: some View {
         HStack(spacing: 8) {
@@ -215,7 +161,10 @@ struct OnboardingView: View {
                     .foregroundStyle(DJToken.foreground)
                     .padding(.horizontal, 22)
                     .frame(minHeight: 40)
-                    .background(DJToken.primary.opacity(canContinue ? 1 : 0.4), in: Capsule())
+                    .background(
+                        DJToken.primary.opacity(canContinue ? 1 : 0.4),
+                        in: RoundedRectangle(cornerRadius: DJToken.Radius.maximum)
+                    )
             }
             .buttonStyle(.plain)
             .disabled(!canContinue)
@@ -223,8 +172,6 @@ struct OnboardingView: View {
             .accessibilityIdentifier(step == .ready ? "onboarding.startSetup" : "onboarding.continue")
         }
     }
-
-    // MARK: Progress + gating
 
     private var litFraction: Double {
         let stepProgress = Double(step.rawValue) / Double(Step.allCases.count - 1)
@@ -262,21 +209,37 @@ struct OnboardingView: View {
         .preferredColorScheme(.dark)
 }
 
+#Preview("Onboarding Welcome Light") {
+    OnboardingView(startingStep: .welcome)
+        .environmentObject(AppModel())
+        .preferredColorScheme(.light)
+}
+
 #Preview("Onboarding Folder Access") {
     OnboardingView(startingStep: .folderAccess)
         .environmentObject(AppModel())
         .preferredColorScheme(.dark)
 }
 
+#Preview("Onboarding Folder Access Light") {
+    OnboardingView(startingStep: .folderAccess)
+        .environmentObject(AppModel())
+        .preferredColorScheme(.light)
+}
+
 #Preview("Onboarding Ready") {
     onboardingReadyPreview()
 }
 
+#Preview("Onboarding Ready Light") {
+    onboardingReadyPreview(colorScheme: .light)
+}
+
 @MainActor
-private func onboardingReadyPreview() -> some View {
+private func onboardingReadyPreview(colorScheme: ColorScheme = .dark) -> some View {
     let model = AppModel()
     model.previewApplyConfiguredRecordingsFolders(reachableAppIDs: ["serato"])
     return OnboardingView(startingStep: .ready)
         .environmentObject(model)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(colorScheme)
 }

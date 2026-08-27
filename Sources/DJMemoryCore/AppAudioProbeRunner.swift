@@ -1,6 +1,9 @@
 import Foundation
 
 #if os(macOS)
+import AppKit
+import CoreAudio
+
 /// Metadata-only probe result for invisible-capture bench scripts.
 public struct InvisibleCaptureProbeResult: Encodable, Sendable {
     public let timestamp: String
@@ -45,7 +48,7 @@ public enum AppAudioProbeRunner {
         if FileManager.default.fileExists(atPath: path),
            let handle = try? FileHandle(forWritingTo: url) {
             defer { try? handle.close() }
-            try? handle.seekToEnd()
+            _ = try? handle.seekToEnd()
             if let payload = (line + "\n").data(using: .utf8) {
                 try? handle.write(contentsOf: payload)
             }
@@ -59,7 +62,7 @@ public enum AppAudioProbeRunner {
         let jsonlPath = ProcessInfo.processInfo.environment["DJMEMORY_INVISIBLE_CAPTURE_JSONL"]
             ?? defaultJSONLPath
         let forceSCK = ProcessInfo.processInfo.environment["DJMEMORY_FORCE_SCK_APP_AUDIO"] == "1"
-        let outputModeLabel = ProcessInfo.processInfo.environment["DJMEMORY_OUTPUT_MODE_LABEL"] ?? "system-default"
+        let outputModeLabel = ProcessInfo.processInfo.environment["DJMEMORY_OUTPUT_MODE_LABEL"] ?? "UNKNOWN"
         let semaphore = DispatchSemaphore(value: 0)
         let isoFormatter = ISO8601DateFormatter()
 
@@ -117,6 +120,9 @@ public enum AppAudioProbeRunner {
                 }
 
                 print("scenario: software=\(chosen.software.id) backend=\(forceSCK ? "screenCaptureKit" : "processAudioTap") outputMode=\(outputModeLabel)")
+                if outputModeLabel == "UNKNOWN" {
+                    print("WARNING: set DJMEMORY_OUTPUT_MODE_LABEL to the bench scenario, for example mac-speakers or controller-usb.")
+                }
                 print("monitoring: \(chosen.software.displayName) id=\(chosen.software.id)")
                 let devices = AudioInputDeviceCatalog.listInputs()
                 let runningIDs = Set(apps.map(\.software.id))
@@ -135,11 +141,15 @@ public enum AppAudioProbeRunner {
                     print("sourceDeviceUID: \(sourceUID)")
                 }
                 let pioneerInputs = devices.filter(\.isLikelyPioneerDJHardware)
+                let outputDeviceUID = defaultOutputDeviceUID()
+                let djAppVersion = appVersion(bundleIdentifier: chosen.matchedBundleIdentifier)
                 print("outputMode: \(outputModeLabel)")
 
                 var peak: Float = 0
                 var sumSquares: Float = 0
                 var sampleCount = 0
+                try service.beginRecordingFile()
+                let recordingStartedAt = Date()
                 let ticks = max(1, seconds * 5)
                 for i in 0..<ticks {
                     try? await Task.sleep(nanoseconds: 200_000_000)
@@ -163,9 +173,6 @@ public enum AppAudioProbeRunner {
                 var channels: Int?
                 var bitDepth: Int?
 
-                let recordingStartedAt = Date()
-                try service.beginRecordingFile()
-                try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
                 if let result = try service.endRecordingFile(discard: false) {
                     stagingBytes = (try? FileManager.default.attributesOfItem(atPath: result.stagingURL.path)[.size] as? NSNumber)?.intValue
                     let validation = CaptureAudioFormat.validateReadableWAV(at: result.stagingURL)
@@ -201,7 +208,8 @@ public enum AppAudioProbeRunner {
                     stagingBytes: stagingBytes,
                     wavValid: wavValid,
                     archivePath: archivePath,
-                    libraryReconciled: libraryReconciled
+                    libraryReconciled: libraryReconciled,
+                    signalMeasuredDuringRecording: true
                 )
                 let pass = InvisibleCaptureProbeEvaluator.passes(passInput)
                 let outcome = InvisibleCaptureProbeEvaluator.outcomeLabel(for: passInput)
@@ -219,7 +227,7 @@ public enum AppAudioProbeRunner {
                         backend: service.activeBackendKind.rawValue,
                         outputModeLabel: outputModeLabel,
                         sourceDeviceUID: service.activeSourceDeviceUID,
-                        outputDeviceUID: nil,
+                        outputDeviceUID: outputDeviceUID ?? "UNKNOWN",
                         peakLevel: peak,
                         rmsLevel: rms,
                         framesWritten: framesWritten,
@@ -235,7 +243,7 @@ public enum AppAudioProbeRunner {
                         forcedScreenCaptureKit: forceSCK,
                         probeSeconds: seconds,
                         macOSVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-                        djAppVersion: nil,
+                        djAppVersion: djAppVersion ?? "UNKNOWN",
                         pioneerInputCount: pioneerInputs.count,
                         pioneerInputUIDs: pioneerInputs.map(\.id)
                     ),
@@ -281,7 +289,7 @@ public enum AppAudioProbeRunner {
             backend: "none",
             outputModeLabel: outputModeLabel,
             sourceDeviceUID: nil,
-            outputDeviceUID: nil,
+            outputDeviceUID: defaultOutputDeviceUID() ?? "UNKNOWN",
             peakLevel: 0,
             rmsLevel: 0,
             framesWritten: 0,
@@ -297,7 +305,7 @@ public enum AppAudioProbeRunner {
             forcedScreenCaptureKit: forceSCK,
             probeSeconds: seconds,
             macOSVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-            djAppVersion: nil,
+            djAppVersion: appVersion(softwareID: softwareID) ?? "UNKNOWN",
             pioneerInputCount: 0,
             pioneerInputUIDs: []
         )
@@ -315,6 +323,66 @@ public enum AppAudioProbeRunner {
             }
         }
         return (softwareID, seconds)
+    }
+
+    private static func defaultOutputDeviceUID() -> String? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID = AudioDeviceID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &size,
+            &deviceID
+        )
+        guard status == noErr, deviceID != kAudioObjectUnknown else { return nil }
+        address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var uid: CFString = "" as CFString
+        size = UInt32(MemoryLayout<CFString>.size)
+        let uidStatus = withUnsafeMutablePointer(to: &uid) { pointer in
+            AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, pointer)
+        }
+        guard uidStatus == noErr else { return nil }
+        let value = uid as String
+        return value.isEmpty ? nil : value
+    }
+
+    private static func appVersion(softwareID: String) -> String? {
+        guard let software = SupportedDJSoftware.all.first(where: { $0.id == softwareID }) else { return nil }
+        for bundleIdentifier in software.bundleIdentifiers {
+            if let version = appVersion(bundleIdentifier: bundleIdentifier) {
+                return version
+            }
+        }
+        return nil
+    }
+
+    private static func appVersion(bundleIdentifier: String) -> String? {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier),
+              let bundle = Bundle(url: url)
+        else { return nil }
+        let shortVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        switch (shortVersion, build) {
+        case let (short?, build?) where !short.isEmpty && !build.isEmpty:
+            return "\(short) (\(build))"
+        case let (short?, _) where !short.isEmpty:
+            return short
+        case let (_, build?) where !build.isEmpty:
+            return build
+        default:
+            return nil
+        }
     }
 }
 #endif

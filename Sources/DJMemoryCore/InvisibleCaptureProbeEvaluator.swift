@@ -10,6 +10,7 @@ public struct InvisibleCaptureProbePassInput: Equatable, Sendable {
     public var archivePath: String?
     public var libraryReconciled: Bool
     public var signalThreshold: Float
+    public var signalMeasuredDuringRecording: Bool
 
     public init(
         peakLevel: Float,
@@ -19,7 +20,8 @@ public struct InvisibleCaptureProbePassInput: Equatable, Sendable {
         wavValid: Bool,
         archivePath: String?,
         libraryReconciled: Bool,
-        signalThreshold: Float = LiveCaptureDetectionConfig.default.signalThreshold
+        signalThreshold: Float = LiveCaptureDetectionConfig.default.signalThreshold,
+        signalMeasuredDuringRecording: Bool = true
     ) {
         self.peakLevel = peakLevel
         self.rmsLevel = rmsLevel
@@ -29,12 +31,14 @@ public struct InvisibleCaptureProbePassInput: Equatable, Sendable {
         self.archivePath = archivePath
         self.libraryReconciled = libraryReconciled
         self.signalThreshold = signalThreshold
+        self.signalMeasuredDuringRecording = signalMeasuredDuringRecording
     }
 }
 
 public enum InvisibleCaptureProbeEvaluator {
     public static func passes(_ input: InvisibleCaptureProbePassInput) -> Bool {
         guard input.peakLevel >= input.signalThreshold else { return false }
+        guard input.signalMeasuredDuringRecording else { return false }
         guard input.framesWritten > 0 else { return false }
         guard input.wavValid else { return false }
         guard let archivePath = input.archivePath, !archivePath.isEmpty else { return false }

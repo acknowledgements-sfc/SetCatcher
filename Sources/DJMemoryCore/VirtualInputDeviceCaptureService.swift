@@ -7,12 +7,14 @@ import Foundation
 /// Core Audio device IOProc. It intentionally has no AVAudioEngine output side, avoiding the
 /// unbounded clock-drift buffering that occurs when a virtual input and speakers use different
 /// clocks.
-public final class VirtualInputDeviceCaptureService: @unchecked Sendable, AppAudioCaptureBackend {
+public final class VirtualInputDeviceCaptureService: @unchecked Sendable, VirtualInputAppAudioCaptureBackend {
     public let backendKind: AppAudioCaptureBackendKind = .virtualInputDevice
     public var onStreamStopped: ((AppAudioCaptureError) -> Void)?
+    public var onInterruptedCapture: ((CaptureResult, AppAudioCaptureError) -> Void)?
 
     public var isMonitoring: Bool { capture.isMonitoring }
     public var isWriting: Bool { capture.isWriting }
+    public var sourceDeviceUID: String? { boundDevice?.id }
 
     private let capture: CoreAudioIOProcCapture
     private var boundDevice: AudioInputDevice?

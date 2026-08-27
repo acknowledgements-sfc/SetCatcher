@@ -46,7 +46,9 @@ public protocol AppAudioCaptureBackend: AnyObject, Sendable {
     var backendKind: AppAudioCaptureBackendKind { get }
     var isMonitoring: Bool { get }
     var isWriting: Bool { get }
+    var sourceDeviceUID: String? { get }
     var onStreamStopped: ((AppAudioCaptureError) -> Void)? { get set }
+    var onInterruptedCapture: ((CaptureResult, AppAudioCaptureError) -> Void)? { get set }
 
     func listShareableDJApps() async throws -> [MatchedDJApp]
     func startMonitoring(bundleIdentifier: String, displayName: String, prerollSeconds: TimeInterval) async throws
@@ -165,6 +167,9 @@ public final class AppAudioCaptureService: @unchecked Sendable {
     public var onStreamStopped: ((AppAudioCaptureError) -> Void)? {
         didSet { configureCallbacks() }
     }
+    public var onInterruptedCapture: ((CaptureResult, AppAudioCaptureError) -> Void)? {
+        didSet { configureCallbacks() }
+    }
 
     public var captureSourceDisplayName: String {
         if activeBackendKind == .virtualInputDevice {
@@ -173,17 +178,17 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         return activeBackendKind.displayName
     }
 
-    private let processTapBackend: ProcessAudioTapCaptureService
-    private let screenCaptureBackend: ScreenCaptureKitAppAudioCaptureService
-    private let virtualBackend: VirtualInputDeviceCaptureService
-    private var activeBackend: AppAudioCaptureBackend
+    private let processTapBackend: any AppAudioCaptureBackend
+    private let screenCaptureBackend: any AppAudioCaptureBackend
+    private let virtualBackend: any VirtualInputAppAudioCaptureBackend
+    private var activeBackend: any AppAudioCaptureBackend
 
     public init(
         stagingDirectory: URL = CaptureService.defaultStagingDirectory(),
         fileManager: FileManager = .default,
-        processTapBackend: ProcessAudioTapCaptureService? = nil,
-        screenCaptureBackend: ScreenCaptureKitAppAudioCaptureService? = nil,
-        virtualBackend: VirtualInputDeviceCaptureService? = nil
+        processTapBackend: (any AppAudioCaptureBackend)? = nil,
+        screenCaptureBackend: (any AppAudioCaptureBackend)? = nil,
+        virtualBackend: (any VirtualInputAppAudioCaptureBackend)? = nil
     ) {
         self.processTapBackend = processTapBackend ?? ProcessAudioTapCaptureService(
             stagingDirectory: stagingDirectory,
@@ -348,6 +353,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
     public func stopMonitoring() async {
         await activeBackend.stopMonitoring()
         activeVirtualDevice = nil
+        activeSourceDeviceUID = nil
     }
 
     public func beginRecordingFile() throws {
@@ -382,7 +388,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
                     prerollSeconds: prerollSeconds
                 )
                 adopt(processTapBackend, kind: .processAudioTap, virtualDevice: nil)
-                activeSourceDeviceUID = processTapBackend.aggregateDeviceUID
+                activeSourceDeviceUID = processTapBackend.sourceDeviceUID
                 print("app-audio-backend: processAudioTap")
                 return
             } catch AppAudioCaptureError.permissionDenied {
@@ -398,7 +404,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
                         prerollSeconds: prerollSeconds
                     )
                     adopt(processTapBackend, kind: .processAudioTap, virtualDevice: nil)
-                    activeSourceDeviceUID = processTapBackend.aggregateDeviceUID
+                    activeSourceDeviceUID = processTapBackend.sourceDeviceUID
                     print("app-audio-backend: processAudioTap (retry)")
                     return
                 } catch AppAudioCaptureError.permissionDenied {
@@ -446,7 +452,14 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         processTapBackend.onStreamStopped = onStreamStopped
         screenCaptureBackend.onStreamStopped = onStreamStopped
         virtualBackend.onStreamStopped = onStreamStopped
+        processTapBackend.onInterruptedCapture = onInterruptedCapture
+        screenCaptureBackend.onInterruptedCapture = onInterruptedCapture
+        virtualBackend.onInterruptedCapture = onInterruptedCapture
     }
+}
+
+public protocol VirtualInputAppAudioCaptureBackend: AppAudioCaptureBackend {
+    func bind(device: AudioInputDevice, softwareID: String)
 }
 
 public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioCaptureBackend {
@@ -455,11 +468,13 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
     public var isWriting: Bool { capture.isWriting }
     public var inputLevel: Float { capture.currentInputLevel() }
     public var startedAt: Date? { capture.startedAt }
+    public var sourceDeviceUID: String? { aggregateDeviceUID }
     public private(set) var targetBundleIdentifier = ""
     public private(set) var targetDisplayName = ""
     public private(set) var aggregateDeviceUID: String?
 
     public var onStreamStopped: ((AppAudioCaptureError) -> Void)?
+    public var onInterruptedCapture: ((CaptureResult, AppAudioCaptureError) -> Void)?
 
     private let capture: CoreAudioIOProcCapture
     private var tapID = AudioObjectID(kAudioObjectUnknown)
@@ -709,13 +724,19 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
     public private(set) var startedAt: Date?
     public private(set) var targetBundleIdentifier = ""
     public private(set) var targetDisplayName = ""
+    public var sourceDeviceUID: String? {
+        targetBundleIdentifier.isEmpty ? nil : targetBundleIdentifier
+    }
 
     /// Invoked on the sample-handler queue when ScreenCaptureKit stops the stream with an error.
     public var onStreamStopped: ((AppAudioCaptureError) -> Void)?
+    public var onInterruptedCapture: ((CaptureResult, AppAudioCaptureError) -> Void)?
 
     private let fileManager: FileManager
     private let stagingDirectory: URL
     private let sampleHandlerQueue = DispatchQueue(label: "app.djmemory.AppAudioCapture.sample")
+    private static let sampleQueueKey = DispatchSpecificKey<UInt8>()
+    private static let sampleQueueValue: UInt8 = 1
     private let levelLock = NSLock()
     private var stream: SCStream?
     private var audioFile: AVAudioFile?
@@ -738,6 +759,7 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
         self.stagingDirectory = stagingDirectory
         self.fileManager = fileManager
         super.init()
+        sampleHandlerQueue.setSpecific(key: Self.sampleQueueKey, value: Self.sampleQueueValue)
     }
 
     public static func screenCapturePermissionGranted() -> Bool {
@@ -888,9 +910,17 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
 
     public func endRecordingFile(discard: Bool = false) throws -> CaptureResult? {
         guard isWriting else { throw AppAudioCaptureError.notWriting }
+        return try finalizeRecordingFile(discard: discard, interrupted: false, reason: nil)
+    }
+
+    private func finalizeRecordingFile(
+        discard: Bool,
+        interrupted: Bool,
+        reason: String?
+    ) throws -> CaptureResult? {
         // Stop writing on the sample-handler queue so no in-flight callback writes to a closed file.
         // Keep `writeFormat`/`converter` so metering and the pre-roll ring keep running while armed.
-        sampleHandlerQueue.sync {
+        syncOnSampleHandlerQueue {
             audioFile = nil
             isWriting = false
         }
@@ -924,7 +954,9 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
             startedAt: started,
             endedAt: endedAt,
             captureRoute: .appAudio,
-            captureBackend: .screenCaptureKit
+            captureBackend: .screenCaptureKit,
+            captureInterrupted: interrupted,
+            captureInterruptionReason: reason
         )
     }
 
@@ -937,6 +969,14 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
         levelLock.lock()
         inputLevel = value
         levelLock.unlock()
+    }
+
+    private func syncOnSampleHandlerQueue(_ body: () -> Void) {
+        if DispatchQueue.getSpecific(key: Self.sampleQueueKey) == Self.sampleQueueValue {
+            body()
+        } else {
+            sampleHandlerQueue.sync(execute: body)
+        }
     }
 
     private func fetchShareableContent() async throws -> SCShareableContent {
@@ -1125,6 +1165,14 @@ extension ScreenCaptureKitAppAudioCaptureService: SCStreamDelegate {
     public func stream(_ stream: SCStream, didStopWithError error: Error) {
         let wasMonitoring = isMonitoring
         let wasWriting = isWriting
+        let reason = error.localizedDescription
+        let captureError = AppAudioCaptureError.streamStopped(reason)
+        let interruptedResult: CaptureResult?
+        if wasWriting {
+            interruptedResult = try? finalizeRecordingFile(discard: false, interrupted: true, reason: reason)
+        } else {
+            interruptedResult = nil
+        }
         isMonitoring = false
         isWriting = false
         audioFile = nil
@@ -1137,8 +1185,11 @@ extension ScreenCaptureKitAppAudioCaptureService: SCStreamDelegate {
         prerollFrames = 0
         setInputLevel(0)
         guard wasMonitoring || wasWriting else { return }
-        let captureError = AppAudioCaptureError.streamStopped(error.localizedDescription)
-        onStreamStopped?(captureError)
+        if let interruptedResult {
+            onInterruptedCapture?(interruptedResult, captureError)
+        } else {
+            onStreamStopped?(captureError)
+        }
     }
 }
 
