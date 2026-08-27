@@ -1,7 +1,7 @@
 # Handoff for Antigravity — Bookmark fix, merge prep, Codex handoff draft
 
-**Date:** 2026-08-27  
-**Repo:** `/Users/robcmartin/Documents/Claude/Projects/SetCatcher` (DJMemory)  
+**Date:** 2026-08-27
+**Repo:** `/Users/robcmartin/Documents/Claude/Projects/SetCatcher` (DJMemory)
 **Read first:** `AGENTS.md`, `.cursor/rules/djmemory-project.mdc`
 
 ## Your mission
