@@ -53,12 +53,10 @@ final class CaptureServiceTests: XCTestCase {
         XCTAssertEqual(result.deviceID, device.id)
 
         let settings = try AppSettingsStore().load()
-        let archiveRoot = URL(
-            fileURLWithPath: settings.archiveRootPath ?? ArchiveService.defaultArchiveRoot().path
-        )
+        let archiveRootResolution = ArchiveRootResolver.resolve(settings: settings)
         let archive = ArchiveService(
-            archiveRoot: archiveRoot,
-            archiveRootBookmarkData: settings.archiveRootBookmarkData,
+            archiveRoot: archiveRootResolution.url,
+            archiveRootBookmarkData: archiveRootResolution.bookmarkData,
             verifyCopies: true
         )
         let session = try archive.ingestCapture(
@@ -92,11 +90,11 @@ final class CaptureServiceTests: XCTestCase {
             throw XCTSkip("Set DJMEMORY_LIVE_XZ=1 for the hardware bench.")
         }
         let settings = try AppSettingsStore().load()
-        let archiveRoot = URL(
-            fileURLWithPath: settings.archiveRootPath ?? ArchiveService.defaultArchiveRoot().path,
-            isDirectory: true
-        )
-        let metadata = try SessionLibrary(archiveRoot: archiveRoot).archivedMetadata()
+        let archiveRootResolution = ArchiveRootResolver.resolve(settings: settings)
+        let metadata = try SessionLibrary(
+            archiveRoot: archiveRootResolution.url,
+            archiveRootBookmarkData: archiveRootResolution.bookmarkData
+        ).archivedMetadata()
         let groups = PerformanceSessionLinker.groups(from: metadata)
         let group = try XCTUnwrap(
             groups.first { group in

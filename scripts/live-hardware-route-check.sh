@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_PATH="${DJMEMORY_LIVE_HARDWARE_RESULT_PATH:-/tmp/djmemory-live-xz-result.txt}"
 REQUIRE_LIVE_HARDWARE="${DJMEMORY_REQUIRE_LIVE_HARDWARE:-0}"
+# Optional escape hatch if GUI archive bookmark is exotic:
+#   DJMEMORY_ARCHIVE_ROOT=~/Music/DJMemory bash scripts/live-hardware-route-check.sh
 
 cd "$ROOT_DIR"
 
