@@ -2867,11 +2867,6 @@ extension AppModel {
     }
 
     private func applyAppAudioCaptureFailure(_ error: AppAudioCaptureError) {
-        let wasRecording = captureState.phase == .recording || appAudioCaptureService.isWriting
-        if case .streamStopped(let detail) = error, wasRecording {
-            salvageInterruptedAppAudioCapture(reason: detail)
-            return
-        }
         appAudioPollTask?.cancel()
         appAudioPollTask = nil
         let message: String
@@ -2927,71 +2922,6 @@ extension AppModel {
         default:
             Task { await appAudioCaptureService.stopMonitoring() }
         }
-    }
-
-    private func salvageInterruptedAppAudioCapture(reason: String) {
-        var saving = captureState
-        saving.phase = .saving
-        saving.statusMessage = "Saving interrupted take…"
-        captureState = saving
-        do {
-            let result = try appAudioCaptureService.endRecordingFile(discard: false)
-            if let result {
-                let interrupted = CaptureResult(
-                    stagingURL: result.stagingURL,
-                    deviceID: result.deviceID,
-                    deviceName: result.deviceName,
-                    startedAt: result.startedAt,
-                    endedAt: result.endedAt,
-                    captureRoute: result.captureRoute,
-                    captureBackend: result.captureBackend,
-                    deviceTransport: result.deviceTransport,
-                    captureInterrupted: true,
-                    captureInterruptionReason: reason
-                )
-                let session = try archiveService().ingestCapture(
-                    stagingURL: interrupted.stagingURL,
-                    deviceID: interrupted.deviceID,
-                    deviceName: interrupted.deviceName,
-                    startedAt: interrupted.startedAt,
-                    endedAt: interrupted.endedAt,
-                    sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID,
-                    captureRoute: interrupted.captureRoute ?? .appAudio,
-                    captureBackend: interrupted.captureBackend
-                        ?? appAudioCaptureService.activeBackendKind.archiveBackend,
-                    captureDeviceTransport: interrupted.deviceTransport?.archiveLabel
-                        ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel,
-                    captureInterrupted: true,
-                    captureInterruptionReason: reason
-                )
-                notifyForNewArchive(session)
-                refresh()
-                var done = captureState
-                done.phase = .armed
-                done.listeningState = .recoveryNeeded
-                done.listeningSummary = "App audio stream stopped. Retry to resume watching."
-                done.lastArchivedSessionID = session.id
-                done.statusMessage = "Interrupted take saved to your archive."
-                captureState = done
-                statusMessage = done.statusMessage
-            } else {
-                var failed = captureState
-                failed.phase = .armed
-                failed.listeningState = .recoveryNeeded
-                failed.listeningSummary = "App audio stream stopped. Retry to resume watching."
-                failed.statusMessage = "App audio stream stopped before a file could be saved."
-                captureState = failed
-            }
-        } catch {
-            var failed = captureState
-            failed.phase = .armed
-            failed.listeningState = .recoveryNeeded
-            failed.listeningSummary = "App audio stream stopped. Retry to resume watching."
-            failed.statusMessage = "Could not save interrupted take: \(error.localizedDescription)"
-            captureState = failed
-        }
-        appAudioPollTask?.cancel()
-        appAudioPollTask = nil
     }
 
     private func applyInterruptedAppAudioCapture(_ result: CaptureResult, error: AppAudioCaptureError) {

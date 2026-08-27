@@ -59,4 +59,43 @@ public enum CaptureAudioFormat {
             bitDepth: bitDepth
         )
     }
+
+    /// Frames per chunk when scanning archived WAV samples for peak level.
+    public static let peakScanFrameCapacity: AVAudioFrameCount = 4_096
+
+    /// Absolute peak sample level from an archived WAV using bounded chunked reads.
+    /// Returns `0` when the file cannot be read or contains no frames.
+    public static func peakLevel(
+        at url: URL,
+        frameCapacity: AVAudioFrameCount = peakScanFrameCapacity
+    ) -> Float {
+        guard let file = try? AVAudioFile(forReading: url), file.length > 0 else { return 0 }
+        let format = file.processingFormat
+        let capacity = max(1, frameCapacity)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return 0 }
+
+        var peak: Float = 0
+        while file.framePosition < file.length {
+            let remaining = AVAudioFrameCount(file.length - file.framePosition)
+            let framesToRead = min(capacity, remaining)
+            do {
+                try file.read(into: buffer, frameCount: framesToRead)
+            } catch {
+                break
+            }
+            guard buffer.frameLength > 0 else { break }
+            let frameCount = Int(buffer.frameLength)
+            let channelCount = Int(format.channelCount)
+            guard let channels = buffer.floatChannelData else { break }
+            for channel in 0..<channelCount {
+                if let channelPeak = CaptureDSP.peakAbsolute(
+                    samples: channels[channel],
+                    count: frameCount
+                ) {
+                    peak = max(peak, channelPeak)
+                }
+            }
+        }
+        return peak
+    }
 }

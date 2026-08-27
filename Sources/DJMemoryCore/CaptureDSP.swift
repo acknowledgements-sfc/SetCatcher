@@ -30,6 +30,14 @@ enum CaptureDSP {
         return meanSquare
     }
 
+    /// Absolute peak magnitude over a strided float buffer.
+    static func peakAbsolute(samples: UnsafePointer<Float>, count: Int, stride: Int = 1) -> Float? {
+        guard count > 0, stride > 0 else { return nil }
+        var peak: Float = 0
+        vDSP_maxmgv(samples, vDSP_Stride(stride), &peak, vDSP_Length(count))
+        return peak
+    }
+
     static func copyInterleavedChannel(
         from source: UnsafePointer<Float>,
         sourceChannel: Int,

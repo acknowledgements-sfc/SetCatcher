@@ -122,21 +122,54 @@ final class InvisibleCaptureProbeEvaluatorTests: XCTestCase {
             stagingBytes: 192_000,
             wavValid: true,
             archivePath: "/tmp/test.wav",
-            libraryReconciled: true
+            libraryReconciled: true,
+            outputModeLabel: "system-default"
         )
         XCTAssertTrue(InvisibleCaptureProbeEvaluator.passes(good))
+        XCTAssertEqual(InvisibleCaptureProbeEvaluator.outcomeLabel(for: good), "pass_archive_signal")
 
-        var silent = good
-        silent = InvisibleCaptureProbePassInput(
+        let silent = InvisibleCaptureProbePassInput(
             peakLevel: 0.001,
             rmsLevel: good.rmsLevel,
             framesWritten: good.framesWritten,
             stagingBytes: good.stagingBytes,
             wavValid: good.wavValid,
             archivePath: good.archivePath,
-            libraryReconciled: good.libraryReconciled
+            libraryReconciled: good.libraryReconciled,
+            outputModeLabel: "system-default"
         )
         XCTAssertFalse(InvisibleCaptureProbeEvaluator.passes(silent))
+    }
+
+    func testPassRejectsUnknownScenarioEvenWithAudibleArchivePeak() {
+        let unknown = InvisibleCaptureProbePassInput(
+            peakLevel: 0.9,
+            rmsLevel: 0.4,
+            framesWritten: 48_000,
+            stagingBytes: 192_000,
+            wavValid: true,
+            archivePath: "/tmp/test.wav",
+            libraryReconciled: true,
+            outputModeLabel: "UNKNOWN"
+        )
+        XCTAssertFalse(InvisibleCaptureProbeEvaluator.passes(unknown))
+        XCTAssertEqual(InvisibleCaptureProbeEvaluator.outcomeLabel(for: unknown), "unknown_scenario")
+    }
+
+    func testSilentArchivedPeakFailsEvenIfLiveMeterWouldHavePassed() {
+        // Live meter is no longer an evaluator input; archived peak of ~0 must fail.
+        let archivedSilent = InvisibleCaptureProbePassInput(
+            peakLevel: 0,
+            rmsLevel: 0.8,
+            framesWritten: 48_000,
+            stagingBytes: 192_000,
+            wavValid: true,
+            archivePath: "/tmp/silent.wav",
+            libraryReconciled: true,
+            signalMeasuredDuringRecording: true,
+            outputModeLabel: "system-default"
+        )
+        XCTAssertFalse(InvisibleCaptureProbeEvaluator.passes(archivedSilent))
     }
 }
 #endif

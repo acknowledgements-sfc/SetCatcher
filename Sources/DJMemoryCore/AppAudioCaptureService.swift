@@ -181,6 +181,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
     private let processTapBackend: any AppAudioCaptureBackend
     private let screenCaptureBackend: any AppAudioCaptureBackend
     private let virtualBackend: any VirtualInputAppAudioCaptureBackend
+    private let microphonePermissionGranted: () -> Bool
     private var activeBackend: any AppAudioCaptureBackend
 
     public init(
@@ -188,7 +189,8 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         fileManager: FileManager = .default,
         processTapBackend: (any AppAudioCaptureBackend)? = nil,
         screenCaptureBackend: (any AppAudioCaptureBackend)? = nil,
-        virtualBackend: (any VirtualInputAppAudioCaptureBackend)? = nil
+        virtualBackend: (any VirtualInputAppAudioCaptureBackend)? = nil,
+        microphonePermissionGranted: @escaping () -> Bool = { CaptureService.microphonePermissionGranted() }
     ) {
         self.processTapBackend = processTapBackend ?? ProcessAudioTapCaptureService(
             stagingDirectory: stagingDirectory,
@@ -202,6 +204,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
             stagingDirectory: stagingDirectory,
             fileManager: fileManager
         )
+        self.microphonePermissionGranted = microphonePermissionGranted
         let preferred = AppAudioCaptureBackendSelector.preferredBackend(
             processTapSupported: ProcessAudioTapCaptureService.isSupported
         )
@@ -274,7 +277,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
             return
         } catch AppAudioCaptureError.permissionDenied {
             if AppAudioCaptureBackendSelector.virtualAppAudioEnabled,
-               CaptureService.microphonePermissionGranted(),
+               microphonePermissionGranted(),
                let selection = AppAudioCaptureBackendSelector.vendorFallbackSelection(
                    targetSoftware: software,
                    inputDevices: inputDevices,
@@ -299,7 +302,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         }
 
         if AppAudioCaptureBackendSelector.virtualAppAudioEnabled,
-           CaptureService.microphonePermissionGranted(),
+           microphonePermissionGranted(),
            let selection = AppAudioCaptureBackendSelector.vendorFallbackSelection(
                targetSoftware: software,
                inputDevices: inputDevices,
@@ -1167,11 +1170,20 @@ extension ScreenCaptureKitAppAudioCaptureService: SCStreamDelegate {
         let wasWriting = isWriting
         let reason = error.localizedDescription
         let captureError = AppAudioCaptureError.streamStopped(reason)
-        let interruptedResult: CaptureResult?
+        var interruptedResult: CaptureResult?
+        var finalizationFailure: AppAudioCaptureError?
         if wasWriting {
-            interruptedResult = try? finalizeRecordingFile(discard: false, interrupted: true, reason: reason)
-        } else {
-            interruptedResult = nil
+            do {
+                interruptedResult = try finalizeRecordingFile(
+                    discard: false,
+                    interrupted: true,
+                    reason: reason
+                )
+            } catch {
+                finalizationFailure = .streamStopped(
+                    "Interrupted take could not be finalized: \(error.localizedDescription)"
+                )
+            }
         }
         isMonitoring = false
         isWriting = false
@@ -1187,6 +1199,8 @@ extension ScreenCaptureKitAppAudioCaptureService: SCStreamDelegate {
         guard wasMonitoring || wasWriting else { return }
         if let interruptedResult {
             onInterruptedCapture?(interruptedResult, captureError)
+        } else if let finalizationFailure {
+            onStreamStopped?(finalizationFailure)
         } else {
             onStreamStopped?(captureError)
         }

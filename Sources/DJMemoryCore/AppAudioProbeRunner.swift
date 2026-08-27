@@ -120,8 +120,20 @@ public enum AppAudioProbeRunner {
                 }
 
                 print("scenario: software=\(chosen.software.id) backend=\(forceSCK ? "screenCaptureKit" : "processAudioTap") outputMode=\(outputModeLabel)")
-                if outputModeLabel == "UNKNOWN" {
-                    print("WARNING: set DJMEMORY_OUTPUT_MODE_LABEL to the bench scenario, for example mac-speakers or controller-usb.")
+                if !InvisibleCaptureProbeEvaluator.isExplicitOutputModeLabel(outputModeLabel) {
+                    print("ERROR: set DJMEMORY_OUTPUT_MODE_LABEL to an explicit bench scenario (for example system-default or controller-usb). UNKNOWN cannot PASS.")
+                    appendJSONL(
+                        failedResult(
+                            softwareID: chosen.software.id,
+                            seconds: seconds,
+                            forceSCK: forceSCK,
+                            outputModeLabel: outputModeLabel,
+                            isoFormatter: isoFormatter,
+                            outcome: "unknown_scenario"
+                        ),
+                        to: jsonlPath
+                    )
+                    return
                 }
                 print("monitoring: \(chosen.software.displayName) id=\(chosen.software.id)")
                 let devices = AudioInputDeviceCatalog.listInputs()
@@ -172,6 +184,9 @@ public enum AppAudioProbeRunner {
                 var sampleRate: Double?
                 var channels: Int?
                 var bitDepth: Int?
+                var archivedPeak: Float = 0
+                var signalMeasuredFromArchive = false
+                var livePeak = peak
 
                 if let result = try service.endRecordingFile(discard: false) {
                     stagingBytes = (try? FileManager.default.attributesOfItem(atPath: result.stagingURL.path)[.size] as? NSNumber)?.intValue
@@ -195,6 +210,9 @@ public enum AppAudioProbeRunner {
                     if let archiveURL = session.archiveURL {
                         archivePath = archiveURL.path
                         print("archive: \(archiveURL.path)")
+                        archivedPeak = CaptureAudioFormat.peakLevel(at: archiveURL)
+                        signalMeasuredFromArchive = true
+                        print(String(format: "archivedPeak: %.4f (livePeak=%.4f)", archivedPeak, livePeak))
                         let archivedIDs = try SessionLibrary().archivedMetadata().map(\.id)
                         libraryReconciled = archivedIDs.contains(session.id)
                         print(libraryReconciled ? "library: found \(session.id.uuidString)" : "library: missing \(session.id.uuidString)")
@@ -202,21 +220,22 @@ public enum AppAudioProbeRunner {
                 }
 
                 let passInput = InvisibleCaptureProbePassInput(
-                    peakLevel: peak,
+                    peakLevel: archivedPeak,
                     rmsLevel: rms,
                     framesWritten: framesWritten,
                     stagingBytes: stagingBytes,
                     wavValid: wavValid,
                     archivePath: archivePath,
                     libraryReconciled: libraryReconciled,
-                    signalMeasuredDuringRecording: true
+                    signalMeasuredDuringRecording: signalMeasuredFromArchive,
+                    outputModeLabel: outputModeLabel
                 )
                 let pass = InvisibleCaptureProbeEvaluator.passes(passInput)
                 let outcome = InvisibleCaptureProbeEvaluator.outcomeLabel(for: passInput)
                 if pass {
                     print("PASS meter+archive \(chosen.software.id)")
                 } else {
-                    print("FAIL gate \(chosen.software.id) — verify signal, WAV, archive, and library reconciliation.")
+                    print("FAIL gate \(chosen.software.id) — verify archived WAV signal, scenario label, archive, and library reconciliation.")
                 }
 
                 appendJSONL(
@@ -228,7 +247,7 @@ public enum AppAudioProbeRunner {
                         outputModeLabel: outputModeLabel,
                         sourceDeviceUID: service.activeSourceDeviceUID,
                         outputDeviceUID: outputDeviceUID ?? "UNKNOWN",
-                        peakLevel: peak,
+                        peakLevel: archivedPeak,
                         rmsLevel: rms,
                         framesWritten: framesWritten,
                         sampleRate: sampleRate,

@@ -98,4 +98,61 @@ final class CaptureAudioFormatTests: XCTestCase {
         }
         XCTAssertEqual(audioFile.length, totalFrames)
     }
+
+    func testPeakLevelFailsForStructurallyValidSilentWAV() throws {
+        let url = try writeCanonicalWAV(amplitude: 0, frames: 4_800)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let validation = CaptureAudioFormat.validateReadableWAV(at: url)
+        XCTAssertTrue(validation.valid)
+        XCTAssertGreaterThan(validation.frames, 0)
+
+        let peak = CaptureAudioFormat.peakLevel(at: url)
+        XCTAssertLessThan(
+            peak,
+            LiveCaptureDetectionConfig.default.signalThreshold,
+            "silent WAV must not clear the signal threshold"
+        )
+    }
+
+    func testPeakLevelSucceedsForAudibleWAV() throws {
+        let url = try writeCanonicalWAV(amplitude: 0.25, frames: 4_800)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let validation = CaptureAudioFormat.validateReadableWAV(at: url)
+        XCTAssertTrue(validation.valid)
+
+        let peak = CaptureAudioFormat.peakLevel(at: url)
+        XCTAssertGreaterThanOrEqual(
+            peak,
+            LiveCaptureDetectionConfig.default.signalThreshold,
+            "audible WAV must clear the signal threshold"
+        )
+    }
+
+    private func writeCanonicalWAV(amplitude: Float, frames: AVAudioFrameCount) throws -> URL {
+        let processing = try XCTUnwrap(CaptureAudioFormat.processingFormat())
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("djmemory-peak-\(UUID().uuidString).wav")
+        let audioFile = try AVAudioFile(forWriting: url, settings: CaptureAudioFormat.writeSettings)
+        let writeFormat = audioFile.processingFormat
+        let converter = try XCTUnwrap(CaptureAudioFormat.makeConverter(from: processing, to: writeFormat))
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: processing, frameCapacity: frames))
+        buffer.frameLength = frames
+        if let channels = buffer.floatChannelData {
+            for channel in 0..<Int(processing.channelCount) {
+                for frame in 0..<Int(frames) {
+                    channels[channel][frame] = amplitude
+                }
+            }
+        }
+        let errorDetail = CapturePCMWriter.convertAndWrite(
+            buffer: buffer,
+            converter: converter,
+            writeFormat: writeFormat,
+            audioFile: audioFile
+        )
+        XCTAssertNil(errorDetail)
+        return url
+    }
 }

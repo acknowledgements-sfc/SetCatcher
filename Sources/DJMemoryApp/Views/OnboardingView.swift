@@ -1,8 +1,7 @@
 import SwiftUI
 import DJMemoryCore
 
-/// First-run onboarding: setup reframed as a set coming to life. Each granted folder lights
-/// another segment of the build waveform.
+/// First-run onboarding: six-step setup with a compact step rail (HANDOFF §4.7).
 struct OnboardingView: View {
     @EnvironmentObject private var model: AppModel
     @State private var step: Step
@@ -55,14 +54,6 @@ struct OnboardingView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            Waveform(
-                seed: "onboarding-build",
-                barCount: 72,
-                tint: DJToken.primary,
-                litFraction: litFraction
-            )
-            .frame(height: 84)
-
             appChips
 
             footer
@@ -73,7 +64,10 @@ struct OnboardingView: View {
     }
 
     private var topBar: some View {
-        OnboardingTopBar(currentStep: step.rawValue + 1, totalSteps: Step.allCases.count)
+        OnboardingTopBar(
+            stepTitles: Step.allCases.map(\.title),
+            currentIndex: step.rawValue
+        )
     }
 
     private var copy: (headline: String, accent: String?, subline: String) {
@@ -173,12 +167,6 @@ struct OnboardingView: View {
         }
     }
 
-    private var litFraction: Double {
-        let stepProgress = Double(step.rawValue) / Double(Step.allCases.count - 1)
-        let folderProgress = Double(grantedFolderCount) / Double(max(1, model.probeResults.count))
-        return min(1, max(folderProgress, stepProgress * 0.7))
-    }
-
     private var installedCount: Int { model.installedOrRunningProbeCount }
     private var grantedFolderCount: Int { model.configuredRecordingsCount }
 
@@ -215,6 +203,18 @@ struct OnboardingView: View {
         .preferredColorScheme(.light)
 }
 
+#Preview("Onboarding DJ Apps") {
+    OnboardingView(startingStep: .djApps)
+        .environmentObject(AppModel())
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Onboarding DJ Apps Light") {
+    OnboardingView(startingStep: .djApps)
+        .environmentObject(AppModel())
+        .preferredColorScheme(.light)
+}
+
 #Preview("Onboarding Folder Access") {
     OnboardingView(startingStep: .folderAccess)
         .environmentObject(AppModel())
@@ -223,6 +223,30 @@ struct OnboardingView: View {
 
 #Preview("Onboarding Folder Access Light") {
     OnboardingView(startingStep: .folderAccess)
+        .environmentObject(AppModel())
+        .preferredColorScheme(.light)
+}
+
+#Preview("Onboarding Archive") {
+    OnboardingView(startingStep: .archive)
+        .environmentObject(AppModel())
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Onboarding Archive Light") {
+    OnboardingView(startingStep: .archive)
+        .environmentObject(AppModel())
+        .preferredColorScheme(.light)
+}
+
+#Preview("Onboarding History") {
+    OnboardingView(startingStep: .history)
+        .environmentObject(AppModel())
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Onboarding History Light") {
+    OnboardingView(startingStep: .history)
         .environmentObject(AppModel())
         .preferredColorScheme(.light)
 }
