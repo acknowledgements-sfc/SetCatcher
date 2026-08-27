@@ -9,6 +9,14 @@ Read `AGENTS.md` first. This file is the fleet leave-off, not the UI spec
 
 ---
 
+## Invisible capture v1 (2026-08-27)
+
+Active branch: **`cursor/invisible-capture-v1`** @ **`5267a09`** (not pushed).  
+Codex re-review handoff: [`docs/handoff-codex-invisible-capture-v1-2026-08-27.md`](docs/handoff-codex-invisible-capture-v1-2026-08-27.md).  
+HAL driver plan remains paused.
+
+---
+
 ## Where we stopped
 
 Four commits landed on `main` after a Claude Code fleet built them in one
