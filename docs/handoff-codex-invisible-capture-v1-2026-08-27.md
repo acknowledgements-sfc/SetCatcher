@@ -3,7 +3,7 @@
 **Date:** 2026-08-27  
 **Repo:** `/Users/robcmartin/Documents/Claude/Projects/SetCatcher` (DJMemory)  
 **Branch:** `cursor/invisible-capture-v1`  
-**HEAD:** `5267a09`  
+**HEAD:** `4103628`  
 **Bookmark fix commit:** `5267a09`  
 **Corrections base:** `8600975` (on top of blocker fixes ending at `9300629`)
 
@@ -89,7 +89,7 @@ Do not conflate bookmark ingest failures with USB master silence.
 ```bash
 cd /Users/robcmartin/Documents/Claude/Projects/SetCatcher
 git checkout cursor/invisible-capture-v1
-git log -1 --oneline   # expect 5267a09
+git log -1 --oneline   # expect 4103628
 
 swift test
 bash scripts/build-app.sh && bash scripts/smoke-app.sh
