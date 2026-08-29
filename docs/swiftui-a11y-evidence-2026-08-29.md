@@ -1,10 +1,10 @@
 # Manual accessibility evidence — Phase 1
 
-**Date:** 2026-08-29  
-**Product under review:** `.build/DJMemory.app` (built via `bash scripts/build-app.sh debug`)  
-**Not used as proof:** bare `swift build` / package compile alone  
-**macOS:** 26.6.2 (25G83)  
-**HEAD context:** `main` @ `89eef91` (+ local App UI a11y edits, uncommitted)
+**Date:** 2026-08-29
+**Product under review:** `.build/DJMemory.app` (built via `bash scripts/build-app.sh debug`)
+**Not used as proof:** bare `swift build` / package compile alone
+**macOS:** 26.6.2 (25G83)
+**HEAD context when captured:** `main` @ `89eef91` plus local App UI accessibility edits. Those edits were committed in `e357e15` and are present on the consolidated local `main`.
 
 ## Method
 
@@ -56,7 +56,7 @@
 | `protectionSource.rekordbox.*` | AXButton | Setup / Scan Now / Manage | true |
 | `protectionSource.{djay,traktor,virtualdj,djmemory-capture,pioneer-hardware}.chooseFolderPrimary` | AXButton | Choose Folder | true |
 
-**Before fix:** `protection.root` was an `AXStaticText` with **no** `protectionSource.*` children exposed.  
+**Before fix:** `protection.root` was an `AXStaticText` with **no** `protectionSource.*` children exposed.
 **After fix:** `.accessibilityElement(children: .contain)` — sources and scan control visible to AX.
 
 ### Capture (sidebar cell click)
@@ -142,8 +142,8 @@ Automatic scanning → scan-interval radio → verify/notify/login/menu-bar/fold
 ### Setup / Recovery sample
 
 - `sidebar.app.serato` cell click → `setup.serato.historyFolder` / `setup.serato.recordingFolder` named **Change History Folder** / **Change Recording Folder**.
-- **Recovery (live, reversible container probe):** Sandboxed app reads  
-  `~/Library/Containers/app.djmemory.DJMemory/Data/Library/Application Support/DJMemory/folder-access.json`  
+- **Recovery (live, reversible container probe):** Sandboxed app reads
+  `~/Library/Containers/app.djmemory.DJMemory/Data/Library/Application Support/DJMemory/folder-access.json`
   (not the non-sandbox `~/Library/Application Support/DJMemory/` path). Temporarily pointed serato recordings at `/Volumes/MissingDrive-a11y-probe/Recordings/`, relaunched, then restored backup (no `MissingDrive` left).
 
 | Observation | Result |
@@ -212,4 +212,4 @@ Spoken proxy = AX Description → Title → **Value** → RoleDescription (Value
 - No push
 - No branch deletes
 - Briefs remain untracked
-- These App + evidence changes are **not committed** until you approve
+- App accessibility fixes and this evidence landed in `e357e15`; no push was performed as part of the evidence pass.

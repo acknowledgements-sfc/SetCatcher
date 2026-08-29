@@ -1,27 +1,30 @@
 # DJMemory MVP Readiness Audit
 
-Last updated: August 13, 2026.
+Last updated: August 29, 2026.
 
 This audit maps the v0.1 PRD acceptance criteria to current implementation evidence and the manual checks still needed before handing a beta to DJs.
 
 ## Automated Evidence
 
-Current passing baseline (2026-08-13):
+Current local gate baseline (2026-08-29, base `main` at `255a6b0` before scoped readiness fixes):
 
-- `swift test`: 150 tests, 0 failures.
+- `swift test`: 284 tests executed, 3 skipped, 0 failures.
 - `bash scripts/smoke-cli.sh`: CLI archive/scan/diagnostics smoke path passes.
 - `swift build --product DJMemoryApp`: passes.
-- `bash scripts/build-app.sh`: `.build/DJMemory.app` builds and signs with sandbox-oriented entitlements.
+- `bash scripts/build-app.sh release`: `.build/DJMemory.app` builds and signs with sandbox-oriented entitlements. After changing `livePeak` to an immutable constant, the release rebuild completed with zero warnings.
 - Built app `Info.plist` includes `NSAudioCaptureUsageDescription` for system audio capture.
 - `codesign --verify --deep --strict .build/DJMemory.app`: passes.
 - `bash scripts/smoke-app.sh`: packaged app launches, verifies code signature, performs best-effort window detection, and quits cleanly.
-- App audio backend probe: VirtualDJ target armed with default `Process Audio Tap`; forced `DJMEMORY_FORCE_SCK_APP_AUDIO=1` armed with `ScreenCaptureKit`. Meter was silent, so live audio archive verification is still pending.
-- App audio probe update (2026-08-13): `swift run djmemory app-audio-probe` now archives successful metered captures and checks that the new sidecar is visible to `SessionLibrary`. Serato and rekordbox probe attempts at 08:24 had Screen & System Audio Recording preflight `true`, but no shareable DJ app targets were running, so live Process Audio Tap and forced ScreenCaptureKit meter/archive verification remain pending.
+- Fresh app-audio probe on August 29 had Screen & System Audio Recording preflight `true` but no shareable running DJ target. Live Process Audio Tap and forced ScreenCaptureKit meter/WAV/archive/Library verification remain pending.
+- Fresh hardware re-probe detected `XDJ-XZ`, created a valid 48 kHz stereo 16-bit WAV and archive sidecar, but measured `LIVE_METER_PEAK 0.0`. Signal and listening acceptance failed or lacked routed program audio; do not claim hardware Capture passed.
 - Capture-start notification format verified by `LocalNotificationServiceTests`: body is `Recording started - HH:MM`.
 - Menu-bar status view now exposes accessibility identifiers for headline/status, last scan, next scan, commands, and archive path (`menuBar.*`) for live-session smoke coverage.
-- `bash scripts/package-beta.sh`: creates a commit-named `.build/distribution/DJMemory-0.1.0-<commit>.zip` + JSON manifest with matching SHA-256; rerun after the final commit for the handoff artifact.
+- `bash scripts/package-beta.sh`: pre-commit verification produced a zip and JSON manifest with a matching SHA-256. That artifact identified base `255a6b0`; the final clean candidate must be repackaged after commit, with its manifest treated as the authoritative artifact SHA.
+- The extracted zip passed strict signature verification and launched for the current user. This does not replace a clean-user or clean-Mac installation test.
 - `swift run djmemory diagnostics <path>`: writes metadata-only report (counts, paths, activity messages; no track titles/artists).
-- Signing: ad-hoc sandboxed local beta. Notarization: not notarized (Developer ID path gated; see `docs/signing-and-notarization.md`).
+- Signing: ad-hoc sandboxed local beta. `spctl` rejects it for external distribution and no stapled ticket exists. This Mac has only an Apple Development identity, not Developer ID Application.
+
+The results below from August 7–9 are retained as historical workflow evidence. They are not proof for the current candidate unless explicitly re-run above.
 
 ## Manual Beta Results (2026-08-07, Round 1 on this Mac)
 
@@ -89,7 +92,7 @@ Tester: Rob (internal). macOS 26.6 (25G72). DJMemory `0.1.0` / commit `2d0d4f5`.
 
 | Requirement | Status | Evidence | Manual Beta Check |
 | --- | --- | --- | --- |
-| User can install/run DJMemory on macOS. | Ready for local beta | `scripts/build-app.sh`, `scripts/smoke-app.sh`, `scripts/package-beta.sh`, `packaging/DJMemory.entitlements` | Clean-user Gatekeeper still **Blocked** until notarized. Round 2: sandboxed `.app` `open` failed (error 163) on macOS 26.6; unsandboxed `DJMemoryApp` ran. |
+| User can install/run DJMemory on macOS. | Ready for known-Mac internal beta only | Current-user app smoke and extracted-zip launch pass; strict code-signature verification passes | Clean external Gatekeeper launch remains **Blocked** until Developer ID signing, notarization, and clean-Mac verification. |
 | User can configure at least one watched recording folder. | Pass | Folder grants for Serato Recording + rekordbox Recorded in Round 2 | **Pass** on this DJ Mac. |
 | DJMemory archives a completed recording without changing the source file. | Pass | Round 2 SHA-256 match for Serato + rekordbox sources | **Pass**. |
 | Archived recordings appear in the library. | Pass | Archives + sidecars under `~/Music/DJMemory/archive/`; set context attach | **Pass** (Library data on disk; GUI click-path not separately scripted). |
@@ -122,7 +125,7 @@ Tester: Rob (internal). macOS 26.6 (25G72). DJMemory `0.1.0` / commit `2d0d4f5`.
 - Process Audio Tap live meter + archive verification with Serato and rekordbox.
 - Traktor NML on a machine that has one.
 - Notarized Developer ID build path before broad direct-download distribution (Round 4).
-- Sandboxed `.app` launch failure (RBS/Launchd 163) on this macOS 26.6 build — investigate separately from archive correctness.
+- Clean-user and clean-Mac launch of the final notarized candidate. The historical Round 2 RBS/Launchd 163 failure did not recur in the August 29 current-user app smoke or extracted-zip launch, but that is not clean-install proof.
 
 ## Local Beta Known-Issues Snapshot (`2d0d4f5` / Round 2)
 
@@ -133,7 +136,7 @@ Tester: Rob (internal). macOS 26.6 (25G72). DJMemory `0.1.0` / commit `2d0d4f5`.
 - **Parser limitations:** see `docs/integration-status.md` (VDJ plugin research; capture match window partial)
 - **Signing / notarization:** ad-hoc sandboxed local beta; **not notarized** (Developer ID absent on this Mac; see `docs/signing-and-notarization.md`). Round 2 did **not** require notarization.
 - **Accounts / admin:** optional web app in `admin/` (Clerk + Supabase + Vercel); macOS Settings deep-links via `settings.openAccount` — local protection never depends on it
-- **Minimum macOS:** 14.0
+- **Minimum macOS:** 14.2
 - **Landing route:** Home
 - **Folder permission recovery:** Protection / Recovery UI — choose a different folder, or clear saved folder (sources are never deleted)
-- **Round 2 packaging caveat:** sandboxed `.app` `open` failed (error 163); use unsandboxed executable or fix sandbox launch before external beta handoff
+- **Current packaging caveat:** current-user ad-hoc launch passes, but external beta remains blocked until Developer ID signing, notarization, and clean-Mac launch succeed.

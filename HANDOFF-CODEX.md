@@ -1,13 +1,28 @@
-# Codex / Claude leave-off — 2026-08-12
+# Codex / Claude leave-off — refreshed 2026-08-29
 
-Repo: `/Users/robcmartin/Documents/Codex/2026-08-06/i-wan/SetCatcher`
+Repo: `/Users/robcmartin/Documents/Claude/Projects/SetCatcher`
 Remote: `origin` → `https://github.com/acknowledgements-sfc/DJMemory.git`
-Branch: **`main`**, fleet commits pushed through **`654e68b`**.
+Branch: **`main`**, consolidated locally through **`255a6b0`** before the scoped beta-gate fixes.
 
 Read `AGENTS.md` first. This file is the fleet leave-off, not the UI spec
 (`HANDOFF.md` / `CURSOR-HANDOFF.md`).
 
 ---
+
+## Final beta-readiness gate (2026-08-29)
+
+- Local `main` contains the invisible-capture product line, SwiftUI hardening, and the App accessibility fixes from `e357e15`; it was 35 commits ahead of `origin/main` at gate start.
+- Fresh baseline before the scoped gate fixes: 284 tests executed, 3 skipped, 0 failures; CLI smoke, app smoke, release bundle, package checksum, strict code-signature verification, and current-user extracted-zip launch passed.
+- Folder Protection and the local Library are suitable for limited internal beta on known Macs. App audio and hardware Capture remain additive and require live operator/hardware evidence.
+- External beta remains blocked by Developer ID signing, notarization, and clean-Mac installation evidence.
+- Full VoiceOver operation, clean-user permission recovery, live Serato/rekordbox capture, forced ScreenCaptureKit, Pioneer input/listening, and Traktor NML remain human gates.
+- Do not push, distribute, rename the product, merge experimental branches, or delete worktrees without separate explicit approval.
+
+See `docs/beta-release-checklist.md`, `docs/mvp-readiness-audit.md`, `docs/push-gate-2026-08-29.md`, and `docs/branch-hygiene-inventory-2026-08-29.md` for the current gate.
+
+---
+
+## Historical fleet leave-off (2026-08-12)
 
 ## Invisible capture v1 (2026-08-27)
 

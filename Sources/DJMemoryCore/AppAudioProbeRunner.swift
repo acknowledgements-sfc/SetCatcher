@@ -186,7 +186,7 @@ public enum AppAudioProbeRunner {
                 var bitDepth: Int?
                 var archivedPeak: Float = 0
                 var signalMeasuredFromArchive = false
-                var livePeak = peak
+                let livePeak = peak
 
                 if let result = try service.endRecordingFile(discard: false) {
                     stagingBytes = (try? FileManager.default.attributesOfItem(atPath: result.stagingURL.path)[.size] as? NSNumber)?.intValue

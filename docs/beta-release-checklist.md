@@ -1,6 +1,23 @@
 # DJMemory Beta Release Checklist
 
-Last updated: August 13, 2026.
+Last updated: August 29, 2026.
+
+## Current Candidate Gate
+
+The current candidate is local `main` after the scoped beta-readiness commits, based on `255a6b0`. The artifact manifest is the authority for the exact packaged commit. Regenerate the package after every candidate commit; earlier packages are verification artifacts only and must not be distributed.
+
+| Gate | Current status |
+| --- | --- |
+| Automated tests, CLI smoke, app build/smoke | Passed after scoped fixes: 284 tests executed, 3 skipped, 0 failures; CLI and app smoke passed |
+| Release build warnings | Passed: release rebuild completed with zero warnings after the `livePeak` fix |
+| Ad-hoc package and checksum | Verification package passed with matching SHA-256; regenerate from the final clean candidate so the manifest identifies the exact commit |
+| Current-user extracted-zip launch | Passed after scoped fixes; not clean-install proof |
+| Manual accessibility | Partial agent evidence; full VoiceOver rotor and disabled-state phrasing need a human |
+| Live Capture | App audio blocked by no shareable DJ target. XDJ-XZ was detected and a valid WAV/archive was created, but peak was `0.0`; signal/listening acceptance remains unproven |
+| External signing and notarization | Blocked: no Developer ID Application identity or stapled ticket |
+| Clean external Mac | Blocked until a notarized candidate is installed and exercised on a clean supported Mac |
+
+Do not push or distribute from this checklist. Those actions require separate explicit approval.
 
 ## Build
 

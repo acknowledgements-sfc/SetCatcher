@@ -4,10 +4,10 @@
 
 | Field | Value |
 |-------|-------|
-| Date (UTC) | 2026-08-29T13:14:48Z (initial); re-probe 13:47:54Z; **re-probe 2026-08-29T13:58:15Z** |
+| Date (UTC) | 2026-08-29T13:14:48Z (initial); re-probes through 13:58:15Z; **beta-gate re-probe 2026-08-29T19:34:19Z** |
 | macOS | 26.6.2 (25G83) |
-| Checkout | `main` @ `89eef91` (+ local App a11y edits) |
-| Machine role | Agent Mac; no Serato session / no Pioneer USB feed asserted |
+| Checkout | local `main` based on `255a6b0` plus scoped beta-readiness fixes |
+| Machine role | Agent Mac; no shareable Serato target. XDJ-XZ became visible during the beta-gate re-probe |
 
 ## Scripts run
 
@@ -23,11 +23,12 @@
 
 ### `scripts/live-hardware-route-check.sh`
 
-- Exit: **0** (skip path when hardware absent and `DJMEMORY_REQUIRE_LIVE_HARDWARE` unset) — initial and re-probes
-- Live Pioneer test: `XCTUnwrap failed … No Pioneer-like Core Audio input is present`
-- Message: `Live hardware route check skipped: no Pioneer/XDJ/DJM-like Core Audio input is connected.`
-- **Stop reason:** no hardware USB master/REC feed; permissions not the blocker once device absent
-- Re-probe stdout: `/tmp/djmemory-live-hw-reprobe-out.txt`, `/tmp/djmemory-live-hw-reprobe3.txt`
+- Earlier probes: skip path when no Pioneer/XDJ/DJM-like input was connected.
+- Beta-gate re-probe: exit **1** after detecting `XDJ-XZ` (`AlphaTheta Corporation`).
+- File result: valid 2-channel, 48 kHz, Int16 interleaved WAVE, approximately 5.99 seconds, with archive sidecar.
+- Signal result: `LIVE_METER_PEAK 0.0`; the signal assertion failed. This does not prove whether program audio was routed to the tested USB input.
+- Archive artifact: `~/Music/DJMemory/archive/2026-08-29 1234 - DJMemory Capture - Set.wav`; SHA-256 `7422a11888c97f1a6a8afd4c03e9457460c352bd724e7211a74a1a3923460256`.
+- **Stop reason:** hardware and file/archive path succeeded, but non-silent signal and human listening were not proven.
 
 ### `scripts/live-app-audio-check.sh`
 
@@ -41,7 +42,7 @@
 
 ## Next action for a human with gear
 
-1. Open Serato (or other matrix app), play through Mac system output, grant Screen & System Audio Recording if prompted.  
-2. Rerun `bash scripts/live-invisible-capture-check.sh`.  
-3. With XDJ/DJM USB feed connected and mic permission granted: `bash scripts/live-hardware-route-check.sh`.  
-4. Append PASS lines + durations + archive paths (metadata only) to this file.
+1. Open Serato (or other matrix app), play through Mac system output, grant Screen & System Audio Recording if prompted.
+2. Rerun `bash scripts/live-invisible-capture-check.sh`.
+3. Route known program audio to the XDJ-XZ USB master/REC input, rerun `bash scripts/live-hardware-route-check.sh`, and confirm a non-zero meter.
+4. Listen to the resulting WAV, then append PASS lines, duration, and archive path metadata to this file.
