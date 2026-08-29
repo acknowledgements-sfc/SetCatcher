@@ -70,6 +70,8 @@ public final class CaptureService: @unchecked Sendable {
     private var writeFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
     private var lastWriteErrorDetail: String?
+    /// Validated REC OUT stereo indexes when the device matches `PioneerRecOutChannelMatrix`.
+    private var recOutPair: HardwareStereoChannelPair?
 
     public init(stagingDirectory: URL = CaptureService.defaultStagingDirectory(), fileManager: FileManager = .default) {
         self.stagingDirectory = stagingDirectory
@@ -114,6 +116,17 @@ public final class CaptureService: @unchecked Sendable {
             throw CaptureServiceError.engineFailed("Input device has no usable audio format.")
         }
 
+        let channelCount = Int(inputFormat.channelCount)
+        switch PioneerRecOutChannelMatrix.resolvedPair(
+            forDeviceName: device.name,
+            channelCount: channelCount
+        ) {
+        case .success(let pair):
+            recOutPair = pair
+        case .failure(let error):
+            throw CaptureServiceError.engineFailed(error.message)
+        }
+
         deviceID = device.id
         deviceName = device.name
         boundTransport = device.transportType
@@ -123,18 +136,25 @@ public final class CaptureService: @unchecked Sendable {
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             guard let self else { return }
             self.writeConverted(buffer)
-            guard let channelData = buffer.floatChannelData?[0] else { return }
-            let frameLength = Int(buffer.frameLength)
-            guard frameLength > 0 else { return }
-            if let inputLevel = CaptureDSP.inputLevel(samples: channelData, count: frameLength) {
-                self.levelLock.lock(); self.inputLevel = inputLevel; self.levelLock.unlock()
+            let level: Float
+            if let pair = self.recOutPair,
+               let stereo = CaptureChannelPairExtractor.extractStereo(from: buffer, pair: pair) {
+                level = CaptureChannelPairExtractor.peakLevel(of: stereo)
+            } else if let channelData = buffer.floatChannelData?[0] {
+                let frameLength = Int(buffer.frameLength)
+                guard frameLength > 0 else { return }
+                level = CaptureDSP.inputLevel(samples: channelData, count: frameLength) ?? 0
+            } else {
+                return
             }
+            self.levelLock.lock(); self.inputLevel = level; self.levelLock.unlock()
         }
 
         do {
             try engine.start()
         } catch {
             inputNode.removeTap(onBus: 0)
+            recOutPair = nil
             throw CaptureServiceError.engineFailed(error.localizedDescription)
         }
         isMonitoring = true
@@ -157,7 +177,26 @@ public final class CaptureService: @unchecked Sendable {
             throw CaptureServiceError.engineFailed(error.localizedDescription)
         }
         let destinationFormat = newAudioFile.processingFormat
-        guard let audioConverter = CaptureAudioFormat.makeConverter(from: inputFormat, to: destinationFormat) else {
+        let converterSourceFormat: AVAudioFormat
+        if recOutPair != nil {
+            guard let stereoSource = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: inputFormat.sampleRate,
+                channels: 2,
+                interleaved: false
+            ) else {
+                throw CaptureServiceError.engineFailed(
+                    "Could not build a stereo processing format for REC OUT channel extract."
+                )
+            }
+            converterSourceFormat = stereoSource
+        } else {
+            converterSourceFormat = inputFormat
+        }
+        guard let audioConverter = CaptureAudioFormat.makeConverter(
+            from: converterSourceFormat,
+            to: destinationFormat
+        ) else {
             throw CaptureServiceError.engineFailed(
                 "Could not convert \(Int(inputFormat.sampleRate)) Hz input to 16-bit / 48 kHz. Choose another device, or use App audio Capture / folder Protection."
             )
@@ -226,6 +265,7 @@ public final class CaptureService: @unchecked Sendable {
         }
         isMonitoring = false
         inputLevel = 0
+        recOutPair = nil
     }
 
     public func stop() throws -> CaptureResult {
@@ -272,8 +312,18 @@ public final class CaptureService: @unchecked Sendable {
 
     private func writeConverted(_ buffer: AVAudioPCMBuffer) {
         guard let audioFile, let converter, let writeFormat else { return }
+        let sourceBuffer: AVAudioPCMBuffer
+        if let pair = recOutPair {
+            guard let stereo = CaptureChannelPairExtractor.extractStereo(from: buffer, pair: pair) else {
+                lastWriteErrorDetail = "Capture could not extract REC OUT pair \(pair.oneBasedLabel)."
+                return
+            }
+            sourceBuffer = stereo
+        } else {
+            sourceBuffer = buffer
+        }
         if let detail = CapturePCMWriter.convertAndWrite(
-            buffer: buffer,
+            buffer: sourceBuffer,
             converter: converter,
             writeFormat: writeFormat,
             audioFile: audioFile

@@ -67,21 +67,55 @@ final class CaptureServiceTests: XCTestCase {
             endedAt: result.endedAt
         )
         let archiveURL = try XCTUnwrap(session.archiveURL)
-        let info = try afinfo(archiveURL)
-        print("LIVE_AFINFO \(info)")
-        XCTAssertTrue(info.contains("48 kHz") || info.contains("48000"), info)
-        XCTAssertTrue(info.contains("16 bit") || info.contains("16-bit"), info)
-        XCTAssertTrue(info.contains("2 channels") || info.contains("2 ch") || info.contains("stereo"), info)
+        let validation = CaptureAudioFormat.validateReadableWAV(at: archiveURL)
+        let archivedPeak = CaptureAudioFormat.peakLevel(at: archiveURL)
+        let signalThreshold = LiveCaptureDetectionConfig.default.signalThreshold
+        let libraryIDs = try SessionLibrary(
+            archiveRoot: archiveRootResolution.url,
+            archiveRootBookmarkData: archiveRootResolution.bookmarkData
+        ).archivedMetadata().map(\.id)
+        let libraryReconciled = libraryIDs.contains(session.id)
+        print(
+            "LIVE_AUDIO_VALIDATION valid=\(validation.valid) frames=\(validation.frames) "
+                + "sampleRate=\(validation.sampleRate) channels=\(validation.channels) "
+                + "bitDepth=\(validation.bitDepth) archivedPeak=\(archivedPeak) "
+                + "threshold=\(signalThreshold) libraryReconciled=\(libraryReconciled)"
+        )
+        let resultPath = ProcessInfo.processInfo.environment["DJMEMORY_LIVE_HARDWARE_RESULT_PATH"]
+            ?? "/tmp/djmemory-live-xz-result.txt"
         FileManager.default.createFile(
-            atPath: "/tmp/djmemory-live-xz-result.txt",
+            atPath: resultPath,
             contents: Data("""
             name=\(device.name)
             manufacturer=\(device.manufacturer)
             uid=\(device.id)
-            peak=\(peak)
+            livePeak=\(peak)
+            archivedPeak=\(archivedPeak)
+            signalThreshold=\(signalThreshold)
             archive=\(archiveURL.path)
-            info=\(info)
+            frames=\(validation.frames)
+            sampleRate=\(validation.sampleRate)
+            channels=\(validation.channels)
+            bitDepth=\(validation.bitDepth)
+            wavValid=\(validation.valid)
+            libraryReconciled=\(libraryReconciled)
             """.utf8)
+        )
+        XCTAssertTrue(validation.valid, "Archived capture must be a readable canonical WAV.")
+        XCTAssertGreaterThan(validation.frames, 0, "Archived capture must contain audio frames.")
+        XCTAssertEqual(validation.sampleRate, CaptureAudioFormat.sampleRate)
+        XCTAssertEqual(validation.channels, Int(CaptureAudioFormat.channelCount))
+        XCTAssertEqual(validation.bitDepth, CaptureAudioFormat.bitDepth)
+        XCTAssertTrue(libraryReconciled, "Archived capture must appear in SessionLibrary.")
+        XCTAssertGreaterThanOrEqual(
+            peak,
+            signalThreshold,
+            "Live XDJ input did not reach the required signal threshold."
+        )
+        XCTAssertGreaterThanOrEqual(
+            archivedPeak,
+            signalThreshold,
+            "Archived XDJ capture is silent or below the required signal threshold."
         )
     }
 
@@ -149,18 +183,5 @@ final class CaptureServiceTests: XCTestCase {
         XCTAssertThrowsError(try service.beginRecordingFile()) { error in
             XCTAssertEqual(error as? CaptureServiceError, .diskFull)
         }
-    }
-
-    private func afinfo(_ url: URL) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/afinfo")
-        process.arguments = [url.path]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        process.waitUntilExit()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8) ?? ""
     }
 }
