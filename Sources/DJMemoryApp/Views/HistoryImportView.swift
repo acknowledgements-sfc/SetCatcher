@@ -39,7 +39,7 @@ struct HistoryImportView: View {
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
-                                .help("Delete this imported tracklist from DJMemory. The original file is not changed.")
+                                .help("Delete this imported tracklist from SetCatcher. The original file is not changed.")
                                 .accessibilityIdentifier("historyImport.\(result.software.id).\(imported.id).delete")
                             }
 

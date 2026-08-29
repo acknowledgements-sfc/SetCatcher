@@ -545,6 +545,12 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
 }
 
 final class DJMemoryAudioDriverIdentityTests: XCTestCase {
+    func testUsesSetCatcherDisplayIdentityAndKeepsLegacyNameHint() {
+        XCTAssertEqual(DJMemoryAudioDriverIdentity.deviceName, "SetCatcher Audio")
+        XCTAssertEqual(DJMemoryAudioDriverIdentity.manufacturer, "SetCatcher")
+        XCTAssertTrue(DJMemoryAudioDriverIdentity.deviceNameHints.contains("DJMemory Audio"))
+    }
+
     func testMatchesByDeviceUID() {
         // AudioInputDevice.id is the Core Audio device UID.
         let driver = AudioInputDevice(
@@ -566,9 +572,12 @@ final class DJMemoryAudioDriverIdentityTests: XCTestCase {
     }
 
     func testNameMatchIsSecondaryAndUIDMatchIsExact() {
-        let namedOnly = AudioInputDevice(id: "some-other-uid", name: "DJMemory Audio", manufacturer: "DJMemory", transportType: .virtual)
+        let namedOnly = AudioInputDevice(id: "some-other-uid", name: "SetCatcher Audio", manufacturer: "SetCatcher", transportType: .virtual)
         XCTAssertTrue(DJMemoryAudioDriverIdentity.matches(namedOnly), "name is accepted as a secondary signal")
         XCTAssertFalse(DJMemoryAudioDriverIdentity.matchesByUID(namedOnly), "but it is not identity")
+
+        let legacyName = AudioInputDevice(id: "legacy-uid", name: "DJMemory Audio", manufacturer: "DJMemory", transportType: .virtual)
+        XCTAssertTrue(DJMemoryAudioDriverIdentity.matches(legacyName), "legacy display name remains discoverable")
 
         let impostor = AudioInputDevice(id: "agg", name: "DJMemory Audio Aggregate", manufacturer: "Someone Else", transportType: .virtual)
         XCTAssertFalse(DJMemoryAudioDriverIdentity.matches(impostor), "substring names must not match")

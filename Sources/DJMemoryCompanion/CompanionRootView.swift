@@ -22,7 +22,7 @@ public struct CompanionRootView: View {
                     .accessibilityIdentifier("ipad.sidebar.\(route.rawValue)")
                 }
             }
-            .navigationTitle("DJMemory")
+            .navigationTitle("SetCatcher")
             .safeAreaInset(edge: .bottom) {
                 Text(model.statusMessage)
                     .font(.footnote)

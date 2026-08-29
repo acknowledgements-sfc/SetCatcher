@@ -92,7 +92,7 @@ struct DJMemoryApplication: App {
     }
 
     var body: some Scene {
-        WindowGroup("DJMemory", id: Self.mainWindowID) {
+        WindowGroup("SetCatcher", id: Self.mainWindowID) {
             rootView
                 .frame(minWidth: 980, minHeight: 640)
                 .modifier(RegisterOpenMainWindow(model: model))

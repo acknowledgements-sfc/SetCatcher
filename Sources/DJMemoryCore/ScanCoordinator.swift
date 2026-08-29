@@ -140,11 +140,11 @@ public struct ScanCoordinator {
 
         let nsError = error as NSError
         if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileReadNoPermissionError {
-            return "DJMemory cannot read this folder. Choose it again to refresh permission."
+            return "SetCatcher cannot read this folder. Choose it again to refresh permission."
         }
 
         if nsError.domain == NSPOSIXErrorDomain, nsError.code == Int(EACCES) {
-            return "DJMemory cannot read this folder. Choose it again to refresh permission."
+            return "SetCatcher cannot read this folder. Choose it again to refresh permission."
         }
 
         if case ArchiveServiceError.archiveDirectoryUnavailable = error {
@@ -156,7 +156,7 @@ public struct ScanCoordinator {
         }
 
         if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileWriteNoPermissionError {
-            return "DJMemory cannot write to the archive folder. Choose a different archive folder in Settings."
+            return "SetCatcher cannot write to the archive folder. Choose a different archive folder in Settings."
         }
 
         if let archiveError = error as? ArchiveServiceError {
@@ -164,7 +164,7 @@ public struct ScanCoordinator {
             case .copyVerificationFailed:
                 return "The protected copy did not match the source recording. The incomplete copy was removed. Try scanning again. Source file was not changed."
             case .archiveDirectoryUnavailable:
-                return "DJMemory cannot write to the archive folder. Choose a different archive folder in Settings."
+                return "SetCatcher cannot write to the archive folder. Choose a different archive folder in Settings."
             case .sourceFileMissing, .sourceIsDirectory:
                 break
             }

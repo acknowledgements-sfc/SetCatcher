@@ -36,7 +36,7 @@ struct FolderRow: View {
                 Label("Choose", systemImage: "folder.badge.plus")
             }
             .buttonStyle(DJSecondaryButtonStyle())
-            .help("Choose the \(title.lowercased()) folder DJMemory can access.")
+            .help("Choose the \(title.lowercased()) folder SetCatcher can access.")
             .accessibilityIdentifier("\(accessibilityPrefix).choose")
 
             Button {

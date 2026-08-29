@@ -31,7 +31,7 @@ struct ActivityLogView: View {
                     Label("Export Diagnostics", systemImage: "doc.badge.gearshape")
                 }
                 .buttonStyle(DJSecondaryButtonStyle())
-                .help("Save a JSON diagnostics report for troubleshooting DJMemory setup and library state.")
+                .help("Save a JSON diagnostics report for troubleshooting SetCatcher setup and library state.")
                 .accessibilityIdentifier("activity.exportDiagnostics")
 
                 Button {

@@ -74,22 +74,22 @@ struct OnboardingView: View {
         switch step {
         case .welcome:
             return ("Every set you play,", "remembered.",
-                    "Choose the folders your DJ apps already record into. DJMemory copies completed recordings and never touches the originals.")
+                    "Choose the folders your DJ apps already record into. SetCatcher copies completed recordings and never touches the originals.")
         case .djApps:
             return ("We found your", "DJ apps.",
-                    "DJMemory watches the folders these already record into. Nothing is installed, nothing is changed.")
+                    "SetCatcher watches the folders these already record into. Nothing is installed, nothing is changed.")
         case .folderAccess:
             return ("Grant one folder, and the set", "starts to take shape.",
                     "\(grantedFolderCount) granted so far — pick another, or move on. Nothing leaves this Mac.")
         case .archive:
             return ("Protected copies land", "here.",
-                    "Source recordings stay where they are. DJMemory writes protected copies to your archive.")
+                    "Source recordings stay where they are. SetCatcher writes protected copies to your archive.")
         case .history:
             return ("Track history is", "optional.",
                     "Import set histories later from each app’s setup screen. Skipping this step is safe.")
         case .ready:
             return ("You’re", "ready.",
-                    "DJMemory will watch granted folders and copy completed recordings into your archive.")
+                    "SetCatcher will watch granted folders and copy completed recordings into your archive.")
         }
     }
 

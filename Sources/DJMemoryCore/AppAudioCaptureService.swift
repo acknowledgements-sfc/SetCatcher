@@ -329,7 +329,7 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         }
 
         throw AppAudioCaptureError.engineFailed(
-            "DJMemory cannot hear this DJ app yet. Finish setup permissions, then try again."
+            "SetCatcher cannot hear this DJ app yet. Finish setup permissions, then try again."
         )
     }
 
@@ -622,7 +622,7 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
         let description: CATapDescription
         if #available(macOS 26, *) {
             description = CATapDescription()
-            description.name = "DJMemory \(displayName)"
+            description.name = "SetCatcher \(displayName)"
             description.bundleIDs = [bundleIdentifier]
             description.isProcessRestoreEnabled = true
             description.isPrivate = true
@@ -633,7 +633,7 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
                 throw AppAudioCaptureError.appNotShareable(displayName)
             }
             description = CATapDescription(stereoMixdownOfProcesses: [processObjectID])
-            description.name = "DJMemory \(displayName)"
+            description.name = "SetCatcher \(displayName)"
             description.isPrivate = true
             description.muteBehavior = CATapMuteBehavior(rawValue: 0) ?? description.muteBehavior
         }
@@ -683,7 +683,7 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
             kAudioSubTapDriftCompensationKey: true
         ]]
         let description: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "DJMemory \(displayName) Tap",
+            kAudioAggregateDeviceNameKey: "SetCatcher \(displayName) Tap",
             kAudioAggregateDeviceUIDKey: aggregateUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceTapAutoStartKey: true,

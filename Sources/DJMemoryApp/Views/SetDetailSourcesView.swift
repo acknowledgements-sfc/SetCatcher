@@ -144,7 +144,7 @@ struct SetDetailSourcesView: View {
             ),
             matchedTracklist: nil
         ),
-        appName: "DJMemory Capture",
+        appName: "SetCatcher Capture",
         revealArchive: {},
         revealSource: {},
         revealHardwareBackup: {}

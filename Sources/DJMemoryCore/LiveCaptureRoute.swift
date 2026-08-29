@@ -130,15 +130,15 @@ public enum LiveCaptureRouteTransition: Equatable, Sendable {
 /// Load-bearing copy: say what DJMemory is listening to, and never claim standalone
 /// CDJ/XDJ audio that never reaches this Mac.
 public enum LiveCaptureCopy {
-    public static let detecting = "Checking what DJMemory can listen to."
+    public static let detecting = "Checking what SetCatcher can listen to."
     public static let laptopDriverActive = "Listening to DJ app audio on this Mac."
     public static let fallbackActive = "Hardware is connected, but no USB mix was detected. Listening to DJ app audio on this Mac."
-    public static let unavailable = "Live capture is not available. DJMemory can only record audio that reaches this Mac."
+    public static let unavailable = "Live capture is not available. SetCatcher can only record audio that reaches this Mac."
     public static let waitingForAudio = "Connected and ready. Waiting to hear audio."
-    public static let driverMissing = "DJMemory Audio is not installed yet. Finish setup once, then DJMemory can listen automatically."
-    public static let permissionOrInstallNeeded = "DJMemory needs its setup permissions before it can listen automatically."
-    public static let appAudioUnavailable = "DJMemory cannot hear this DJ app yet. Finish setup once, then DJMemory can listen automatically."
-    public static let notAutomatedYet = "DJMemory will use the best automatic capture path available after setup."
+    public static let driverMissing = "SetCatcher Audio is not installed yet. Finish setup once, then SetCatcher can listen automatically."
+    public static let permissionOrInstallNeeded = "SetCatcher needs its setup permissions before it can listen automatically."
+    public static let appAudioUnavailable = "SetCatcher cannot hear this DJ app yet. Finish setup once, then SetCatcher can listen automatically."
+    public static let notAutomatedYet = "SetCatcher will use the best automatic capture path available after setup."
 
     public static func hardwareFeedActive(
         deviceName: String,

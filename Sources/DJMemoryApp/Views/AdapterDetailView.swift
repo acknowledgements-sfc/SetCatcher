@@ -130,24 +130,24 @@ struct AdapterDetailView: View {
         case "serato":
             return [
                 "Grant access to ~/Music/_Serato_ when prompted.",
-                "DJMemory watches the Recording folder.",
+                "SetCatcher watches the Recording folder.",
                 "History Export files will be used for tracklists."
             ]
         case "rekordbox":
             return [
                 "Choose the folder where rekordbox saves recordings.",
                 "Import rekordbox XML or history exports when available.",
-                "DJMemory preserves completed recordings in ~/Music/DJMemory."
+                "SetCatcher preserves completed recordings in ~/Music/DJMemory."
             ]
         case "traktor":
             return [
-                "DJMemory checks ~/Music/Traktor/Recordings when it exists.",
+                "SetCatcher checks ~/Music/Traktor/Recordings when it exists.",
                 "Versioned Traktor History folders are detected under Native Instruments.",
                 "Import Traktor .nml history playlists for tracklists."
             ]
         case "virtualdj":
             return [
-                "DJMemory checks ~/Documents/VirtualDJ when it exists.",
+                "SetCatcher checks ~/Documents/VirtualDJ when it exists.",
                 "History imports support VirtualDJ text, M3U, XML, and .vdjfolder files.",
                 "Use Network Control commands below to probe deeper local endpoints."
             ]
@@ -157,7 +157,7 @@ struct AdapterDetailView: View {
                 "Overlapping folder and input recordings are one set. The DJ-software file is primary; Input Capture is the hardware backup. Sources are never moved, renamed, or deleted.",
                 "Insert the USB stick used for MASTER REC (XDJ-RX2/RX3/XZ/AZ) only when the Mac is out of the audio path.",
                 "Choose the stick or its PIONEERREC folder as the recordings folder. This path stays Manual Setup until the drive is granted and mounted.",
-                "DJMemory copies stable RECxxx.WAV files into your archive and leaves the stick unchanged.",
+                "SetCatcher copies stable RECxxx.WAV files into your archive and leaves the stick unchanged.",
                 "MASTER REC files have no clock — archive time uses the file modification date.",
                 "CDJs need the Mac in the USB audio path, a DJM Capture path, or a PIONEERREC folder. A mixer that never reaches the Mac is Manual Setup."
             ]
@@ -170,7 +170,7 @@ struct AdapterDetailView: View {
             ]
         default:
             return [
-                "DJMemory checks documented djay recording folders when they exist.",
+                "SetCatcher checks documented djay recording folders when they exist.",
                 "Choose your djay recordings folder manually if the default folder is not found.",
                 "History and session metadata support still needs verification."
             ]

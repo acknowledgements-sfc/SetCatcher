@@ -10,7 +10,7 @@ struct CompanionImportView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("This iPad cannot watch Serato or other desktop DJ folders. Import recordings from Files, or use Share → Save to DJMemory.")
+                    Text("This iPad cannot watch Serato or other desktop DJ folders. Import recordings from Files, or use Share → Save to SetCatcher.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -44,7 +44,7 @@ struct CompanionImportView: View {
                 Section("djay tips") {
                     Text("Files → On My iPad → djay")
                         .font(.body.monospaced())
-                    Text("After a set, Share the recording and choose Save to DJMemory when the extension is installed.")
+                    Text("After a set, Share the recording and choose Save to SetCatcher when the extension is installed.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

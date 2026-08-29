@@ -54,7 +54,7 @@ private struct CompanionAccountAuthSection: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Sign in for your DJMemory account. Accounts are the only thing shared with the Mac app — this iPad does not connect to a Mac for Capture or archives. Local import still works offline.")
+            Text("Sign in for your SetCatcher account. Accounts are the only thing shared with the Mac app — this iPad does not connect to a Mac for Capture or archives. Local import still works offline.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 

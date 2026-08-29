@@ -25,7 +25,7 @@ public enum ProtectionState: String, Equatable, Sendable, CaseIterable {
         case .protected:
             return "Your sets are being backed up automatically."
         case .needsSetup:
-            return "Choose a recordings folder so DJMemory can protect your sets."
+            return "Choose a recordings folder so SetCatcher can protect your sets."
         case .scanning:
             return "Checking watched folders for new recordings."
         case .attentionNeeded:

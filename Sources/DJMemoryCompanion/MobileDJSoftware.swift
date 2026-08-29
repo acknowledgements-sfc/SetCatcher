@@ -16,7 +16,7 @@ public enum MobileDJSoftware: String, CaseIterable, Identifiable, Sendable {
     public var displayName: String {
         switch self {
         case .djay: return "djay"
-        case .capture: return "DJMemory Capture"
+        case .capture: return "SetCatcher Capture"
         }
     }
 
@@ -30,7 +30,7 @@ public enum MobileDJSoftware: String, CaseIterable, Identifiable, Sendable {
     public var guidance: String {
         switch self {
         case .djay:
-            return "Recordings often appear under Files → On My iPad → djay. Pick those files here, or Share → Save to DJMemory. Streaming mixes may not be recordable — if import fails, that is why."
+            return "Recordings often appear under Files → On My iPad → djay. Pick those files here, or Share → Save to SetCatcher. Streaming mixes may not be recordable — if import fails, that is why."
         case .capture:
             return "Capture records this iPad’s microphone or interface input while you DJ in an app on this iPad. It does not connect to a Mac, and it does not tap another app’s audio in the background. Import recordings from Files or Share when the DJ app writes them on this iPad."
         }

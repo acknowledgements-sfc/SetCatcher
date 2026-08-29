@@ -136,7 +136,7 @@ public enum SupportedDJSoftware {
         ),
         DJSoftware(
             id: "djmemory-capture",
-            displayName: "DJMemory Capture",
+            displayName: "SetCatcher Capture",
             bundleIdentifiers: [],
             defaultRecordingPaths: [],
             defaultHistoryPaths: [],

@@ -23,6 +23,11 @@ final class SupportedDJSoftwareTests: XCTestCase {
         }
     }
 
+    func testCaptureAdapterUsesSetCatcherDisplayName() throws {
+        let capture = try XCTUnwrap(SupportedDJSoftware.all.first { $0.id == "djmemory-capture" })
+        XCTAssertEqual(capture.displayName, "SetCatcher Capture")
+    }
+
     func testAdaptersExposeHonestSupportStatus() {
         let statuses = Dictionary(uniqueKeysWithValues: SupportedDJSoftware.all.map { ($0.id, $0.supportStatus) })
 

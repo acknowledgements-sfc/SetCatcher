@@ -961,7 +961,7 @@ final class AppModel: ObservableObject {
         panel.canCreateDirectories = true
         panel.prompt = "Choose"
         panel.title = "Set Archive Folder"
-        panel.message = "Choose where DJMemory stores protected recording copies."
+        panel.message = "Choose where SetCatcher stores protected recording copies."
         panel.directoryURL = archiveRoot
 
         guard panel.runModal() == .OK, let url = panel.url else {
@@ -1775,7 +1775,7 @@ extension AppModel {
             if !next.isWatchingOrRecording {
                 next.statusMessage = apps.isEmpty
                     ? "Open Serato, rekordbox, Traktor, VirtualDJ, or djay Pro, then refresh targets. If the DJ app routes audio only to a hardware interface, use Input device Capture or folder Protection instead."
-                    : "Arm App audio Capture to record when the DJ app plays — even if Record/Save is off. After \(settings.appAudioIdleSeconds)s of silence, DJMemory saves and waits for the next set."
+                    : "Arm App audio Capture to record when the DJ app plays — even if Record/Save is off. After \(settings.appAudioIdleSeconds)s of silence, SetCatcher saves and waits for the next set."
             }
             captureState = next
 
@@ -1844,8 +1844,8 @@ extension AppModel {
                     let granted = await CaptureService.requestMicrophonePermission()
                     guard granted else {
                         var denied = captureState
-                        denied.phase = .failed("Microphone access is denied. DJMemory cannot Capture without it.")
-                        denied.statusMessage = "Microphone access is denied. Open System Settings to allow DJMemory."
+                        denied.phase = .failed("Microphone access is denied. SetCatcher cannot Capture without it.")
+                        denied.statusMessage = "Microphone access is denied. Open System Settings to allow SetCatcher."
                         captureState = denied
                         statusMessage = "Microphone access is denied"
                         return
@@ -1859,7 +1859,7 @@ extension AppModel {
                 if !AppAudioCaptureService.screenCapturePermissionGranted() {
                     var denied = captureState
                     denied.phase = .needsScreenRecordingPermission
-                    denied.statusMessage = "Screen & System Audio Recording permission is required. Open System Settings to allow DJMemory, then return here and Arm again. Folder Protection and Input device Capture still work."
+                    denied.statusMessage = "Screen & System Audio Recording permission is required. Open System Settings to allow SetCatcher, then return here and Arm again. Folder Protection and Input device Capture still work."
                     captureState = denied
                     statusMessage = "Screen recording access is denied"
                     return
@@ -2393,8 +2393,8 @@ extension AppModel {
                 let granted = await CaptureService.requestMicrophonePermission()
                 guard granted else {
                     var denied = captureState
-                    denied.phase = .failed("Microphone access is denied. DJMemory cannot Capture without it.")
-                    denied.statusMessage = "Microphone access is denied. Open System Settings to allow DJMemory."
+                    denied.phase = .failed("Microphone access is denied. SetCatcher cannot Capture without it.")
+                    denied.statusMessage = "Microphone access is denied. Open System Settings to allow SetCatcher."
                     captureState = denied
                     statusMessage = "Microphone access is denied"
                     return
@@ -2665,8 +2665,8 @@ extension AppModel {
                 let granted = await CaptureService.requestMicrophonePermission()
                 guard granted else {
                     var denied = captureState
-                    denied.phase = .failed("Microphone access is denied. DJMemory cannot Capture without it.")
-                    denied.statusMessage = "Microphone access is denied. Open System Settings to allow DJMemory."
+                    denied.phase = .failed("Microphone access is denied. SetCatcher cannot Capture without it.")
+                    denied.statusMessage = "Microphone access is denied. Open System Settings to allow SetCatcher."
                     captureState = denied
                     statusMessage = "Microphone access is denied"
                     return
@@ -2811,7 +2811,7 @@ extension AppModel {
         let newSettings = settings.updating(cloudArchiveBackupEnabled: enabled)
         try? appSettingsStore.save(newSettings)
         settings = newSettings
-        statusMessage = enabled ? "Archive backup is opted in. DJMemory will never upload audio automatically." : "Archive backup is off."
+        statusMessage = enabled ? "Archive backup is opted in. SetCatcher will never upload audio automatically." : "Archive backup is off."
     }
 
     func exportPublishPack(sessionID: UUID) {
@@ -2851,7 +2851,7 @@ extension AppModel {
     private func applyCaptureFailure(_ error: CaptureServiceError) {
         let message: String
         switch error {
-        case .permissionDenied: message = "Microphone access is denied. Open System Settings to allow DJMemory."
+        case .permissionDenied: message = "Microphone access is denied. Open System Settings to allow SetCatcher."
         case .deviceMissing: message = "The selected audio input is missing. Refresh devices and try again."
         case .diskFull: message = "This Mac is out of disk space. Free space, then Capture again."
         case .engineFailed(let detail): message = "Capture engine failed: \(detail)"
@@ -2873,7 +2873,7 @@ extension AppModel {
         let phase: CapturePhase
         switch error {
         case .permissionDenied:
-            message = "System Audio Recording permission is required. Open System Settings to allow DJMemory, then return here and Arm again. Folder Protection and Input device Capture still work."
+            message = "System Audio Recording permission is required. Open System Settings to allow SetCatcher, then return here and Arm again. Folder Protection and Input device Capture still work."
             phase = .needsScreenRecordingPermission
         case .appNotShareable(let name):
             message = "\(name) is not available to app-audio capture right now. Open the DJ app, refresh targets, or use Input device Capture / folder Protection if audio is routed only to hardware."

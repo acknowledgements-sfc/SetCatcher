@@ -15,6 +15,8 @@ final class PublishExportServiceTests: XCTestCase {
         let tracklist = ImportedTracklist(appID: "rekordbox", sourceURL: URL(fileURLWithPath: "/tmp/h.txt"), tracks: [TrackPlay(title: "Song", artist: "Artist", startTime: nil, source: "h.txt", confidence: 1)])
         let pack = try PublishExportService().exportPack(archive: archive, tracklist: tracklist, destinationDirectory: temp.appendingPathComponent("Out", isDirectory: true))
         XCTAssertTrue(FileManager.default.fileExists(atPath: pack.appendingPathComponent("set.wav").path))
-        XCTAssertTrue(try String(contentsOf: pack.appendingPathComponent("tracklist.txt"), encoding: .utf8).contains("Artist - Song"))
+        let exportedTracklist = try String(contentsOf: pack.appendingPathComponent("tracklist.txt"), encoding: .utf8)
+        XCTAssertTrue(exportedTracklist.contains("SetCatcher tracklist export"))
+        XCTAssertTrue(exportedTracklist.contains("Artist - Song"))
     }
 }

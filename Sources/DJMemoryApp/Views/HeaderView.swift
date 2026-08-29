@@ -38,7 +38,7 @@ struct HeaderView: View {
                         Label("Open", systemImage: "folder")
                     }
                     .buttonStyle(DJSecondaryButtonStyle())
-                    .help("Open the DJMemory archive folder in Finder.")
+                    .help("Open the SetCatcher archive folder in Finder.")
                     .accessibilityIdentifier("header.openArchiveFolder")
                 }
             }

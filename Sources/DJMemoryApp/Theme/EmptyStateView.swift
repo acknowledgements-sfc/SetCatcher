@@ -55,7 +55,7 @@ struct EmptyStateView: View {
     EmptyStateView(
         title: "No archived sets yet",
         systemImage: "archivebox",
-        description: "Once DJMemory archives a recording, it will show up here.",
+        description: "Once SetCatcher archives a recording, it will show up here.",
         primaryTitle: "Open Protection",
         primaryAction: {},
         secondaryTitle: "Browse DJ apps",

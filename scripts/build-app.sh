@@ -54,7 +54,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>DJMemory</string>
+	<string>SetCatcher</string>
 	<key>CFBundleExecutable</key>
 	<string>$APP_NAME</string>
 	<key>CFBundleIdentifier</key>
@@ -62,7 +62,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>DJMemory</string>
+	<string>SetCatcher</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -74,13 +74,13 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 	<key>LSMinimumSystemVersion</key>
 	<string>14.2</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright (c) 2026 DJMemory</string>
+	<string>Copyright (c) 2026 SetCatcher</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>DJMemory Capture records the master mix from your DJM or other audio input into your local archive. Audio stays on this Mac.</string>
+	<string>SetCatcher Capture records the master mix from your DJM or other audio input into your local archive. Audio stays on this Mac.</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>DJMemory App audio Capture records a running DJ app when Record/Save is off. Captured audio stays on this Mac and is never uploaded by default.</string>
+	<string>SetCatcher App audio Capture records a running DJ app when Record/Save is off. Captured audio stays on this Mac and is never uploaded by default.</string>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>DJMemory uses Screen &amp; System Audio Recording when Process Audio Tap is unavailable. Captured audio stays on this Mac and is never uploaded by default.</string>
+	<string>SetCatcher uses Screen &amp; System Audio Recording when Process Audio Tap is unavailable. Captured audio stays on this Mac and is never uploaded by default.</string>
 	<key>NSSupportsAutomaticTermination</key>
 	<true/>
 	<key>NSSupportsSuddenTermination</key>

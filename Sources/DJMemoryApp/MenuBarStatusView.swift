@@ -199,7 +199,7 @@ struct MenuBarStatusView: View {
             }
             .accessibilityIdentifier("menuBar.appSettings")
 
-            actionRow("Quit DJMemory", systemImage: "power", tint: DJToken.danger) {
+            actionRow("Quit SetCatcher", systemImage: "power", tint: DJToken.danger) {
                 NSApp.terminate(nil)
             }
             .accessibilityIdentifier("menuBar.quit")

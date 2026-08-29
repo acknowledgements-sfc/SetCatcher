@@ -65,7 +65,7 @@ struct HomeLastSetPanel: View {
                 EmptyStateView(
                     title: "No archived sets yet",
                     systemImage: "music.note",
-                    description: "Once DJMemory archives a recording, your last set will show up here.",
+                    description: "Once SetCatcher archives a recording, your last set will show up here.",
                     primaryTitle: "Choose Folder",
                     primaryAction: { model.selectedRoute = .protection }
                 )

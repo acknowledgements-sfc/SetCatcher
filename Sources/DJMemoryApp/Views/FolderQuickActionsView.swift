@@ -13,7 +13,7 @@ struct FolderQuickActionsView: View {
                 Label(recordingButtonTitle, systemImage: "folder.badge.plus")
             }
             .controlSize(.large)
-            .help("Set the folder DJMemory scans for completed recordings.")
+            .help("Set the folder SetCatcher scans for completed recordings.")
             .accessibilityIdentifier("setup.\(result.software.id).recordingFolder")
 
             Button {
@@ -22,7 +22,7 @@ struct FolderQuickActionsView: View {
                 Label(historyButtonTitle, systemImage: "list.bullet.rectangle")
             }
             .controlSize(.large)
-            .help("Set the folder where DJMemory can find history exports.")
+            .help("Set the folder where SetCatcher can find history exports.")
             .accessibilityIdentifier("setup.\(result.software.id).historyFolder")
 
             Spacer()

@@ -47,8 +47,8 @@ struct LocalNotificationService {
         let content = UNMutableNotificationContent()
         content.title = "Set saved"
         content.body = count == 1
-            ? "DJMemory archived a completed recording."
-            : "DJMemory archived \(count) completed recordings."
+            ? "SetCatcher archived a completed recording."
+            : "SetCatcher archived \(count) completed recordings."
         content.sound = .default
 
         let request = UNNotificationRequest(
@@ -75,7 +75,7 @@ struct LocalNotificationService {
 
         let content = UNMutableNotificationContent()
         content.title = "Another source detected"
-        content.body = "\(displayName) is also running. Open DJMemory to switch, or keep watching the current source."
+        content.body = "\(displayName) is also running. Open SetCatcher to switch, or keep watching the current source."
         content.sound = .default
 
         let request = UNNotificationRequest(

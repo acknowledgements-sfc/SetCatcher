@@ -42,7 +42,7 @@ public struct PublishExportService {
                 let title = play.title.isEmpty ? "Unknown Title" : play.title
                 return "\(index + 1). \(artist) - \(title)"
             }
-            let body = (["DJMemory tracklist export", "Source: \(tracklist.sourceURL.lastPathComponent)", ""] + lines).joined(separator: "\n")
+            let body = (["SetCatcher tracklist export", "Source: \(tracklist.sourceURL.lastPathComponent)", ""] + lines).joined(separator: "\n")
             do {
                 try Data(body.utf8).write(to: packDirectory.appendingPathComponent("tracklist.txt"), options: [.atomic])
             } catch {

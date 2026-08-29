@@ -7,14 +7,14 @@ import Foundation
 /// If libASPL sources are vendored later, preserve the MIT copyright notice.
 public enum DJMemoryAudioDriverIdentity {
     public static let pluginFileName = "DJMemoryAudio.driver"
-    public static let deviceName = "DJMemory Audio"
-    public static let manufacturer = "DJMemory"
+    public static let deviceName = "SetCatcher Audio"
+    public static let manufacturer = "SetCatcher"
     public static let bundleIdentifier = "app.djmemory.DJMemoryAudio"
 
     /// Stable Core Audio device UID the driver publishes. `AudioInputDevice.id` is already
     /// the UID (`kAudioDevicePropertyDeviceUID`), so identity is an exact match on it.
     public static let deviceUID = "app.djmemory.DJMemoryAudio:device"
-    public static let deviceNameHints = ["DJMemory Audio"]
+    public static let deviceNameHints = ["SetCatcher Audio", "DJMemory Audio"]
 
     /// Identity is the UID. A name match is accepted only as a secondary signal, and only
     /// for a virtual device — names are user-visible, localizable, and trivially spoofed by

@@ -88,7 +88,7 @@ private var scanningPanel: some View {
             VStack(alignment: .leading, spacing: 14) {
                 settingsToggle(
                     title: "Automatic scanning",
-                    explanation: "When on, DJMemory scans configured recording folders while the app is open.",
+                    explanation: "When on, SetCatcher scans configured recording folders while the app is open.",
                     isOn: Binding(
                         get: { model.settings.automaticScanningEnabled },
                         set: { model.updateAutomaticScanning(enabled: $0) }
@@ -142,8 +142,8 @@ private var scanningPanel: some View {
                 settingsToggle(
                     title: "Launch at login",
                     explanation: model.launchAtLoginNeedsApproval
-                        ? "macOS still needs approval in System Settings → Login Items before DJMemory can open at sign-in."
-                        : "Open DJMemory when you sign in to this Mac.",
+                        ? "macOS still needs approval in System Settings → Login Items before SetCatcher can open at sign-in."
+                        : "Open SetCatcher when you sign in to this Mac.",
                     isOn: Binding(
                         get: { model.settings.launchAtLogin },
                         set: { model.updateLaunchAtLogin(enabled: $0) }
@@ -161,7 +161,7 @@ private var scanningPanel: some View {
 
                 settingsToggle(
                     title: "Open in menu bar only",
-                    explanation: "Skip opening the main window at launch. DJMemory stays in the menu bar; open the window any time from there.",
+                    explanation: "Skip opening the main window at launch. SetCatcher stays in the menu bar; open the window any time from there.",
                     isOn: Binding(
                         get: { model.settings.menuBarOnly },
                         set: { model.updateMenuBarOnly(enabled: $0) }
@@ -213,7 +213,7 @@ private var scanningPanel: some View {
 
                 KeyValueRow(key: "Example", value: exampleArchiveName(), mono: true, showsDivider: false)
 
-                Text("Source recordings stay where they are. DJMemory writes protected copies and metadata sidecars here.")
+                Text("Source recordings stay where they are. SetCatcher writes protected copies and metadata sidecars here.")
                     .font(.system(size: DJToken.TypeSize.secondary))
                     .foregroundStyle(DJToken.mutedForeground)
             }
@@ -247,7 +247,7 @@ private var scanningPanel: some View {
         case 60: return "Check watched folders once a minute while the app is open."
         case 120: return "Check watched folders every 2 minutes while the app is open."
         case 300: return "Check watched folders every 5 minutes while the app is open."
-        default: return "How often DJMemory checks configured recording folders while automatic scanning is on."
+        default: return "How often SetCatcher checks configured recording folders while automatic scanning is on."
         }
     }
 

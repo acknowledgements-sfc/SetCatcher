@@ -10,7 +10,7 @@ struct OnboardingTopBar: View {
                 EQGlyph()
                     .frame(width: 24, height: 24)
                     .foregroundStyle(DJToken.primary)
-                Text("DJMemory")
+                Text("SetCatcher")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(DJToken.foreground)
                 Spacer()

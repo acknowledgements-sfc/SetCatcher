@@ -160,13 +160,13 @@ struct CaptureView: View {
     private var introCopy: String {
         switch model.captureState.mode {
         case .appAudio:
-            return "Record audio from a running DJ app even when Record/Save is off. DJMemory uses Process Audio Tap when available, then saves after idle silence."
+            return "Record audio from a running DJ app even when Record/Save is off. SetCatcher uses Process Audio Tap when available, then saves after idle silence."
         case .inputDevice:
             if model.captureState.selectedDevice?.isLikelyPioneerDJHardware == true,
                model.settings.dualRoutePosture == .both || model.settings.dualRoutePosture == .inputOnly {
                 return "Folder Protection copies Serato or rekordbox recordings. Input Capture records this USB output if Record was forgotten. USB MASTER REC sticks stay untouched—add Pioneer Hardware to watch PIONEERREC."
             }
-            return "Record the master mix from a DJM USB input into your DJMemory archive. USB MASTER REC sticks stay untouched—add Pioneer Hardware to watch PIONEERREC."
+            return "Record the master mix from a DJM USB input into your SetCatcher archive. USB MASTER REC sticks stay untouched—add Pioneer Hardware to watch PIONEERREC."
         }
     }
 

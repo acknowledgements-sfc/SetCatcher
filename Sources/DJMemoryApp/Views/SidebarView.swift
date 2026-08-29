@@ -13,7 +13,7 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             List(selection: $model.selectedRoute) {
-                Section("DJMemory") {
+                Section("SetCatcher") {
                     Label("Home", systemImage: "house")
                         .tag(Route.home)
                         .accessibilityElement(children: .combine)
@@ -78,7 +78,7 @@ struct SidebarView: View {
             .frame(height: 44)
         }
         .background(.ultraThinMaterial)
-        .navigationTitle("DJMemory")
+        .navigationTitle("SetCatcher")
         .onAppear {
             if initiallyPresentAddApp {
                 isAddAppPresented = true

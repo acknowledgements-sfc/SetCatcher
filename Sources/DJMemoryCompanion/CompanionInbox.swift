@@ -28,7 +28,7 @@ public enum CompanionInbox {
     public static func copySharedFile(from url: URL) throws -> URL {
         guard let inbox = inboxDirectory else {
             throw NSError(domain: "DJMemoryShare", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Shared container is unavailable. Reinstall DJMemory Companion."
+                NSLocalizedDescriptionKey: "Shared container is unavailable. Reinstall SetCatcher Companion."
             ])
         }
         let fm = FileManager.default

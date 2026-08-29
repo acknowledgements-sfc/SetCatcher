@@ -13,7 +13,7 @@ struct SettingsProfilePanel: View {
     var body: some View {
         Panel(title: "Profile", padding: 14) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Shown on Home. Leave any field blank to hide it — DJMemory does not invent placeholders.")
+                Text("Shown on Home. Leave any field blank to hide it — SetCatcher does not invent placeholders.")
                     .font(.system(size: DJToken.TypeSize.secondary))
                     .foregroundStyle(DJToken.mutedForeground)
 
