@@ -45,6 +45,7 @@ struct RecoveryView: View {
                 clearedPhase
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("recovery.root")
     }
 

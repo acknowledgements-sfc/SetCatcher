@@ -76,6 +76,7 @@ struct ProtectionDashboardView: View {
                 .font(.system(size: DJToken.TypeSize.secondary))
                 .foregroundStyle(DJToken.mutedForeground)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("protection.root")
     }
 

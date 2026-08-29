@@ -30,6 +30,7 @@ struct SettingsAccountPanel: View {
                     Text("Account sign-in is not configured for this build. Local protection, archive, scan, import, and diagnostics still work offline.")
                         .font(.system(size: DJToken.TypeSize.body))
                         .foregroundStyle(DJToken.mutedForeground)
+                        .accessibilityLabel("Account sign-in is not configured for this build. Local protection, archive, scan, import, and diagnostics still work offline.")
                         .accessibilityIdentifier("settings.accountOffline")
                 }
 

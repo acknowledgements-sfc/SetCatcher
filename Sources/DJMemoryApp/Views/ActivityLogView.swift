@@ -51,6 +51,7 @@ struct ActivityLogView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityLabel("Filter")
             .accessibilityIdentifier("activity.filter")
 
             if filteredEvents.isEmpty {

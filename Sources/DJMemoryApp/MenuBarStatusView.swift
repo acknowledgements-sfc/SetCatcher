@@ -47,6 +47,8 @@ struct MenuBarStatusView: View {
                     .foregroundStyle(DJToken.foreground)
             }
             .padding(.bottom, showsAppLine ? 6 : 2)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Capture status, \(stateHeadline)")
             .accessibilityIdentifier("menuBar.captureState")
 
             if showsAppLine {
@@ -82,6 +84,8 @@ struct MenuBarStatusView: View {
                 .overlay(alignment: .top) {
                     Rectangle().fill(DJToken.hairline).frame(height: 1)
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Previous capture, \(lastCaptureLine)")
                 .accessibilityIdentifier("menuBar.previousCapture")
 
             if let warning = model.folderHealthWarning {

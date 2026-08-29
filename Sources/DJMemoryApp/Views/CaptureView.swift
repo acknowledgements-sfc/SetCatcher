@@ -70,6 +70,7 @@ struct CaptureView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityLabel("Mode")
             .accessibilityIdentifier("capture.mode")
 
             if model.captureState.mode == .appAudio {
@@ -88,6 +89,7 @@ struct CaptureView: View {
                                 : DJToken.mutedForeground
                         )
                         .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(model.captureState.listeningSummary)
                         .accessibilityIdentifier("capture.listeningSummary")
                     Text(model.captureState.statusMessage)
                         .font(.system(size: DJToken.TypeSize.body))
@@ -234,6 +236,9 @@ struct CaptureView: View {
             }
         }
         .frame(height: 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Input level")
+        .accessibilityValue("\(Int((model.captureState.inputLevel * 100).rounded())) percent")
         .accessibilityIdentifier("capture.levelMeter")
     }
 

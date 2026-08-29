@@ -30,6 +30,7 @@ struct HomeDashboardView: View {
             HomeFooter()
         }
         .frame(maxWidth: 1180, alignment: .leading)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.root")
     }
 }

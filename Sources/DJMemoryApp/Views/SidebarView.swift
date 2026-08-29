@@ -16,18 +16,26 @@ struct SidebarView: View {
                 Section("DJMemory") {
                     Label("Home", systemImage: "house")
                         .tag(Route.home)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Home")
                         .accessibilityIdentifier("sidebar.home")
                     Label("Protection", systemImage: model.protectionSymbolName)
                         .tag(Route.protection)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Protection")
                         .accessibilityIdentifier("sidebar.protection")
                     Label("Capture", systemImage: "mic.fill")
                         .tag(Route.capture)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Capture")
                         .accessibilityIdentifier("sidebar.capture")
                     libraryRow
                         .tag(Route.library)
                         .accessibilityIdentifier("sidebar.library")
                     Label("Activity", systemImage: "clock.arrow.circlepath")
                         .tag(Route.activity)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Activity")
                         .accessibilityIdentifier("sidebar.activity")
                 }
 
@@ -42,6 +50,8 @@ struct SidebarView: View {
                         ForEach(model.configuredProbeResults, id: \.software.id) { result in
                             configuredAppRow(result)
                                 .tag(Route.app(result.software.id))
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel(sidebarAppAccessibilityLabel(result))
                                 .accessibilityIdentifier("sidebar.app.\(result.software.id)")
                         }
                     }
@@ -59,6 +69,8 @@ struct SidebarView: View {
             List(selection: $model.selectedRoute) {
                 Label("Settings", systemImage: "gearshape")
                     .tag(Route.settings)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Settings")
                     .accessibilityIdentifier("sidebar.settings")
             }
             .listStyle(.sidebar)
@@ -90,7 +102,11 @@ struct SidebarView: View {
                     in: RoundedRectangle(cornerRadius: DJToken.Radius.badge)
                 )
                 .accessibilityIdentifier("sidebar.library.count")
+                .accessibilityHidden(true)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Library")
+        .accessibilityValue("\(libraryCount)")
     }
 
     private var djAppsHeader: some View {
@@ -156,6 +172,9 @@ struct SidebarView: View {
             RoundedRectangle(cornerRadius: DJToken.Radius.control)
                 .stroke(DJToken.border, lineWidth: 1)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Status")
+        .accessibilityValue("\(state.headline). \(statusDetail)")
         .accessibilityIdentifier("sidebar.statusStrip")
     }
 
@@ -199,6 +218,17 @@ struct SidebarView: View {
 
             StatusDot(tone: tone, pulse: model.isScanning && !unreachable)
         }
+    }
+
+    private func sidebarAppAccessibilityLabel(_ result: SoftwareProbeResult) -> String {
+        let name = result.software.displayName
+        if model.isConfiguredRecordingsFolderUnreachable(appID: result.software.id) {
+            return "\(name), folder unavailable"
+        }
+        if model.isScanning {
+            return "\(name), scanning"
+        }
+        return name
     }
 }
 

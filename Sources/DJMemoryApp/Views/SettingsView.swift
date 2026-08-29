@@ -46,6 +46,7 @@ struct SettingsView: View {
                             Text(posture.displayName).tag(posture)
                         }
                     }
+                    .accessibilityLabel("Pioneer rig safety nets")
                     .accessibilityIdentifier("settings.dualRoutePosture")
                     Text(model.settings.dualRoutePosture.explanation)
                         .font(.system(size: DJToken.TypeSize.secondary))
@@ -114,6 +115,7 @@ private var scanningPanel: some View {
                     }
                     .disabled(!model.settings.automaticScanningEnabled)
                     .pickerStyle(.segmented)
+                    .accessibilityLabel("Scan interval")
                     .accessibilityIdentifier("settings.scanInterval")
                 }
 
@@ -206,6 +208,7 @@ private var scanningPanel: some View {
                 )
                 .textFieldStyle(.roundedBorder)
                 .help("Available tokens: {date}, {time}, {app}, {source}.")
+                .accessibilityLabel("Archive naming template")
                 .accessibilityIdentifier("settings.archiveNamingTemplate")
 
                 KeyValueRow(key: "Example", value: exampleArchiveName(), mono: true, showsDivider: false)

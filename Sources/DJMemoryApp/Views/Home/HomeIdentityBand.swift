@@ -122,6 +122,7 @@ struct HomeSourceLanes: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(result.software.displayName), \(state.displayName)")
         .accessibilityIdentifier("home.lane.\(result.software.id)")
     }
 

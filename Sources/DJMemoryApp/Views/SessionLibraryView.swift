@@ -29,6 +29,7 @@ struct SessionLibraryView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 360)
+                .accessibilityLabel("Library")
                 .accessibilityIdentifier("library.segment")
 
                 Spacer()
@@ -40,12 +41,14 @@ struct SessionLibraryView: View {
                 }
                 .pickerStyle(.menu)
                 .frame(width: 120)
+                .accessibilityLabel("Date")
                 .accessibilityIdentifier("library.dateFilter")
 
                 TextField(segment == .archivedSets ? "Search archived sets" : "Search tracklists", text: $sessionSearch)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 260)
                     .help("Filter by recording name, event, venue, city, tags, or app.")
+                    .accessibilityLabel(segment == .archivedSets ? "Search archived sets" : "Search tracklists")
                     .accessibilityIdentifier("library.archivedSets.search")
             }
 

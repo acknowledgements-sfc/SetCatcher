@@ -47,6 +47,7 @@ struct SettingsProfilePanel: View {
                 .foregroundStyle(DJToken.mutedForeground)
             TextField(title, text: text)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(title)
                 .accessibilityIdentifier(id)
         }
     }
