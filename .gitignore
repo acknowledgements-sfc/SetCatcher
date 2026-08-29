@@ -9,3 +9,17 @@ admin/.next/
 admin/.env.local
 admin/.env*.local
 *.p8
+
+# Local agent and editor state
+.agents/
+.claude/
+.hermes/
+.vscode/
+skills-lock.json
+
+# SwiftPM/Xcode workspace state and profiling output
+.swiftpm/
+*.profraw
+
+# Local design screenshots; keep large references out of Git history
+image-references/

@@ -12,7 +12,11 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                HeaderView()
+                // On Home the hero band owns the protection status, so the shared
+                // header would only duplicate it — every other route keeps it.
+                if model.selectedRoute != .home {
+                    HeaderView()
+                }
 
                 switch model.selectedRoute {
                 case .home:
@@ -35,6 +39,6 @@ struct DashboardView: View {
             }
             .padding(28)
         }
-        .background(DJToken.content)
+        .background(DJToken.background)
     }
 }

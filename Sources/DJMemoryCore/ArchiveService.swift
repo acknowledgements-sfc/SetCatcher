@@ -1,5 +1,7 @@
 import Foundation
 import CryptoKit
+import Darwin
+import os
 
 public enum ArchiveServiceError: Error, Equatable {
     case sourceFileMissing(URL)
@@ -10,6 +12,10 @@ public enum ArchiveServiceError: Error, Equatable {
 
 public struct ArchiveService {
     public static let defaultNamingTemplate = AppSettings.defaultArchiveNamingTemplate
+    private static let captureLifecycleLogger = Logger(
+        subsystem: "app.djmemory",
+        category: "capture-lifecycle"
+    )
 
     public let archiveRoot: URL
     private let fileManager: FileManager
@@ -56,7 +62,12 @@ public struct ArchiveService {
         startedAt: Date,
         endedAt: Date = Date(),
         sourceAppID: String = SupportedDJSoftware.captureAppID,
-        removeStagingAfterCopy: Bool = true
+        removeStagingAfterCopy: Bool = true,
+        captureRoute: CaptureArchiveRoute? = nil,
+        captureBackend: CaptureArchiveBackend? = nil,
+        captureDeviceTransport: String? = nil,
+        captureInterrupted: Bool = false,
+        captureInterruptionReason: String? = nil
     ) throws -> RecordingSession {
         try withSecurityScopedArchiveRoot {
             try ingestCaptureWithAccess(
@@ -66,7 +77,12 @@ public struct ArchiveService {
                 startedAt: startedAt,
                 endedAt: endedAt,
                 sourceAppID: sourceAppID,
-                removeStagingAfterCopy: removeStagingAfterCopy
+                removeStagingAfterCopy: removeStagingAfterCopy,
+                captureRoute: captureRoute,
+                captureBackend: captureBackend,
+                captureDeviceTransport: captureDeviceTransport,
+                captureInterrupted: captureInterrupted,
+                captureInterruptionReason: captureInterruptionReason
             )
         }
     }
@@ -127,10 +143,17 @@ public struct ArchiveService {
         startedAt: Date,
         endedAt: Date,
         sourceAppID: String,
-        removeStagingAfterCopy: Bool
+        removeStagingAfterCopy: Bool,
+        captureRoute: CaptureArchiveRoute?,
+        captureBackend: CaptureArchiveBackend?,
+        captureDeviceTransport: String?,
+        captureInterrupted: Bool,
+        captureInterruptionReason: String?
     ) throws -> RecordingSession {
+        logCaptureIngest(event: "archive-ingest-entered", stagingURL: stagingURL)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: stagingURL.path, isDirectory: &isDirectory) else {
+            logCaptureIngest(event: "archive-source-missing", stagingURL: stagingURL)
             throw ArchiveServiceError.sourceFileMissing(stagingURL)
         }
         guard !isDirectory.boolValue else {
@@ -149,6 +172,7 @@ public struct ArchiveService {
             if removeStagingAfterCopy {
                 try? fileManager.removeItem(at: stagingURL)
             }
+            logCaptureIngest(event: "archive-ingest-completed", stagingURL: stagingURL)
             let session = RecordingSession(
                 sourceAppID: sourceAppID,
                 detectedAt: startedAt,
@@ -158,7 +182,18 @@ public struct ArchiveService {
                 fileSize: Int64(fileSize),
                 status: .archived
             )
-            try writeMetadata(for: session, originalFilename: syntheticSourceName, sourceFingerprint: sourceFingerprint)
+            try writeMetadata(
+                for: session,
+                originalFilename: syntheticSourceName,
+                sourceFingerprint: sourceFingerprint,
+                captureRoute: captureRoute,
+                captureBackend: captureBackend,
+                captureDeviceUID: deviceID,
+                captureDeviceName: deviceName,
+                captureDeviceTransport: captureDeviceTransport,
+                captureInterrupted: captureInterrupted,
+                captureInterruptionReason: captureInterruptionReason
+            )
             return session
         } catch {
             try? fileManager.removeItem(at: destinationURL)
@@ -275,7 +310,18 @@ public struct ArchiveService {
         )
     }
 
-    private func writeMetadata(for session: RecordingSession, originalFilename: String, sourceFingerprint: String) throws {
+    private func writeMetadata(
+        for session: RecordingSession,
+        originalFilename: String,
+        sourceFingerprint: String,
+        captureRoute: CaptureArchiveRoute? = nil,
+        captureBackend: CaptureArchiveBackend? = nil,
+        captureDeviceUID: String? = nil,
+        captureDeviceName: String? = nil,
+        captureDeviceTransport: String? = nil,
+        captureInterrupted: Bool = false,
+        captureInterruptionReason: String? = nil
+    ) throws {
         guard let archiveURL = session.archiveURL else { return }
 
         let metadata = ArchiveMetadata(
@@ -288,7 +334,14 @@ public struct ArchiveService {
             fileSize: session.fileSize ?? 0,
             originalFilename: originalFilename,
             durationSeconds: durationReader.durationSeconds(for: archiveURL),
-            sourceFingerprint: sourceFingerprint
+            sourceFingerprint: sourceFingerprint,
+            captureRoute: captureRoute,
+            captureBackend: captureBackend,
+            captureDeviceUID: captureDeviceUID,
+            captureDeviceName: captureDeviceName,
+            captureDeviceTransport: captureDeviceTransport,
+            captureInterrupted: captureInterrupted,
+            captureInterruptionReason: captureInterruptionReason
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -348,5 +401,14 @@ public struct ArchiveService {
         }
 
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func logCaptureIngest(event: String, stagingURL: URL) {
+        var info = stat()
+        let result = stagingURL.path.withCString { lstat($0, &info) }
+        let state = result == 0 ? "exists(bytes=\(info.st_size))" : "missing(errno=\(errno))"
+        Self.captureLifecycleLogger.notice(
+            "capture_lifecycle event=\(event, privacy: .public) path=\(stagingURL.path, privacy: .public) state=\(state, privacy: .public)"
+        )
     }
 }

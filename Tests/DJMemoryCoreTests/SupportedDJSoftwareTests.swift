@@ -56,6 +56,31 @@ final class SupportedDJSoftwareTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(byID["pioneer-hardware"]).isEmpty)
     }
 
+    func testOnlySeratoDeclaresVirtualAudioDeviceHints() {
+        let byID = Dictionary(uniqueKeysWithValues: SupportedDJSoftware.all.map { ($0.id, $0.virtualAudioDeviceNameHints) })
+        XCTAssertEqual(byID["serato"], ["Serato Virtual Audio"])
+        for id in ["rekordbox", "djay", "virtualdj", "traktor", "djmemory-capture", "pioneer-hardware"] {
+            XCTAssertEqual(byID[id], [], "\(id) must not declare an unverified virtual-audio hint")
+        }
+    }
+
+    func testDJSoftwareDecodesWithoutVirtualAudioHints() throws {
+        let json = """
+        {
+          "id": "serato",
+          "displayName": "Serato DJ Pro",
+          "bundleIdentifiers": ["com.serato.dj"],
+          "defaultRecordingPaths": [],
+          "defaultHistoryPaths": [],
+          "integrationDepth": "exportImport",
+          "supportStatus": "supported",
+          "notes": "legacy"
+        }
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(DJSoftware.self, from: json)
+        XCTAssertEqual(decoded.virtualAudioDeviceNameHints, [])
+    }
+
     func testProbeResultReportsRunningStatusFirst() throws {
         let software = try XCTUnwrap(SupportedDJSoftware.all.first { $0.id == "serato" })
         let result = SoftwareProbeResult(

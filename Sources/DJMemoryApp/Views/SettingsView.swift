@@ -52,7 +52,7 @@ struct SettingsView: View {
                         .foregroundStyle(DJToken.mutedForeground)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Capture writes 24-bit / 48 kHz stereo WAV. Audio stays on this Mac.")
+                Text("Capture writes 16-bit / 48 kHz stereo WAV. Audio stays on this Mac.")
                     .font(.system(size: DJToken.TypeSize.secondary))
                     .foregroundStyle(DJToken.mutedForeground)
             }
@@ -271,4 +271,24 @@ private var scanningPanel: some View {
             .replacingOccurrences(of: "{source}", with: "Club Recording")
             + ".wav"
     }
+}
+
+#Preview("Settings empty / light") {
+    ScrollView {
+        SettingsView(isAccountAuthEnabled: false)
+            .padding()
+    }
+    .environmentObject(AppModel())
+    .frame(width: 640, height: 720)
+    .preferredColorScheme(.light)
+}
+
+#Preview("Settings empty / dark") {
+    ScrollView {
+        SettingsView(isAccountAuthEnabled: false)
+            .padding()
+    }
+    .environmentObject(AppModel())
+    .frame(width: 640, height: 720)
+    .preferredColorScheme(.dark)
 }

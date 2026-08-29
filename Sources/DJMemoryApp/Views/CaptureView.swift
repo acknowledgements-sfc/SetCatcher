@@ -5,6 +5,49 @@ struct CaptureView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if let pending = model.captureState.pendingAlternateSource {
+                alternateSourceBanner(pending)
+            }
+            captureConfig
+        }
+        .onAppear {
+            if model.captureState.mode == .appAudio {
+                Task { await model.refreshAppAudioTargets(attemptAutoArm: true) }
+            } else {
+                model.refreshAudioInputs()
+            }
+        }
+    }
+
+    /// DJs don't run multiple DJ apps/hardware sources at once, so DJMemory never silently
+    /// switches an already-armed/watching/recording session — it surfaces the alternate here
+    /// (and via a local notification) and waits for an explicit choice.
+    private func alternateSourceBanner(_ pending: PendingAlternateSource) -> some View {
+        Panel(tone: .warn, padding: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(DJToken.warn)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(pending.displayName) is also \(pending.kind.isInputDevice ? "connected" : "running")")
+                        .font(.system(size: DJToken.TypeSize.body, weight: .semibold))
+                    Text("Still watching the current source. Switch if you meant to use \(pending.displayName) instead.")
+                        .font(.system(size: DJToken.TypeSize.secondary))
+                        .foregroundStyle(DJToken.mutedForeground)
+                }
+                Spacer()
+                Button("Keep Current") { model.dismissPendingAlternateSource() }
+                    .buttonStyle(DJGhostButtonStyle())
+                    .accessibilityIdentifier("capture.alternateSource.dismiss")
+                Button("Switch") { model.switchToPendingAlternateSource() }
+                    .buttonStyle(DJPrimaryButtonStyle())
+                    .accessibilityIdentifier("capture.alternateSource.switch")
+            }
+        }
+        .accessibilityIdentifier("capture.alternateSourceBanner")
+    }
+
+    private var captureConfig: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 Text("Capture")
@@ -37,16 +80,36 @@ struct CaptureView: View {
 
             Panel(title: "Session", padding: 12) {
                 VStack(alignment: .leading, spacing: 10) {
+                    Text(model.captureState.listeningSummary)
+                        .font(.system(size: DJToken.TypeSize.body))
+                        .foregroundStyle(
+                            model.captureState.listeningState == .recoveryNeeded
+                                ? DJToken.warn
+                                : DJToken.mutedForeground
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("capture.listeningSummary")
                     Text(model.captureState.statusMessage)
                         .font(.system(size: DJToken.TypeSize.body))
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 10) {
                         sessionButtons
                         if case .needsScreenRecordingPermission = model.captureState.phase {
+                            Button("Retry") { model.armAppAudioCapture() }
+                                .accessibilityIdentifier("capture.retryAppAudio")
                             Button("Open Screen Recording Settings") { model.openScreenRecordingPrivacySettings() }
                                 .accessibilityIdentifier("capture.openScreenRecordingSettings")
                         }
-                        if case .failed = model.captureState.phase, model.captureState.mode == .inputDevice {
+                        if model.captureState.listeningState == .recoveryNeeded,
+                           model.captureState.mode == .appAudio {
+                            Button("Retry") { model.armAppAudioCapture() }
+                                .accessibilityIdentifier("capture.retryListening")
+                            Button("Open Screen Recording Settings") { model.openScreenRecordingPrivacySettings() }
+                                .accessibilityIdentifier("capture.openScreenRecordingSettings")
+                        }
+                        if case .failed = model.captureState.phase,
+                           model.captureState.mode == .inputDevice
+                            || model.captureState.statusMessage.contains("Microphone access") {
                             Button("Open Microphone Settings") { model.openMicrophonePrivacySettings() }
                                 .accessibilityIdentifier("capture.openPrivacySettings")
                         }
@@ -88,13 +151,6 @@ struct CaptureView: View {
                             .foregroundStyle(DJToken.mutedForeground)
                     }
                 }
-            }
-        }
-        .onAppear {
-            if model.captureState.mode == .appAudio {
-                Task { await model.refreshAppAudioTargets(attemptAutoArm: true) }
-            } else {
-                model.refreshAudioInputs()
             }
         }
     }
@@ -239,7 +295,48 @@ struct CaptureView: View {
     }
 }
 
+/// A slowly pulsing status dot with a soft glow (the recording indicator). Static under
+/// Reduce Motion, where the dot stays fully lit.
+private struct PulsingDot: View {
+    var color: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var on = false
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 10, height: 10)
+            .shadow(color: color.opacity(0.6), radius: 8)
+            .opacity(reduceMotion ? 1 : (on ? 1 : 0.4))
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                    on = true
+                }
+            }
+    }
+}
+
 #if DEBUG
+#Preview("Capture recording hero") {
+    let model = AppModel()
+    model.previewApplyCaptureState(CaptureUIState(
+        mode: .inputDevice,
+        phase: .recording,
+        devices: [AudioInputDevice(id: "xz", name: "XDJ-XZ", manufacturer: "Pioneer DJ")],
+        selectedDeviceID: "xz",
+        inputLevel: 0.7,
+        statusMessage: "Recording the XDJ-XZ input."
+    ))
+    model.previewSetRecordingStartedAt(Date(timeIntervalSinceNow: -2472))
+    return CaptureView()
+        .environmentObject(model)
+        .padding()
+        .frame(width: 900, height: 620)
+        .preferredColorScheme(.dark)
+}
+
 #Preview("Capture idle") {
     let model = AppModel()
     model.previewApplyCaptureState(CaptureUIState(

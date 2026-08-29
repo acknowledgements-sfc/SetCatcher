@@ -53,6 +53,59 @@ struct DJDangerButtonStyle: ButtonStyle {
     }
 }
 
+/// Filled light-on-dark primary for hero moments (e.g. Capture's "Stop & Save").
+/// White fill, near-black ink text, larger touch target than the dense controls.
+struct DJHeroFilledButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        DJHeroButton(configuration: configuration, filled: true)
+    }
+}
+
+/// Hollow companion to the filled hero button (e.g. Capture's "Disarm"): a hairline
+/// white border over the gradient ground.
+struct DJHollowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        DJHeroButton(configuration: configuration, filled: false)
+    }
+}
+
+private struct DJHeroButton: View {
+    let configuration: ButtonStyleConfiguration
+    let filled: Bool
+
+    @State private var isHovering = false
+
+    var body: some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 26)
+            .frame(minHeight: 44)
+            .background(background, in: RoundedRectangle(cornerRadius: DJToken.Radius.maximum))
+            .overlay {
+                if !filled {
+                    RoundedRectangle(cornerRadius: DJToken.Radius.maximum)
+                        .stroke(Color.white.opacity(isHovering ? 0.32 : 0.2), lineWidth: 1)
+                }
+            }
+            .onHover { isHovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: isHovering)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+
+    private var foreground: Color {
+        if filled { return DJToken.foreground }
+        return Color.white.opacity(configuration.isPressed ? 0.55 : 0.75)
+    }
+
+    private var background: Color {
+        if filled {
+            return Color.white.opacity(configuration.isPressed ? 0.82 : 1)
+        }
+        return Color.white.opacity(configuration.isPressed ? 0.1 : (isHovering ? 0.06 : 0))
+    }
+}
+
 private struct DJHoverableButton: View {
     let configuration: ButtonStyleConfiguration
     let pressedBackground: Color

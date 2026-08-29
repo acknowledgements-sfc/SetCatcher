@@ -1,10 +1,20 @@
 import Foundation
 
-public struct TrackPlayCount: Equatable, Sendable {
+private func normalizedTrackComponent(_ value: String) -> String {
+    value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+}
+
+public struct TrackPlayCount: Equatable, Identifiable, Sendable {
     public let title: String
     public let artist: String
     public let playCount: Int
     public let lastEventName: String
+
+    /// Stable identity for an aggregated track across refreshes and ranking changes.
+    /// Artist and title are the aggregation key used by `topTracks`.
+    public var id: String {
+        "\(normalizedTrackComponent(artist))\u{1F}\(normalizedTrackComponent(title))"
+    }
 
     public init(title: String, artist: String, playCount: Int, lastEventName: String) {
         self.title = title
@@ -53,7 +63,7 @@ public enum CrossSetAggregation {
         for list in tracklists where list.kind == .setHistory {
             let event = eventNameForTracklistID[list.id] ?? ""
             for track in list.tracks {
-                let key = "\(track.artist.lowercased())|\(track.title.lowercased())"
+                let key = "\(normalizedTrackComponent(track.artist))|\(normalizedTrackComponent(track.title))"
                 if var existing = map[key] {
                     existing.count += 1
                     if !event.isEmpty {

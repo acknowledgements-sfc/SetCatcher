@@ -10,6 +10,20 @@ public struct SoftwareProbeResult: Codable, Equatable, Sendable {
     public let existingRecordingURLs: [URL]
     public let existingHistoryURLs: [URL]
 
+    public init(
+        software: DJSoftware,
+        installedApplicationURLs: [URL],
+        runningApplicationBundleIdentifiers: [String],
+        existingRecordingURLs: [URL],
+        existingHistoryURLs: [URL]
+    ) {
+        self.software = software
+        self.installedApplicationURLs = installedApplicationURLs
+        self.runningApplicationBundleIdentifiers = runningApplicationBundleIdentifiers
+        self.existingRecordingURLs = existingRecordingURLs
+        self.existingHistoryURLs = existingHistoryURLs
+    }
+
     public var status: String {
         if !runningApplicationBundleIdentifiers.isEmpty {
             return "running"

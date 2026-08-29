@@ -72,6 +72,15 @@ final class LibraryStatisticsTests: XCTestCase {
 }
 
 final class CrossSetAggregationTests: XCTestCase {
+    func testTrackPlayCountIdentityIsStableAndNormalized() {
+        let first = TrackPlayCount(title: "  Track A ", artist: "Artist X", playCount: 1, lastEventName: "Set 1")
+        let equivalent = TrackPlayCount(title: "track a", artist: " artist x ", playCount: 4, lastEventName: "Set 2")
+        let different = TrackPlayCount(title: "Track B", artist: "Artist X", playCount: 1, lastEventName: "Set 1")
+
+        XCTAssertEqual(first.id, equivalent.id)
+        XCTAssertNotEqual(first.id, different.id)
+    }
+
     func testCollectionImportsExcluded() {
         let history = ImportedTracklist(
             appID: "serato",
@@ -92,6 +101,48 @@ final class CrossSetAggregationTests: XCTestCase {
         XCTAssertEqual(top.count, 1)
         XCTAssertEqual(top[0].title, "A")
         XCTAssertEqual(top[0].playCount, 1)
+    }
+
+    func testTopTracksAggregateEquivalentArtistAndTitle() {
+        let history = ImportedTracklist(
+            appID: "serato",
+            sourceURL: URL(fileURLWithPath: "/h.csv"),
+            kind: .setHistory,
+            tracks: [
+                TrackPlay(title: "Track A", artist: "Artist X", startTime: nil, source: "t", confidence: 1),
+                TrackPlay(title: " track a ", artist: "artist x", startTime: nil, source: "t", confidence: 1)
+            ]
+        )
+
+        let top = CrossSetAggregation.topTracks(from: [history])
+
+        XCTAssertEqual(top.count, 1)
+        XCTAssertEqual(top[0].playCount, 2)
+        XCTAssertEqual(top[0].id, TrackPlayCount(title: "Track A", artist: "Artist X", playCount: 2, lastEventName: "").id)
+    }
+
+    func testTopTracksSortIsDeterministicByPlayCountThenTitle() {
+        let history = ImportedTracklist(
+            appID: "serato",
+            sourceURL: URL(fileURLWithPath: "/h.csv"),
+            kind: .setHistory,
+            tracks: [
+                TrackPlay(title: "Beta", artist: "A", startTime: nil, source: "t", confidence: 1),
+                TrackPlay(title: "Alpha", artist: "A", startTime: nil, source: "t", confidence: 1),
+                TrackPlay(title: "Beta", artist: "A", startTime: nil, source: "t", confidence: 1),
+                TrackPlay(title: "Gamma", artist: "A", startTime: nil, source: "t", confidence: 1),
+                TrackPlay(title: "Alpha", artist: "A", startTime: nil, source: "t", confidence: 1),
+                TrackPlay(title: "Alpha", artist: "A", startTime: nil, source: "t", confidence: 1)
+            ]
+        )
+
+        let top = CrossSetAggregation.topTracks(from: [history], limit: 8)
+        XCTAssertEqual(top.map(\.title), ["Alpha", "Beta", "Gamma"])
+        XCTAssertEqual(top.map(\.playCount), [3, 2, 1])
+        // Same inputs → same order (stable ranking for ForEach identity).
+        let again = CrossSetAggregation.topTracks(from: [history], limit: 8)
+        XCTAssertEqual(again.map(\.id), top.map(\.id))
+        XCTAssertEqual(again.map(\.playCount), top.map(\.playCount))
     }
 
     func testMixedCaseTags() {

@@ -93,6 +93,28 @@ enum DJToken {
     static func accent(forAppID id: String) -> Color {
         appAccents[id] ?? primary
     }
+
+    /// Menu bar status-item semantic colors (design handoff: DJMemory Menu Bar).
+    /// Constant across appearance — matches the dark-only menu bar chrome.
+    enum MenuBarStatus {
+        static let watching = Color(srgbHex: 0x8A8A92)
+        static let armed = Color(srgbHex: 0xE8B800)
+        static let capturing = danger
+        static let saved = Color(srgbHex: 0x0A84FF)
+    }
+}
+
+extension DJToken {
+    /// Bright, fixed signal roles for capture/status micro-labels.
+    static let signalGreen = Color(srgbHex: 0x4BD07A)
+    static let signalGreenBright = Color(srgbHex: 0x8EE6A8)
+    static let signalGreenDeep = Color(srgbHex: 0x39B46A)
+    static let recordRed = Color(srgbHex: 0xFF4D3D)
+    static let recordRedBright = Color(srgbHex: 0xFF8A7A)
+}
+
+extension DJToken.TypeSize {
+    static let eyebrow: CGFloat = 11
 }
 
 enum StatusTone {

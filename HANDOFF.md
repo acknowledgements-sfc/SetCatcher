@@ -16,12 +16,13 @@ something is genuinely ambiguous, say so in the PR rather than inventing a layou
 
 ## 1. Current state of the Swift app
 
-`Sources/DJMemoryApp/ContentView.swift` is **1,815 lines containing 24 `private struct` views**.
+The SwiftUI app is now split across dedicated views under `Sources/DJMemoryApp/Views/` and theme
+primitives under `Sources/DJMemoryApp/Theme/`; `ContentView` is the app shell.
 Most panes already exist in rough form:
 
 | Pane | Swift view (line) | Status vs prototype |
 | --- | --- | --- |
-| App shell | `ContentView` (4) | Present. `NavigationSplitView`, raw `String` route tags |
+| App shell | `ContentView` | Present. `NavigationSplitView` with the `Route` enum |
 | Sidebar | `Sidebar` (159) | Present. Missing per-app status dots and accent swatches |
 | Onboarding | `OnboardingView` (51) | **Single sheet** vs prototype's 6-step flow |
 | Protection | `ProtectionDashboardView` (556) | Present. Only 2 of 4 headline states |
@@ -32,13 +33,13 @@ Most panes already exist in rough form:
 | Activity | `ActivityLogView` (226) | Present. No `diagnostics` kind |
 | Settings | `SettingsView` (329) | Present. 4 of 7 prototype settings |
 | Folder recovery | — | **Missing entirely** |
-| Design tokens | — | **Missing entirely.** Inline `.quaternary.opacity(0.35)` + `cornerRadius: 8` repeated ad hoc |
+| Design tokens | `Theme/Tokens.swift` | Present and used by the current SwiftUI views |
 
-So this is mostly a **refinement and extraction** job, not a greenfield build. Two structural
-problems to fix first, because everything else depends on them:
+So this remains a **refinement and extraction** job, not a greenfield build. The remaining work is
+primarily feature-state completion and visual refinement:
 
-1. **No design-token layer.** Colors, radii, and type sizes are inlined at ~24 call sites.
-2. **One 1,815-line file** where every view is `private`, so nothing is reusable or previewable.
+1. Complete the remaining protection, recovery, settings, and activity-state gaps below.
+2. Continue keeping domain logic in `DJMemoryCore` and app composition in dedicated SwiftUI views.
 
 **Out of scope for this repo:** the prototype's Flow Map, Sign In, Account, and Admin Console
 screens. Those are design concepts only — do not build them in the app.

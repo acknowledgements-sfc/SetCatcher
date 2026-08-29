@@ -1,10 +1,10 @@
 # DJMemory Automation Testing Plan
 
-Last updated: August 6, 2026.
+Last updated: August 26, 2026.
 
 ## Current Passing Baseline
 
-Verified on August 6, 2026:
+Baseline originally verified on August 6, 2026. Swift build/test were re-run on August 26, 2026 for the invisible-capture documentation/model direction; smoke scripts still use the baseline below unless re-run for a packaging/UI change.
 
 - `swift test` passes the current Swift test suite.
 - `bash scripts/build-app.sh debug` builds `.build/DJMemory.app`.
@@ -131,3 +131,40 @@ Do not use Figma as a functional test tool. Figma is for visual flows and screen
 - Add small sanitized parser fixtures under `Tests/DJMemoryCoreTests/Fixtures` for Serato, rekordbox, and Traktor once representative samples are available.
 - Keep archive and scanner integration coverage based on generated temporary directories rather than checked-in audio files.
 - Continue running `swift test` after fixture or test changes and `bash scripts/smoke-app.sh` for app bundle verification.
+
+## Live Hardware Route Gate
+
+The laptop-driver route model still needs a real bench pass before merge. Use this when XDJ/DJM/all-in-one hardware is connected and playing program audio through a USB master or REC OUT feed:
+
+```bash
+bash scripts/live-hardware-route-check.sh
+```
+
+Expected result:
+
+- the script runs `CaptureServiceTests/testLivePioneerInputRecords16Bit48kCapture` with `DJMEMORY_LIVE_XZ=1`
+- `/tmp/djmemory-live-xz-result.txt` is written with the detected device, peak level, archive path, and `afinfo`
+- the archived capture reports 48 kHz, 16-bit, stereo audio
+
+Manual cases that remain outside automation:
+
+- connected XDJ/DJM hardware with no signal for about 2 seconds should fall back to the laptop DJ-app route and must not claim a verified hardware feed
+- CDJ-only USB should never be presented as a capturable mix
+- laptop-only DJ-app capture should continue through the existing app-audio path when `DJMemoryAudio.driver` is missing
+
+## Invisible Capture Direction
+
+DJMemory must not require DJs to change Serato, rekordbox, Traktor, VirtualDJ, or djay Pro/2 output settings after initial setup. Onboarding may request permissions and install DJMemory-owned capture components, but runtime capture must be automatic.
+
+Runtime priority:
+
+- if a verified USB hardware feed is heard from an XDJ/DJM/all-in-one, capture that feed
+- if no verified hardware feed is heard and a DJ app is producing audio on this Mac, capture the active app automatically through Process Audio Tap or ScreenCaptureKit
+- if a vendor virtual input is safely available, DJMemory may use it as an implementation detail, but the user should not be asked to route the app manually
+- if no audio reaches this Mac, report that DJMemory cannot hear the set yet
+
+DJ app routing rule: do not assume any DJ app exposes a safe output-device picker or can be forced to route to `DJMemoryAudio.driver`. This applies to Serato, rekordbox, Traktor, VirtualDJ, and djay Pro/2. Treat app-specific virtual outputs such as Serato Virtual Audio as vendor feeds when available, not as proof that DJMemory can require or automate manual DJ-app output changes.
+
+Research verification bar: driver/helper research must return enough evidence for review, not just an architecture guess. For each proposed capture path, document the exact macOS API or install mechanism, required entitlements/permissions, whether it can target a specific running DJ process, whether the user must change DJ-app settings after onboarding, and the smallest bench test that proves it with real audio. Do not constrain the design to legacy macOS; if the invisible path requires the latest macOS release, treat that as acceptable and call out the minimum OS explicitly.
+
+Current handoff: `docs/handoff-cursor-fable-invisible-capture-research-2026-08-26.md`.

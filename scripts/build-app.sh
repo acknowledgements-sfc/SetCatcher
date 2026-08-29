@@ -72,13 +72,15 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.music</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>14.0</string>
+	<string>14.2</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright (c) 2026 DJMemory</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>DJMemory Capture records the master mix from your DJM or other audio input into your local archive. Audio stays on this Mac.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>DJMemory App audio Capture records a running DJ app when Record/Save is off. Captured audio stays on this Mac and is never uploaded by default.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>DJMemory uses Screen &amp; System Audio Recording when Process Audio Tap is unavailable. Captured audio stays on this Mac and is never uploaded by default.</string>
 	<key>NSSupportsAutomaticTermination</key>
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
