@@ -66,32 +66,26 @@ struct SessionLibraryView: View {
         }
         .onChange(of: selectedTracklistID) { trackSearch = "" }
         .onChange(of: sessionSearch) {
-            if let selectedSessionID,
-               !filteredLibrarySummaries.contains(where: { $0.id == selectedSessionID }) {
-                self.selectedSessionID = nil
-            }
+            selectedSessionID = LibrarySelection.retainingIfPresent(
+                selectedSessionID,
+                among: filteredLibrarySummaries.map(\.id)
+            )
         }
         .onChange(of: dateFilter) {
-            if let selectedSessionID,
-               !filteredLibrarySummaries.contains(where: { $0.id == selectedSessionID }) {
-                self.selectedSessionID = nil
-            }
-            if let selectedTracklistID,
-               !filteredTracklists.contains(where: { $0.id == selectedTracklistID }) {
-                self.selectedTracklistID = nil
-            }
+            selectedSessionID = LibrarySelection.retainingIfPresent(
+                selectedSessionID,
+                among: filteredLibrarySummaries.map(\.id)
+            )
+            selectedTracklistID = LibrarySelection.retainingIfPresent(
+                selectedTracklistID,
+                among: filteredTracklists.map(\.id)
+            )
         }
-        .onChange(of: model.librarySummaries.map(\.id)) {
-            if let selectedSessionID,
-               !model.librarySummaries.contains(where: { $0.id == selectedSessionID }) {
-                self.selectedSessionID = nil
-            }
+        .onChange(of: model.librarySummaries.map(\.id)) { _, ids in
+            selectedSessionID = LibrarySelection.retainingIfPresent(selectedSessionID, among: ids)
         }
-        .onChange(of: model.allImportedTracklists.map(\.id)) {
-            if let selectedTracklistID,
-               !model.allImportedTracklists.contains(where: { $0.id == selectedTracklistID }) {
-                self.selectedTracklistID = nil
-            }
+        .onChange(of: model.allImportedTracklists.map(\.id)) { _, ids in
+            selectedTracklistID = LibrarySelection.retainingIfPresent(selectedTracklistID, among: ids)
         }
         .onAppear { applyLibraryFocusIfNeeded() }
         .onChange(of: model.selectedRoute) { _, newRoute in

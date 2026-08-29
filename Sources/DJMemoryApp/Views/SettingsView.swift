@@ -272,3 +272,23 @@ private var scanningPanel: some View {
             + ".wav"
     }
 }
+
+#Preview("Settings empty / light") {
+    ScrollView {
+        SettingsView(isAccountAuthEnabled: false)
+            .padding()
+    }
+    .environmentObject(AppModel())
+    .frame(width: 640, height: 720)
+    .preferredColorScheme(.light)
+}
+
+#Preview("Settings empty / dark") {
+    ScrollView {
+        SettingsView(isAccountAuthEnabled: false)
+            .padding()
+    }
+    .environmentObject(AppModel())
+    .frame(width: 640, height: 720)
+    .preferredColorScheme(.dark)
+}
