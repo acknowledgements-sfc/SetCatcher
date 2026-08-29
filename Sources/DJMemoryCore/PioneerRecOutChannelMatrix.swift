@@ -37,16 +37,19 @@ public enum PioneerRecOutChannelMatrixError: Error, Equatable, Sendable {
     }
 }
 
-/// Unverified Pioneer / AlphaTheta USB **REC OUT** channel hypotheses.
+/// Pioneer / AlphaTheta USB **REC OUT** channel pairs.
 ///
-/// Measured live maps override this table. See `docs/xdj-usb-routing-2026-08-29.md`.
+/// XDJ-XZ 3/4 is measured (2026-08-29 live map on an 8-channel @ 44.1 kHz stream).
+/// Other rows remain unverified hypotheses. See `docs/xdj-usb-routing-2026-08-29.md`.
 public enum PioneerRecOutChannelMatrix {
-    /// Looks up a hypothesized REC OUT pair from a Core Audio device display name.
+    /// Looks up a REC OUT pair from a Core Audio device display name.
     /// Returns `nil` when the device is unrecognized — callers keep default convert behavior.
     public static func hypothesizedPair(forDeviceName name: String) -> HardwareStereoChannelPair? {
         let haystack = name.lowercased()
         if haystack.contains("xdj-xz") || haystack.contains("xdj xz") {
-            return HardwareStereoChannelPair(leftIndex: 8, rightIndex: 9)
+            // Measured 2026-08-29 on 8ch @ 44.1 kHz Core Audio: channels 5/6 hot (~1.0).
+            // ffmpeg/AVFoundation channel order differed (first adjacent active was 3/4).
+            return HardwareStereoChannelPair(leftIndex: 4, rightIndex: 5)
         }
         if haystack.contains("xdj-rx3") || haystack.contains("xdj rx3") {
             return HardwareStereoChannelPair(leftIndex: 4, rightIndex: 5)

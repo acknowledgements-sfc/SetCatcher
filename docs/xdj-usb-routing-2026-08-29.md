@@ -15,7 +15,7 @@ Unverified until a live map shows the pair in-range **and** above the shared `0.
 
 | Device | Hypothesized REC OUT | 0-based indexes | Notes |
 | --- | --- | --- | --- |
-| XDJ-XZ | 9 / 10 | 8 / 9 | Needs ≥10 input channels; Setting Utility may change USB layout |
+| XDJ-XZ | **5 / 6 (measured Core Audio)** | 4 / 5 | Live 2026-08-29: 8ch @ 44.1 kHz; Core Audio peaks on ch 5/6 (~1.0). ffmpeg first-adjacent was 3/4 — do not trust ffmpeg index order for CaptureService. Gemini 9/10 out of range |
 | XDJ-RX2 | 3 / 4 | 2 / 3 | |
 | XDJ-RX3 | 5 / 6 | 4 / 5 | |
 | DJM-V10 | 11 / 12 | 10 / 11 | |
@@ -25,15 +25,16 @@ Unverified until a live map shows the pair in-range **and** above the shared `0.
 
 ## Conflict with 2026-08-29 live map
 
-`scripts/map-xdj-input-channels.sh` observed **XDJ-XZ as 8 channels @ 44.1 kHz**, all digital zero. Hypothesized pair **9/10 is out of range** on that stream.
+Earlier probes saw **XDJ-XZ as 8 channels @ 44.1 kHz** with all digital zero (no confirmed playback).
 
-Before treating the matrix as wrong:
+**Measured pass (2026-08-29T21:35–21:38Z)** with playback active:
 
-1. Confirm USB-stick (or DJ-app) playback ran for the full capture window.
-2. Open **XDJ-XZ Setting Utility** and check USB audio / rec-out channel assignment.
-3. Re-probe actual `channelCount` (AVFoundation / Core Audio). If still 8, treat 9/10 as wrong **for this driver mode** and trust the live map.
-
-Do not claim USB REC OUT capture is supported until a pair is in-range, above threshold, archived, Library-reconciled, and heard on a **non-XDJ** output (e.g. Studio Display Speakers).
+- `actualChannels=8` @ 44.1 kHz
+- Gemini **9/10** still **out of range**
+- **ffmpeg** first adjacent active pair: **3/4** (ch 3–8 looked hot; channel order not trustworthy for Core Audio)
+- **Core Audio / AVAudioEngine** dump: ch **5/6** peak ≈ 0.997; ch 1–4 noise floor; ch 7–8 zero
+- Core matrix uses **5/6** for XDJ-XZ CaptureService extract
+- Listen files on Desktop: `XDJ-XZ-channels-3-4.wav` (and 5-6 / 7-8 copies) — confirm on Studio Display Speakers
 
 ## What the handover got wrong (reject)
 

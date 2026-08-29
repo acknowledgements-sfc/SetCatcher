@@ -60,7 +60,15 @@ public final class CaptureService: @unchecked Sendable {
     /// some machines. `CaptureService` is instantiated unconditionally on every launch
     /// regardless of capture mode (default mode is App audio, not Input device), so eagerly
     /// building the engine paid that cost on every launch even when it was never used.
-    private lazy var engine = AVAudioEngine()
+    /// Optional storage (not `lazy var`) so `stopMonitoring()` can no-op when the engine
+    /// was never created — dual-route policy calls halt on launch and must not pay HAL cost.
+    private var engineStorage: AVAudioEngine?
+    private var engine: AVAudioEngine {
+        if let engineStorage { return engineStorage }
+        let created = AVAudioEngine()
+        engineStorage = created
+        return created
+    }
     private var audioFile: AVAudioFile?
     private var stagingURL: URL?
     private var deviceID = ""
@@ -250,8 +258,12 @@ public final class CaptureService: @unchecked Sendable {
     }
 
     public func stopMonitoring() {
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        // Dual-route policy calls this on launch even when Input Capture was never started.
+        // Touching `engine` would construct AVAudioEngine and block on the Core Audio HAL.
+        if let engine = engineStorage {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
         if isRecording {
             audioFile = nil
             converter = nil

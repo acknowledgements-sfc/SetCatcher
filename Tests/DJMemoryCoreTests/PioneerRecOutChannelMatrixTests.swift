@@ -6,7 +6,7 @@ final class PioneerRecOutChannelMatrixTests: XCTestCase {
     func testHypothesizedPairsMatchRoutingDoc() {
         XCTAssertEqual(
             PioneerRecOutChannelMatrix.hypothesizedPair(forDeviceName: "XDJ-XZ"),
-            HardwareStereoChannelPair(leftIndex: 8, rightIndex: 9)
+            HardwareStereoChannelPair(leftIndex: 4, rightIndex: 5)
         )
         XCTAssertEqual(
             PioneerRecOutChannelMatrix.hypothesizedPair(forDeviceName: "Pioneer DJ XDJ-RX2"),
@@ -35,7 +35,7 @@ final class PioneerRecOutChannelMatrixTests: XCTestCase {
         let pair = HardwareStereoChannelPair(leftIndex: 8, rightIndex: 9)
         switch PioneerRecOutChannelMatrix.validate(pair, channelCount: 8) {
         case .success:
-            XCTFail("Expected out-of-range failure for 8-channel XZ stream")
+            XCTFail("Expected out-of-range failure for 8-channel stream needing 9/10")
         case .failure(let error):
             XCTAssertEqual(
                 error,
@@ -45,6 +45,14 @@ final class PioneerRecOutChannelMatrixTests: XCTestCase {
             XCTAssertTrue(error.message.contains("10 input channels"), error.message)
             XCTAssertTrue(error.message.contains("exposes 8"), error.message)
         }
+    }
+
+    func testXDJXZMeasuredPairFitsEightChannelStream() throws {
+        let result = try PioneerRecOutChannelMatrix.resolvedPair(
+            forDeviceName: "XDJ-XZ",
+            channelCount: 8
+        ).get()
+        XCTAssertEqual(result, HardwareStereoChannelPair(leftIndex: 4, rightIndex: 5))
     }
 
     func testResolvedPairNilForUnknownDevice() throws {
@@ -57,10 +65,10 @@ final class PioneerRecOutChannelMatrixTests: XCTestCase {
 
     func testResolvedPairSucceedsWhenInRange() throws {
         let result = try PioneerRecOutChannelMatrix.resolvedPair(
-            forDeviceName: "XDJ-XZ",
-            channelCount: 10
+            forDeviceName: "XDJ-RX3",
+            channelCount: 6
         ).get()
-        XCTAssertEqual(result, HardwareStereoChannelPair(leftIndex: 8, rightIndex: 9))
+        XCTAssertEqual(result, HardwareStereoChannelPair(leftIndex: 4, rightIndex: 5))
     }
 }
 

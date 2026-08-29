@@ -1,8 +1,20 @@
+import AVFoundation
 import Foundation
 import XCTest
 @testable import DJMemoryCore
 
 final class CaptureServiceTests: XCTestCase {
+    func testStopMonitoringWithoutStartDoesNotRequireAnEngine() {
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent("djmemory-capture-idle-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        let service = CaptureService(stagingDirectory: staging)
+        service.stopMonitoring()
+        service.stopMonitoring()
+        XCTAssertFalse(service.isMonitoring)
+        XCTAssertFalse(service.isRecording)
+    }
+
     func testStartMonitoringUnknownDeviceThrowsDeviceMissing() throws {
         guard CaptureService.microphonePermissionGranted() else {
             throw XCTSkip("Microphone permission is required to reach device binding.")
@@ -19,6 +31,74 @@ final class CaptureServiceTests: XCTestCase {
         XCTAssertThrowsError(try service.startMonitoring(device: ghost)) { error in
             XCTAssertEqual(error as? CaptureServiceError, .deviceMissing)
         }
+    }
+
+    func testLivePioneerInputChannelPeaks() async throws {
+        guard ProcessInfo.processInfo.environment["DJMEMORY_LIVE_XZ"] == "1" else {
+            throw XCTSkip("Set DJMEMORY_LIVE_XZ=1 for the hardware bench.")
+        }
+        guard CaptureService.microphonePermissionGranted() else {
+            throw XCTSkip("Microphone permission is required for live Input Capture.")
+        }
+        let device = try XCTUnwrap(
+            AudioInputDeviceCatalog.listInputs().first(where: \.isLikelyPioneerDJHardware),
+            "No Pioneer-like Core Audio input is present."
+        )
+        let catalogChannels = AudioInputDeviceCatalog.inputChannelCount(forUID: device.id)
+        print("LIVE_CHANNEL_DUMP device=\(device.name) uid=\(device.id) catalogChannels=\(catalogChannels)")
+
+        let engine = AVAudioEngine()
+        let coreAudioID = try XCTUnwrap(AudioInputDeviceCatalog.audioDeviceID(forUID: device.id))
+        try engine.inputNode.auAudioUnit.setDeviceID(coreAudioID)
+        let inputFormat = engine.inputNode.inputFormat(forBus: 0)
+        let channelCount = Int(inputFormat.channelCount)
+        print(
+            "LIVE_CHANNEL_DUMP engineChannels=\(channelCount) sampleRate=\(inputFormat.sampleRate) "
+                + "interleaved=\(inputFormat.isInterleaved)"
+        )
+        XCTAssertGreaterThan(channelCount, 0)
+
+        let lock = NSLock()
+        var peaks = [Float](repeating: 0, count: channelCount)
+        engine.inputNode.removeTap(onBus: 0)
+        engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { buffer, _ in
+            let frames = Int(buffer.frameLength)
+            guard frames > 0 else { return }
+            lock.lock()
+            defer { lock.unlock() }
+            if inputFormat.isInterleaved, let interleaved = buffer.floatChannelData?[0] {
+                for frame in 0..<frames {
+                    let base = frame * channelCount
+                    for channel in 0..<channelCount {
+                        peaks[channel] = max(peaks[channel], abs(interleaved[base + channel]))
+                    }
+                }
+            } else if let channels = buffer.floatChannelData {
+                for channel in 0..<channelCount {
+                    if let channelPeak = CaptureDSP.peakAbsolute(samples: channels[channel], count: frames) {
+                        peaks[channel] = max(peaks[channel], channelPeak)
+                    }
+                }
+            }
+        }
+        try engine.start()
+        try await Task.sleep(nanoseconds: 3_000_000_000)
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+
+        lock.lock()
+        let snapshot = peaks
+        lock.unlock()
+        for (index, peak) in snapshot.enumerated() {
+            print("LIVE_CHANNEL_DUMP channel=\(index + 1) peak=\(peak)")
+        }
+        let maxPeak = snapshot.max() ?? 0
+        print("LIVE_CHANNEL_DUMP maxPeak=\(maxPeak)")
+        XCTAssertGreaterThan(
+            maxPeak,
+            LiveCaptureDetectionConfig.default.signalThreshold,
+            "No Core Audio input channel reached the signal threshold while the XDJ was supposedly playing."
+        )
     }
 
     func testLivePioneerInputRecords16Bit48kCapture() async throws {

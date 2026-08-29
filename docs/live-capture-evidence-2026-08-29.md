@@ -91,6 +91,17 @@ For XDJ-XZ the hypothesized REC OUT pair is **channels 9/10** (0-based 8/9). The
 - `/Volumes/RED-YOSHI/PIONEER` has setting DAT files only — **no** `REC` WAV for MASTER REC control.
 - Operator listening on Studio Display Speakers and Setting Utility / 10-channel USB mode remain human gates.
 
+### Measured signal pass (2026-08-29T21:35–21:39Z)
+
+- XDJ-XZ present again; playback active.
+- Map: 8ch @ 44.1 kHz; ffmpeg first adjacent pair **3/4** (ch 3–8 looked hot). Gemini 9/10 still out of range.
+- Core Audio channel dump: **ch 5/6 peak ≈ 0.997** (CaptureService authority). ffmpeg channel order ≠ Core Audio.
+- Matrix updated to XDJ-XZ **5/6**. `bash scripts/live-hardware-route-check.sh` **PASSED**: livePeak ≈ 0.968, archivedPeak 1.0, 48 kHz/16-bit stereo, Library reconciled.
+- Archive: `~/Music/DJMemory/archive/2026-08-29 1439 - DJMemory Capture - Set.wav`
+- Desktop listen copies: `XDJ-XZ-channels-3-4.wav`, `XDJ-XZ-coreaudio-channels-5-6.wav`, etc.
+- **Still required:** human listen on Studio Display Speakers (not XDJ); MASTER REC control WAV; Serato Process Tap / forced SCK when Serato is running.
+- **rekordbox Process Audio Tap** (controller-usb label): **PASS** meter+archive — livePeak 0.0501, archivedPeak 0.0335, Library reconciled. Archive: `~/Music/DJMemory/2026-08-29 1440 - rekordbox - Set.wav`. Full `live-app-audio-check.sh` still fails first on missing Serato.
+
 ## Next action for a human with gear
 
 1. On the XDJ-XZ, make the USB2 MASTER REC control file and copy its `PIONEER/REC` WAV to this Mac. Play it through Studio Display Speakers and provide the file for analysis.

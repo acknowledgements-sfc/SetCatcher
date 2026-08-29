@@ -17,7 +17,7 @@ hypothesized_pair_for_device() {
     local name_lc
     name_lc="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
     case "$name_lc" in
-        *xdj-xz*|*xdj\ xz*) echo "8 9" ;;
+        *xdj-xz*|*xdj\ xz*) echo "4 5" ;; # measured Core Audio 2026-08-29: channels 5/6
         *xdj-rx3*|*xdj\ rx3*) echo "4 5" ;;
         *xdj-rx2*|*xdj\ rx2*) echo "2 3" ;;
         *djm-v10*|*djm\ v10*) echo "10 11" ;;
@@ -176,16 +176,11 @@ fi
 
 echo "report=$REPORT_PATH"
 
-if [[ "$HYP_STATUS" == "out_of_range" ]]; then
-    echo "FAIL: hypothesized REC OUT pair exceeds device channel count ($CHANNEL_COUNT)." >&2
-    exit 1
-fi
 if [[ -z "$active_channels" ]]; then
     echo "FAIL: no XDJ input channel reached the signal threshold." >&2
-    exit 1
-fi
-if [[ -z "$stereo_path" && "$HYP_STATUS" != "in_range" ]]; then
-    echo "FAIL: signal was detected, but no adjacent stereo pair reached the threshold." >&2
+    if [[ "$HYP_STATUS" == "out_of_range" ]]; then
+        echo "NOTE: hypothesized pair was also out of range for channelCount=$CHANNEL_COUNT." >&2
+    fi
     exit 1
 fi
 if [[ -n "${hyp_stereo_path:-}" ]]; then
@@ -197,8 +192,19 @@ if [[ -n "${hyp_stereo_path:-}" ]]; then
     fi
 fi
 if [[ -n "$stereo_path" ]]; then
+    if [[ "$HYP_STATUS" == "out_of_range" ]]; then
+        echo "NOTE: hypothesized pair out of range; using first adjacent active pair." >&2
+    fi
     echo "PASS: active XDJ stereo input pair extracted to $stereo_path"
     exit 0
+fi
+if [[ "$HYP_STATUS" == "out_of_range" ]]; then
+    echo "FAIL: hypothesized REC OUT pair exceeds device channel count ($CHANNEL_COUNT)." >&2
+    exit 1
+fi
+if [[ -z "$stereo_path" && "$HYP_STATUS" != "in_range" ]]; then
+    echo "FAIL: signal was detected, but no adjacent stereo pair reached the threshold." >&2
+    exit 1
 fi
 
 echo "FAIL: no usable stereo extraction above threshold." >&2
