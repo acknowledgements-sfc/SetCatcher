@@ -201,10 +201,11 @@ private func diagnosticsReport() -> DiagnosticsReport {
     let folderAccesses = (try? folderAccessStore.all()) ?? []
     let importedTracklists = (try? ImportedTracklistStore().all()) ?? []
     let activityEvents = (try? ActivityLogStore().all()) ?? []
-    let archiveRoot = resolvedArchiveRoot(settings: settings)
+    let archiveRootResolution = ArchiveRootResolver.resolve(settings: settings)
+    let archiveRoot = archiveRootResolution.url
     let archives = (try? SessionLibrary(
         archiveRoot: archiveRoot,
-        archiveRootBookmarkData: settings.archiveRootBookmarkData
+        archiveRootBookmarkData: archiveRootResolution.bookmarkData
     ).archivedMetadata()) ?? []
     let probeResults = SoftwareProbe().probeAll()
 
@@ -251,30 +252,6 @@ private func discoveredRecordingFolders(appID: String, probeResults: [SoftwarePr
 
 private func discoveredHistoryFolders(appID: String, probeResults: [SoftwareProbeResult]) -> [URL] {
     probeResults.first { $0.software.id == appID }?.existingHistoryURLs ?? []
-}
-
-private func resolvedArchiveRoot(settings: AppSettings) -> URL {
-    if let path = ProcessInfo.processInfo.environment["DJMEMORY_ARCHIVE_ROOT"], !path.isEmpty {
-        return URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true)
-    }
-
-    if let bookmarkData = settings.archiveRootBookmarkData {
-        var isStale = false
-        if let url = try? URL(
-            resolvingBookmarkData: bookmarkData,
-            options: [.withSecurityScope],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        ), !isStale {
-            return url
-        }
-    }
-
-    if let archiveRootPath = settings.archiveRootPath, !archiveRootPath.isEmpty {
-        return URL(fileURLWithPath: (archiveRootPath as NSString).expandingTildeInPath, isDirectory: true)
-    }
-
-    return ArchiveService.defaultArchiveRoot()
 }
 
 private func defaultDiagnosticsURL() -> URL {

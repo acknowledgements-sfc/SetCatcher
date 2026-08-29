@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "DJMemory",
     platforms: [
-        .macOS(.v14),
+        .macOS("14.2"),
         .iOS(.v17)
     ],
     products: [
@@ -19,7 +19,9 @@ let package = Package(
         .package(url: "https://github.com/clerk/clerk-ios", from: "1.2.0")
     ],
     targets: [
-        .target(name: "DJMemoryCore"),
+        // Header-only C atomics shim (platform SDK only) for the real-time capture ring.
+        .target(name: "DJMemoryAtomics"),
+        .target(name: "DJMemoryCore", dependencies: ["DJMemoryAtomics"]),
         .target(
             name: "DJMemoryCompanion",
             dependencies: [

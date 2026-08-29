@@ -5,8 +5,10 @@ struct HomeTopTracksPanel: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
+        // Evaluate once per body — `topTracks` recomputes aggregation on every access.
+        let tracks = model.topTracks
         Panel(title: "Your most played tracks", padding: 0) {
-            if model.topTracks.isEmpty {
+            if tracks.isEmpty {
                 EmptyStateView(
                     title: "No matched tracklists yet",
                     systemImage: "list.number",
@@ -18,8 +20,8 @@ struct HomeTopTracksPanel: View {
                 )
                 .frame(minHeight: 160)
             } else {
-                let maxPlays = max(model.topTracks.first?.playCount ?? 1, 1)
-                ForEach(Array(model.topTracks.enumerated()), id: \.offset) { index, track in
+                let maxPlays = max(tracks.first?.playCount ?? 1, 1)
+                ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
                     HStack(spacing: 10) {
                         Text(String(format: "%02d", index + 1))
                             .font(.system(size: DJToken.TypeSize.secondary, design: .monospaced))
@@ -49,7 +51,7 @@ struct HomeTopTracksPanel: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
-                    if index < model.topTracks.count - 1 {
+                    if index < tracks.count - 1 {
                         Rectangle().fill(DJToken.hairline).frame(height: 1)
                     }
                 }

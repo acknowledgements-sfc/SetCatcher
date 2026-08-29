@@ -4,6 +4,9 @@ struct Panel<HeaderActions: View, Content: View>: View {
     var title: String?
     var tone: StatusTone = .neutral
     var padding: CGFloat = 0
+    /// Glass surface (`.ultraThinMaterial` over the gradient ground) for lane/source
+    /// cards on the hero screens. Dense content keeps the default flat card.
+    var translucent: Bool = false
     @ViewBuilder var headerActions: () -> HeaderActions
     @ViewBuilder var content: () -> Content
 
@@ -11,12 +14,14 @@ struct Panel<HeaderActions: View, Content: View>: View {
         title: String? = nil,
         tone: StatusTone = .neutral,
         padding: CGFloat = 0,
+        translucent: Bool = false,
         @ViewBuilder headerActions: @escaping () -> HeaderActions = { EmptyView() },
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         self.tone = tone
         self.padding = padding
+        self.translucent = translucent
         self.headerActions = headerActions
         self.content = content
     }
@@ -32,8 +37,12 @@ struct Panel<HeaderActions: View, Content: View>: View {
         case .info:
             return DJToken.primary.opacity(0.4)
         case .neutral:
-            return DJToken.border
+            return translucent ? Color.white.opacity(0.08) : DJToken.border
         }
+    }
+
+    private var surface: AnyShapeStyle {
+        translucent ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(DJToken.card)
     }
 
     private var showsHeader: Bool {
@@ -64,7 +73,7 @@ struct Panel<HeaderActions: View, Content: View>: View {
             content()
                 .padding(padding)
         }
-        .background(DJToken.card, in: RoundedRectangle(cornerRadius: DJToken.Radius.control))
+        .background(surface, in: RoundedRectangle(cornerRadius: DJToken.Radius.control))
         .overlay(
             RoundedRectangle(cornerRadius: DJToken.Radius.control)
                 .stroke(borderColor, lineWidth: 1)

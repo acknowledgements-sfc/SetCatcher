@@ -59,7 +59,7 @@ Confirmation, not new detection. Auto-select is a name/manufacturer substring (`
 support](https://support.alphatheta.com/en-US) plus the 8 Aug 2026 PRO DJ LINK advisory). This bench
 is USB Core Audio, not LINK Ethernet.
 
-- [ ] XZ firmware and rekordbox are current before the test.
+- [x] XZ firmware and rekordbox are current before the test.
 - [x] Confirm the mix is USB Core Audio (Input Capture). If LINK lights are on, ignore that network.
 - [x] XZ appears as a Core Audio input over USB. Record the exact device name here when verified.
       Dev-bench 15 Aug 2026: Core Audio `name` is `XDJ-XZ`, manufacturer `AlphaTheta Corporation`,
@@ -99,7 +99,7 @@ folder, Input Capture unattended on the XZ (Both posture).
       `2026-08-15 0552 - Serato DJ Pro - Set`. One group, not two Library identities.
 - [ ] Unplug / microphone denied still need an operator. Disk-full is mapped (see Phase 1).
 
-15 Aug 2026 (same developer as the morning bench): XZ still enumerated as `XDJ-XZ`; `.build/DJMemory.app` rebuilt with HAL `setDeviceID` bind. No program on USB master in this chat, so meter / unattended / unplug / mic-denied stay unchecked. **dev operator; Supported not flipped.**
+15 Aug 2026 (same developer as the morning bench): XZ still enumerated as `XDJ-XZ`; `.build/DJMemory.app` rebuilt with HAL `setDeviceID` bind. Later the same day, App audio Capture (Process Audio Tap) archived Serato (`2026-08-15 0910 - Serato DJ Pro - Set.wav`, `originalFilename` `Serato DJ Pro process audio.wav`, `sourceAppID` `serato`) and rekordbox (`2026-08-15 0941 - rekordbox - Set.wav`, `originalFilename` `rekordbox process audio.wav`, `sourceAppID` `rekordbox`) while playing through the XZ — both 24-bit / 48 kHz stereo. That is the already-Supported app path, not USB Input Capture. No new `XDJ-XZ.wav` / `djmemory-capture` take this pass, so meter / unattended / unplug / mic-denied stay unchecked. **dev operator; Supported not flipped.**
 
 External (non-dev) verification is the gate before Input Capture off the XZ USB master is labeled
 Supported. This 15 Aug 2026 run is the **dev** combined-rig bench, not that gate.

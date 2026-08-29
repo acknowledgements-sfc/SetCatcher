@@ -67,6 +67,26 @@ struct LocalNotificationService {
         return String(format: "Recording started - %02d:%02d", hour, minute)
     }
 
+    /// A different DJ app or input device was detected while one is already armed/watching.
+    /// DJMemory never auto-switches an active session — this tells the user another source
+    /// is available so they can switch from the app if they want to.
+    func notifyAlternateSourceDetected(displayName: String) {
+        guard let center else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Another source detected"
+        content.body = "\(displayName) is also running. Open DJMemory to switch, or keep watching the current source."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "alternate-source-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        center.add(request)
+    }
+
     func notifyCaptureStarted(displayName: String, at date: Date = Date()) {
         guard let center else { return }
 

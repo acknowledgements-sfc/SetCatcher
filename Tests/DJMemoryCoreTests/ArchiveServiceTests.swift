@@ -163,6 +163,60 @@ final class ArchiveServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: service.metadataURL(for: archiveURL).path))
     }
 
+    func testIngestCaptureRecordsAppAudioVirtualDeviceAttribution() throws {
+        let stagingURL = tempRoot.appendingPathComponent("capture-staging.wav")
+        let archiveRoot = tempRoot.appendingPathComponent("Archive", isDirectory: true)
+        try Data("capture-audio".utf8).write(to: stagingURL)
+        let service = ArchiveService(archiveRoot: archiveRoot)
+        let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let session = try service.ingestCapture(
+            stagingURL: stagingURL,
+            deviceID: "serato-virtual-uid",
+            deviceName: "Serato Virtual Audio",
+            startedAt: startedAt,
+            endedAt: startedAt.addingTimeInterval(120),
+            sourceAppID: "serato",
+            captureRoute: .appAudio,
+            captureBackend: .virtualInputDevice,
+            captureDeviceTransport: "virtual"
+        )
+        let archiveURL = try XCTUnwrap(session.archiveURL)
+        let data = try Data(contentsOf: service.metadataURL(for: archiveURL))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let metadata = try decoder.decode(ArchiveMetadata.self, from: data)
+
+        XCTAssertEqual(metadata.captureRoute, .appAudio)
+        XCTAssertEqual(metadata.captureBackend, .virtualInputDevice)
+        XCTAssertEqual(metadata.captureDeviceUID, "serato-virtual-uid")
+        XCTAssertEqual(metadata.captureDeviceName, "Serato Virtual Audio")
+        XCTAssertEqual(metadata.captureDeviceTransport, "virtual")
+        XCTAssertEqual(metadata.sourceAppID, "serato")
+    }
+
+    func testArchiveMetadataDecodesLegacySidecarWithoutCaptureFields() throws {
+        let json = """
+        {
+          "sessionID": "00000000-0000-0000-0000-000000000001",
+          "sourceAppID": "serato",
+          "detectedAt": "2024-01-01T00:00:00Z",
+          "completedAt": null,
+          "sourcePath": "/source.wav",
+          "archivePath": "/archive.wav",
+          "fileSize": 12,
+          "originalFilename": "source.wav",
+          "durationSeconds": null
+        }
+        """.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let metadata = try decoder.decode(ArchiveMetadata.self, from: json)
+        XCTAssertNil(metadata.captureRoute)
+        XCTAssertNil(metadata.captureBackend)
+        XCTAssertNil(metadata.captureDeviceUID)
+        XCTAssertEqual(metadata.sourceAppID, "serato")
+    }
+
     func testVerifyCopiesRejectsSizeMismatchAndRemovesIncompleteCopy() throws {
         let sourceURL = tempRoot.appendingPathComponent("source.wav")
         let archiveRoot = tempRoot.appendingPathComponent("Archive", isDirectory: true)

@@ -36,6 +36,9 @@ public struct DJSoftware: Identifiable, Codable, Equatable, Sendable {
     public let integrationDepth: IntegrationDepth
     public let supportStatus: IntegrationSupportStatus
     public let notes: String
+    /// Verified Core Audio virtual-device names this app exposes as a mix loopback.
+    /// Empty until a device is confirmed (name, manufacturer, `.virtual` transport, mix).
+    public let virtualAudioDeviceNameHints: [String]
 
     public init(
         id: String,
@@ -45,7 +48,8 @@ public struct DJSoftware: Identifiable, Codable, Equatable, Sendable {
         defaultHistoryPaths: [String],
         integrationDepth: IntegrationDepth,
         supportStatus: IntegrationSupportStatus,
-        notes: String
+        notes: String,
+        virtualAudioDeviceNameHints: [String] = []
     ) {
         self.id = id
         self.displayName = displayName
@@ -55,6 +59,20 @@ public struct DJSoftware: Identifiable, Codable, Equatable, Sendable {
         self.integrationDepth = integrationDepth
         self.supportStatus = supportStatus
         self.notes = notes
+        self.virtualAudioDeviceNameHints = virtualAudioDeviceNameHints
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        bundleIdentifiers = try container.decode([String].self, forKey: .bundleIdentifiers)
+        defaultRecordingPaths = try container.decode([String].self, forKey: .defaultRecordingPaths)
+        defaultHistoryPaths = try container.decode([String].self, forKey: .defaultHistoryPaths)
+        integrationDepth = try container.decode(IntegrationDepth.self, forKey: .integrationDepth)
+        supportStatus = try container.decode(IntegrationSupportStatus.self, forKey: .supportStatus)
+        notes = try container.decode(String.self, forKey: .notes)
+        virtualAudioDeviceNameHints = try container.decodeIfPresent([String].self, forKey: .virtualAudioDeviceNameHints) ?? []
     }
 }
 
@@ -68,7 +86,8 @@ public enum SupportedDJSoftware {
             defaultHistoryPaths: ["~/Music/_Serato_/History Export"],
             integrationDepth: .exportImport,
             supportStatus: .supported,
-            notes: "Strong file-watcher candidate; history exports are user-visible, direct control is not public."
+            notes: "Strong file-watcher candidate; history exports are user-visible, direct control is not public.",
+            virtualAudioDeviceNameHints: ["Serato Virtual Audio"]
         ),
         DJSoftware(
             id: "rekordbox",

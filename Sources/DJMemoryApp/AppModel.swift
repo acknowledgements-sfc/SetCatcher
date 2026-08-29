@@ -39,10 +39,15 @@ final class AppModel: ObservableObject {
     @Published private(set) var captureState = CaptureUIState() {
         didSet { handleCaptureStateChange(from: oldValue) }
     }
+    /// What DJMemory is listening to (hardware USB feed vs laptop driver). Plain language.
+    @Published private(set) var liveCaptureListening = LiveCaptureListeningSnapshot.detecting
     @Published private(set) var virtualDJNetworkCommandResult: VirtualDJNetworkCommandResult?
 
     // MARK: Menu bar state
-    /// True briefly after launch while background services spin up; drives the flashing menu bar icon.
+    /// True briefly after launch while background services spin up.
+    ///
+    /// This intentionally changes the status item once, rather than animating it. Continuously
+    /// invalidating a `MenuBarExtra` label makes AppKit repeatedly recreate its status button.
     @Published private(set) var isLaunchingForMenuBar = true
     /// Set when a capture just finished archiving; the menu bar shows "SAVED" until this passes.
     @Published private(set) var justSavedUntil: Date?
@@ -165,6 +170,14 @@ final class AppModel: ObservableObject {
     /// When true, the DJ explicitly chose App audio and Pioneer auto-switch must wait for device reappear.
     private var userSuppressedPioneerAutoSwitch = false
     private var lastPioneerDeviceID: String?
+    /// `PendingAlternateSource.id`s the user has dismissed this session — suppresses
+    /// re-prompting for the same still-running alternate on every poll.
+    private var dismissedAlternateSourceIDs: Set<String> = []
+    private var liveCaptureDetection = LiveCaptureDetectionTracker()
+    private var lastLiveCaptureKind: LiveCaptureRouteKind?
+    private var lastLiveCaptureDeviceID: String?
+    private var lastLiveCaptureBackend: LiveCaptureRecordingBackend?
+    private var hardwareObservationCache: [String: (channels: Int, formatOK: Bool)] = [:]
     /// When true, profile mutations stay in memory (SwiftUI previews).
     private var suppressProfilePersistence = false
 
@@ -181,11 +194,23 @@ final class AppModel: ObservableObject {
                 self?.applyAppAudioCaptureFailure(error)
             }
         }
+        appAudioCaptureService.onInterruptedCapture = { [weak self] result, error in
+            Task { @MainActor in
+                self?.applyInterruptedAppAudioCapture(result, error: error)
+            }
+        }
         startCapturePolling()
         // Launch catch-up: heal any set whose history export landed while the
         // app was closed, before the user ever looks at the library.
         ingestHistoryNow()
-        refreshAudioInputs()
+        // Defer audio-device enumeration off the init path. `refreshAudioInputs()` reaches
+        // `AVAudioEngine.inputNode`, which queries the Core Audio HAL and can block the main
+        // thread — and this init runs *during* SwiftUI scene instantiation, so a block here
+        // stalls creation of the window and menu bar. Running it on the next main-actor hop
+        // lets the scene come up first.
+        Task { @MainActor [weak self] in
+            self?.refreshAudioInputs()
+        }
 
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -343,11 +368,21 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// SwiftUI's `openWindow` action, registered from the WindowGroup's content on appear.
+    /// Lets non-View code (menu bar actions, the menuBarOnly toggle) instantiate the
+    /// WindowGroup window on demand instead of relying on one already existing in `NSApp.windows`.
+    var requestOpenMainWindow: (() -> Void)?
+
     func openMainWindow() {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        // If a WindowGroup window already exists (the common case after launch), just bring
+        // it front — avoids spawning a duplicate. Otherwise ask SwiftUI to create one; with a
+        // MenuBarExtra present the window is created lazily and may not exist yet.
         if let window = NSApp.windows.first(where: { $0.canBecomeKey }) {
             window.makeKeyAndOrderFront(nil)
+        } else {
+            requestOpenMainWindow?()
         }
     }
 
@@ -1543,32 +1578,63 @@ final class AppModel: ObservableObject {
         return formatter.string(from: Date())
     }
 
+    /// Fast poll while nothing is armed yet — first detection should feel prompt. Once
+    /// armed/watching/recording, the only remaining job of these poll loops is the
+    /// alternate-source heads-up (see `refreshAppAudioTargets`/`refreshAudioInputs`), which
+    /// isn't time-critical, so back off to a slower cadence rather than repeating the same
+    /// (occasionally expensive — e.g. ScreenCaptureKit's shareable-content enumeration) work
+    /// four times a minute for no benefit.
+    private static let capturePollIntervalIdle: UInt64 = 15_000_000_000
+    private static let capturePollIntervalEngaged: UInt64 = 60_000_000_000
+
+    /// The only two `.failed` reasons that are safe to auto-clear once targets/devices
+    /// reappear — both mean "nothing to arm against yet," not a real capture failure. Any other
+    /// `.failed` reason (wrong permission, disk full, stream stopped, engine error — all set by
+    /// `applyAppAudioCaptureFailure`/`applyCaptureFailure`) must stay visible until the user
+    /// explicitly re-arms; silently clearing those tore down and rebuilt a live Process Audio Tap
+    /// mid-recording, corrupting the in-progress take.
+    private static let noAppAudioTargetsFoundMessage = "No supported DJ apps are running and shareable."
+    private static let noAudioInputDevicesFoundMessage = "No audio input devices are available."
+
     private func startCapturePolling() {
         captureTargetPollTask?.cancel()
         captureInputPollTask?.cancel()
         captureTargetPollTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard let self else { return }
+                let interval = await MainActor.run {
+                    self.captureState.isWatchingOrRecording
+                        ? Self.capturePollIntervalEngaged
+                        : Self.capturePollIntervalIdle
+                }
+                try? await Task.sleep(nanoseconds: interval)
                 await MainActor.run {
-                    guard let self else { return }
                     guard self.captureState.mode == .appAudio else { return }
-                    guard !self.captureState.isWatchingOrRecording else { return }
                     switch self.captureState.phase {
-                    case .requestingPermission, .needsScreenRecordingPermission:
+                    case .requestingPermission, .saving:
                         return
+                    case .needsScreenRecordingPermission:
+                        guard AppAudioCaptureService.screenCapturePermissionGranted() else { return }
                     default:
                         break
                     }
+                    // `attemptAutoArm: true` is safe to pass unconditionally — auto-arm only
+                    // actually fires when phase is idle/armed (see `refreshAppAudioTargets`), so
+                    // while watching/recording this call only ever does the alternate-source check.
                     Task { await self.refreshAppAudioTargets(attemptAutoArm: true) }
                 }
             }
         }
         captureInputPollTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard let self else { return }
+                let interval = await MainActor.run {
+                    self.captureState.isWatchingOrRecording
+                        ? Self.capturePollIntervalEngaged
+                        : Self.capturePollIntervalIdle
+                }
+                try? await Task.sleep(nanoseconds: interval)
                 await MainActor.run {
-                    guard let self else { return }
-                    guard !self.captureState.isRecording else { return }
                     if case .saving = self.captureState.phase { return }
                     self.refreshAudioInputs()
                 }
@@ -1619,6 +1685,8 @@ final class AppModel: ObservableObject {
 extension AppModel {
     func previewApplyCaptureState(_ state: CaptureUIState) { captureState = state }
 
+    func previewSetRecordingStartedAt(_ date: Date?) { recordingStartedAt = date }
+
     func candidateTracklists(for archive: ArchiveMetadata) -> [ImportedTracklist] {
         let matchable = allImportedTracklists.filter(\.kind.isMatchableToRecording)
         if LibrarySessionMatcher.hardwareCaptureAppIDs.contains(archive.sourceAppID) {
@@ -1651,6 +1719,8 @@ extension AppModel {
         next.statusMessage = mode == .appAudio
             ? "Choose a running DJ app, then arm App audio Capture."
             : "Choose an input device, then start Capture."
+        next.pendingAlternateSource = nil
+        next.appAudioSourceName = nil
         captureState = next
         let newSettings = settings.updating(captureMode: mode)
         do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
@@ -1671,11 +1741,36 @@ extension AppModel {
             } else if !apps.contains(where: { $0.software.id == next.selectedTargetAppID }) {
                 next.selectedTargetAppID = apps.first?.software.id
             }
+            // DJs don't run multiple DJ apps at once. If we're already watching/recording one
+            // app and a *different* one shows up, never silently retarget — surface it instead
+            // and let the user decide (or dismiss). Mirrors the same rule for input devices in
+            // `refreshAudioInputs()`.
+            if next.mode == .appAudio, next.isWatchingOrRecording, let currentID = next.selectedTargetAppID {
+                if let alternate = apps.first(where: { $0.software.id != currentID }) {
+                    let pending = PendingAlternateSource(
+                        kind: .appAudio(softwareID: alternate.software.id),
+                        displayName: alternate.software.displayName
+                    )
+                    if next.pendingAlternateSource != pending, !dismissedAlternateSourceIDs.contains(pending.id) {
+                        next.pendingAlternateSource = pending
+                        notificationService.notifyAlternateSourceDetected(displayName: pending.displayName)
+                    }
+                } else if case .appAudio = next.pendingAlternateSource?.kind {
+                    next.pendingAlternateSource = nil
+                }
+            }
             if next.phase == .idle || next.phase == .armed {
                 next.phase = apps.isEmpty ? .idle : .armed
             }
-            if case .failed = next.phase {
-                next.phase = apps.isEmpty ? .failed("No supported DJ apps are running and shareable.") : .armed
+            // Only auto-recover from the benign "nothing detected yet" failure this function
+            // itself sets — never silently promote a genuine capture-engine failure (wrong
+            // permission, disk full, stream stopped, etc., set by `applyAppAudioCaptureFailure`)
+            // back to `.armed`. That used to happen unconditionally here, which meant any transient
+            // mid-recording failure got silently retried on the next poll — tearing down and
+            // rebuilding the Process Audio Tap mid-session without the user ever seeing the
+            // failure, corrupting the in-progress recording.
+            if case .failed(Self.noAppAudioTargetsFoundMessage) = next.phase {
+                next.phase = apps.isEmpty ? .failed(Self.noAppAudioTargetsFoundMessage) : .armed
             }
             if !next.isWatchingOrRecording {
                 next.statusMessage = apps.isEmpty
@@ -1724,15 +1819,39 @@ extension AppModel {
                 return
             }
 
+            let inputDevices = AudioInputDeviceCatalog.listInputs()
+            let runningIDs = currentDJSoftwareIDs()
+            let selection = AppAudioCaptureService.preferredSelection(
+                targetSoftware: target.software,
+                inputDevices: inputDevices,
+                runningSoftwareIDs: runningIDs
+            )
+
             var requesting = captureState
             requesting.phase = .requestingPermission
-            let preferredBackend = AppAudioCaptureService.preferredBackendKind()
-            requesting.statusMessage = preferredBackend == .processAudioTap
-                ? "Requesting System Audio Recording access for Process Audio Tap…"
-                : "Requesting Screen & System Audio Recording access…"
+            switch selection {
+            case .virtualInputDevice(let device, _):
+                requesting.statusMessage = "Requesting microphone access for \(device.name)…"
+            case .processAudioTap:
+                requesting.statusMessage = "Requesting System Audio Recording access for Process Audio Tap…"
+            case .screenCaptureKit:
+                requesting.statusMessage = "Requesting Screen & System Audio Recording access…"
+            }
             captureState = requesting
 
-            if preferredBackend == .screenCaptureKit, !AppAudioCaptureService.screenCapturePermissionGranted() {
+            if case .virtualInputDevice = selection {
+                if !CaptureService.microphonePermissionGranted() {
+                    let granted = await CaptureService.requestMicrophonePermission()
+                    guard granted else {
+                        var denied = captureState
+                        denied.phase = .failed("Microphone access is denied. DJMemory cannot Capture without it.")
+                        denied.statusMessage = "Microphone access is denied. Open System Settings to allow DJMemory."
+                        captureState = denied
+                        statusMessage = "Microphone access is denied"
+                        return
+                    }
+                }
+            } else if selection.kind == .screenCaptureKit, !AppAudioCaptureService.screenCapturePermissionGranted() {
                 // CGRequestScreenCaptureAccess often returns before the user finishes Settings.
                 _ = AppAudioCaptureService.requestScreenCapturePermission()
                 // Brief settle for in-process grants; Settings toggles still require Arm again.
@@ -1753,7 +1872,10 @@ extension AppModel {
                     displayName: target.software.displayName,
                     // Buffer at least the start hold (plus margin) so takes begin at the true first
                     // signal, not after the silence session's start-hold delay.
-                    prerollSeconds: settings.silenceSessionConfig.startHoldSeconds + 0.5
+                    prerollSeconds: settings.silenceSessionConfig.startHoldSeconds + 0.5,
+                    softwareID: target.software.id,
+                    inputDevices: inputDevices,
+                    runningSoftwareIDs: runningIDs
                 )
                 let tick = captureSession.prepareWatching(
                     config: settings.silenceSessionConfig,
@@ -1762,12 +1884,15 @@ extension AppModel {
                 var watching = captureState
                 watching.phase = tick.phase
                 watching.inputLevel = tick.inputLevel
-                watching.statusMessage = appAudioCaptureService.activeBackendKind == .screenCaptureKit
-                    && preferredBackend == .processAudioTap
-                    ? "Process audio capture is unavailable on this Mac; using fallback capture. \(tick.statusMessage)"
-                    : tick.statusMessage
+                watching.appAudioSourceName = appAudioCaptureService.captureSourceDisplayName
+                watching.statusMessage = appAudioArmedStatusMessage(tick: tick, selection: selection)
                 captureState = watching
-                statusMessage = "\(appAudioCaptureService.activeBackendKind.displayName) Capture armed"
+                statusMessage = "App Audio Capture: \(appAudioCaptureService.captureSourceDisplayName)"
+                appendActivity(
+                    kind: .capture,
+                    message: "App audio backend \(appAudioCaptureService.activeBackendKind.rawValue)",
+                    detail: appAudioBackendLogDetail()
+                )
                 startAppAudioPolling()
             } catch let error as AppAudioCaptureError {
                 applyAppAudioCaptureFailure(error)
@@ -1780,6 +1905,38 @@ extension AppModel {
         }
     }
 
+    private func appAudioArmedStatusMessage(
+        tick: CaptureSessionTick,
+        selection: AppAudioCaptureBackendSelection
+    ) -> String {
+        let sourceLine = "App Audio Capture: \(appAudioCaptureService.captureSourceDisplayName)"
+        if appAudioCaptureService.virtualBindDidFallBack {
+            return "\(sourceLine) could not bind; using \(appAudioCaptureService.activeBackendKind.displayName). \(tick.statusMessage)"
+        }
+        if appAudioCaptureService.activeBackendKind == .screenCaptureKit,
+           selection.kind == .processAudioTap || selection.kind == .virtualInputDevice {
+            return "Process audio capture is unavailable on this Mac; using fallback capture. \(tick.statusMessage)"
+        }
+        if appAudioCaptureService.activeBackendKind == .virtualInputDevice {
+            return "\(sourceLine). \(tick.statusMessage)"
+        }
+        return tick.statusMessage
+    }
+
+    private func appAudioBackendLogDetail() -> String {
+        let kind = appAudioCaptureService.activeBackendKind.rawValue
+        if let device = appAudioCaptureService.activeVirtualDevice {
+            return "backend=\(kind) device=\(device.name) uid=\(device.id) transport=\(device.transportType.archiveLabel)"
+        }
+        return "backend=\(kind)"
+    }
+
+    private func currentDJSoftwareIDs() -> Set<String> {
+        var ids = Set(probeResults.filter(\.isRunning).map(\.software.id))
+        ids.formUnion(captureState.targetApps.map(\.software.id))
+        return ids
+    }
+
     func disarmAppAudioCapture() {
         haltAppAudioCapture(markUserDisarmed: true)
         Task {
@@ -1788,6 +1945,8 @@ extension AppModel {
             next.phase = tick.phase
             next.inputLevel = 0
             next.statusMessage = tick.statusMessage
+            next.pendingAlternateSource = nil
+            next.appAudioSourceName = nil
             captureState = next
             statusMessage = "App audio Capture disarmed"
         }
@@ -1817,6 +1976,10 @@ extension AppModel {
         }
         next.phase = tick.phase
         next.inputLevel = tick.inputLevel
+        applyLiveCaptureListening(
+            to: &next,
+            hardwareMonitor: .unbound
+        )
         captureState = next
 
         guard let action = tick.engineAction else { return }
@@ -1857,7 +2020,14 @@ extension AppModel {
                     deviceName: result.deviceName,
                     startedAt: result.startedAt,
                     endedAt: result.endedAt,
-                    sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID
+                    sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID,
+                    captureRoute: result.captureRoute ?? .appAudio,
+                    captureBackend: result.captureBackend
+                        ?? appAudioCaptureService.activeBackendKind.archiveBackend,
+                    captureDeviceTransport: result.deviceTransport?.archiveLabel
+                        ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel,
+                    captureInterrupted: result.captureInterrupted,
+                    captureInterruptionReason: result.captureInterruptionReason
                 )
                 notifyForNewArchive(session)
                 refresh()
@@ -1898,13 +2068,43 @@ extension AppModel {
     }
 
     func refreshAudioInputs() {
-        let devices = AudioInputDeviceCatalog.listInputs()
+        // Blocked ambient/system mics (built-in, Bluetooth, Continuity) never appear in the
+        // picker and can never be selected — DJMemory must never record from a room mic.
+        let allDevices = AudioInputDeviceCatalog.listInputs()
+        let devices = AudioInputDeviceCatalog.selectableInputs(from: allDevices)
+        refreshHardwareObservationCache(from: devices)
         var next = captureState
         next.devices = devices
+
+        // Clear a previously-persisted blocked selection (e.g. the built-in mic saved by an
+        // older build before this guard existed): drop it and tell the user why. Validate the
+        // *current* selection every refresh, not only when it's nil/missing.
+        var clearedBlockedSelection = false
+        if let selectedID = next.selectedDeviceID,
+           let selected = allDevices.first(where: { $0.id == selectedID }),
+           selected.isBlockedInput {
+            next.selectedDeviceID = nil
+            clearedBlockedSelection = true
+        }
+        if let lastID = settings.lastCaptureDeviceID,
+           let last = allDevices.first(where: { $0.id == lastID }),
+           last.isBlockedInput {
+            // Also scrub the persisted setting so it can't be re-applied on a later launch.
+            let newSettings = settings.updating(lastCaptureDeviceID: .some(nil))
+            do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
+        }
+
         if next.selectedDeviceID == nil {
-            next.selectedDeviceID = settings.lastCaptureDeviceID ?? AudioInputDeviceCatalog.preferredDefault(from: devices)?.id
+            let persisted = settings.lastCaptureDeviceID.flatMap { id in devices.first(where: { $0.id == id }) }
+            next.selectedDeviceID = persisted?.id ?? AudioInputDeviceCatalog.preferredDefault(
+                from: devices,
+                currentSoftwareIDs: currentDJSoftwareIDs()
+            )?.id
         } else if !devices.contains(where: { $0.id == next.selectedDeviceID }) {
-            next.selectedDeviceID = AudioInputDeviceCatalog.preferredDefault(from: devices)?.id
+            next.selectedDeviceID = AudioInputDeviceCatalog.preferredDefault(
+                from: devices,
+                currentSoftwareIDs: currentDJSoftwareIDs()
+            )?.id
         }
 
         let preferred = devices.first(where: \.isLikelyPioneerDJHardware)
@@ -1921,13 +2121,35 @@ extension AppModel {
            let preferred,
            next.selectedDeviceID != preferred.id
         {
-            next.selectedDeviceID = preferred.id
-            let newSettings = settings.updating(lastCaptureDeviceID: .some(preferred.id))
-            do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
+            if next.isWatchingOrRecording {
+                // DJs don't run multiple hardware sources at once. Already watching a device —
+                // never silently retarget mid-session, surface the alternate instead.
+                let pending = PendingAlternateSource(
+                    kind: .inputDevice(deviceID: preferred.id),
+                    displayName: preferred.name
+                )
+                if next.pendingAlternateSource != pending, !dismissedAlternateSourceIDs.contains(pending.id) {
+                    next.pendingAlternateSource = pending
+                    notificationService.notifyAlternateSourceDetected(displayName: pending.displayName)
+                }
+            } else {
+                next.selectedDeviceID = preferred.id
+                let newSettings = settings.updating(lastCaptureDeviceID: .some(preferred.id))
+                do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
+            }
+        }
+        // Clear a pending device alternate once it's no longer the distinct preferred device
+        // (unplugged, or the user already switched to it via `selectCaptureDevice`).
+        if case .inputDevice(let pendingDeviceID) = next.pendingAlternateSource?.kind,
+           preferred?.id != pendingDeviceID || next.selectedDeviceID == pendingDeviceID
+        {
+            next.pendingAlternateSource = nil
         }
 
-        if case .failed = next.phase {
-            next.phase = devices.isEmpty ? .failed("No audio input devices are available.") : .armed
+        // Same fix as the app-audio path in `refreshAppAudioTargets`: only auto-clear the
+        // benign "nothing to arm against yet" failure, never a genuine capture-engine failure.
+        if case .failed(Self.noAudioInputDevicesFoundMessage) = next.phase {
+            next.phase = devices.isEmpty ? .failed(Self.noAudioInputDevicesFoundMessage) : .armed
         } else if next.phase == .idle {
             next.phase = devices.isEmpty ? .idle : .armed
         }
@@ -1937,10 +2159,22 @@ extension AppModel {
            next.phase != .watching,
            next.phase != .recording
         {
-            next.statusMessage = devices.isEmpty
-                ? "Connect a DJM or other audio input, then refresh devices."
-                : "Choose an input device, then start Capture."
+            if clearedBlockedSelection {
+                next.statusMessage = "The built-in microphone can't be used for capture. Choose a DJ mixer, deck, or App audio Capture."
+            } else {
+                next.statusMessage = devices.isEmpty
+                    ? "Connect a DJM or other audio input, then refresh devices."
+                    : "Choose an input device, then start Capture."
+            }
         }
+        applyLiveCaptureListening(
+            to: &next,
+            hardwareMonitor: LiveCaptureHardwareMonitorReading(
+                monitoredDeviceID: next.selectedDeviceID,
+                level: next.inputLevel,
+                observing: captureService.isMonitoring
+            )
+        )
         captureState = next
         applyDualRoutePolicy()
     }
@@ -1955,7 +2189,17 @@ extension AppModel {
 
     private func applyDualRoutePolicy() {
         guard captureState.phase != .saving else { return }
-        let pioneerPresent = captureState.devices.contains(where: \.isLikelyPioneerDJHardware)
+        let observations = liveCaptureObservations(
+            devices: captureState.devices,
+            hardwareMonitor: LiveCaptureHardwareMonitorReading(
+                monitoredDeviceID: captureState.selectedDeviceID,
+                level: captureState.inputLevel,
+                observing: captureService.isMonitoring
+            )
+        )
+        // USB plug-in of a CDJ/player is not a capturable mix. Prefer a verified or
+        // still-detecting mixer / all-in-one USB feed only.
+        let pioneerPresent = LiveCaptureHardwareClassifier.assess(observations).prefersHardwareInput
 
         if DualRoutePolicy.shouldAutoSwitchToInput(
             posture: settings.dualRoutePosture,
@@ -1988,6 +2232,7 @@ extension AppModel {
             captureState = next
             let newSettings = settings.updating(captureMode: .appAudio)
             do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
+            publishLiveCaptureListening(hardwareMonitor: .unbound)
             Task { await refreshAppAudioTargets(attemptAutoArm: true) }
             return
         }
@@ -2000,6 +2245,121 @@ extension AppModel {
            (captureState.phase == .idle || captureState.phase == .armed) {
             armInputCaptureWatching()
         }
+        publishLiveCaptureListening(
+            hardwareMonitor: LiveCaptureHardwareMonitorReading(
+                monitoredDeviceID: captureState.selectedDeviceID,
+                level: captureState.inputLevel,
+                observing: captureService.isMonitoring
+            )
+        )
+    }
+
+    private func refreshHardwareObservationCache(from devices: [AudioInputDevice]) {
+        var cache: [String: (channels: Int, formatOK: Bool)] = [:]
+        for device in devices where device.isLikelyPioneerDJHardware {
+            cache[device.id] = (
+                AudioInputDeviceCatalog.inputChannelCount(forUID: device.id),
+                AudioInputDeviceCatalog.isSupportedCaptureFormat(forUID: device.id)
+            )
+        }
+        hardwareObservationCache = cache
+    }
+
+    private func liveCaptureObservations(
+        devices: [AudioInputDevice],
+        hardwareMonitor: LiveCaptureHardwareMonitorReading
+    ) -> [HardwareInputObservation] {
+        let drafts = LiveCaptureRouteFactsBuilder.pioneerDrafts(
+            from: devices,
+            cache: hardwareObservationCache
+        )
+        return liveCaptureDetection.observe(
+            drafts,
+            monitoredDeviceID: hardwareMonitor.monitoredDeviceID,
+            level: hardwareMonitor.level,
+            observing: hardwareMonitor.observing,
+            now: Date()
+        )
+    }
+
+    private func makeLiveCaptureFacts(
+        devices: [AudioInputDevice],
+        phase: CapturePhase,
+        hardwareMonitor: LiveCaptureHardwareMonitorReading,
+        recordingAlreadyActive: Bool
+    ) -> LiveCaptureRouteFacts {
+        let running = currentDJSoftwareIDs()
+        let vendor = LiveCaptureRouteFactsBuilder.vendorVirtualInput(
+            runningDJSoftwareIDs: running,
+            devices: devices
+        )
+        let routingStatus = SeratoOutputRoutingAdapter().routingStatus(runningSoftwareIDs: running)
+        let appAudio = LiveCaptureRouteFactsBuilder.appAudioObservation(
+            runningDJSoftwareIDs: running,
+            isMonitoring: appAudioCaptureService.isMonitoring,
+            activeBackend: appAudioCaptureService.activeBackendKind,
+            sourceDeviceUID: appAudioCaptureService.activeSourceDeviceUID,
+            peakLevel: appAudioCaptureService.currentInputLevel(),
+            applePathExhausted: appAudioCaptureService.appleAppAudioPathExhausted,
+            screenCapturePermissionGranted: AppAudioCaptureService.screenCapturePermissionGranted()
+        )
+        let hardware = liveCaptureObservations(devices: devices, hardwareMonitor: hardwareMonitor)
+        let currentFeedIsProducingSignal = LiveCaptureRouteFactsBuilder.hardwareFeedIsProducingSignal(
+            currentKind: lastLiveCaptureKind,
+            currentDeviceID: lastLiveCaptureDeviceID,
+            monitoredDeviceID: hardwareMonitor.monitoredDeviceID,
+            level: hardwareMonitor.level
+        )
+
+        return LiveCaptureRouteFactsBuilder.build(
+            LiveCaptureRouteFactsBuilder.Input(
+                devices: devices,
+                hardwareObservationCache: hardwareObservationCache,
+                hardwareMonitor: hardwareMonitor,
+                hardware: hardware,
+                driverAvailability: DJMemoryAudioDriverIdentity.availability(in: devices),
+                vendorVirtualInput: vendor,
+                vendorVirtualEnabled: AppAudioCaptureBackendSelector.virtualAppAudioEnabled,
+                runningDJSoftwareIDs: running,
+                appAudioCapability: appAudio.capability,
+                appAudio: appAudio,
+                phase: phase,
+                currentKind: lastLiveCaptureKind,
+                currentDeviceID: lastLiveCaptureDeviceID,
+                currentBackend: lastLiveCaptureBackend,
+                currentFeedIsProducingSignal: currentFeedIsProducingSignal,
+                recordingAlreadyActive: recordingAlreadyActive,
+                routingAutomation: routingStatus.automation
+            )
+        )
+    }
+
+    private func applyLiveCaptureListening(
+        to state: inout CaptureUIState,
+        hardwareMonitor: LiveCaptureHardwareMonitorReading
+    ) {
+        let facts = makeLiveCaptureFacts(
+            devices: state.devices,
+            phase: state.phase,
+            hardwareMonitor: hardwareMonitor,
+            recordingAlreadyActive: state.isRecording || captureService.isRecording || appAudioCaptureService.isWriting
+        )
+        let decision = LiveCaptureRouteResolver.resolve(facts)
+        liveCaptureListening = decision.resolution.snapshot
+        lastLiveCaptureKind = decision.resolution.kind
+        lastLiveCaptureDeviceID = decision.resolution.sessionDeviceID
+        lastLiveCaptureBackend = decision.resolution.backend
+        state.listeningState = decision.resolution.listeningState
+        state.listeningSummary = decision.resolution.listeningSummary
+    }
+
+    private func publishLiveCaptureListening(hardwareMonitor: LiveCaptureHardwareMonitorReading) {
+        var next = captureState
+        applyLiveCaptureListening(to: &next, hardwareMonitor: hardwareMonitor)
+        guard next.listeningState != captureState.listeningState
+            || next.listeningSummary != captureState.listeningSummary
+        else { return }
+        captureState = next
     }
 
     func armInputCaptureWatching() {
@@ -2010,6 +2370,18 @@ extension AppModel {
             next.phase = .failed("Choose an audio input device before starting Capture.")
             next.statusMessage = "Choose an audio input device before starting Capture."
             captureState = next
+            return
+        }
+        // Last-line defense: never arm/record from a blocked ambient mic, even if some future
+        // path re-introduces one as the selection. The invariant is enforced at selection,
+        // at the UI, and here immediately before any audio is captured.
+        guard !device.isBlockedInput else {
+            var next = captureState
+            next.selectedDeviceID = nil
+            next.phase = .failed("The built-in microphone can't be used for capture.")
+            next.statusMessage = "The built-in microphone can't be used for capture. Choose a DJ mixer, deck, or App audio Capture."
+            captureState = next
+            statusMessage = "Built-in microphone blocked for capture"
             return
         }
         Task {
@@ -2070,8 +2442,42 @@ extension AppModel {
         next.phase = tick.phase
         next.inputLevel = 0
         next.statusMessage = tick.statusMessage
+        next.pendingAlternateSource = nil
         captureState = next
         statusMessage = "Input device Capture disarmed"
+    }
+
+    /// Switches an already-armed/watching/recording session to the detected alternate app or
+    /// device — the only path that ever retargets a live session, and only on explicit user
+    /// action (never automatically; see `refreshAppAudioTargets`/`refreshAudioInputs`).
+    func switchToPendingAlternateSource() {
+        guard let pending = captureState.pendingAlternateSource else { return }
+        switch pending.kind {
+        case .appAudio(let softwareID):
+            haltAppAudioCapture(markUserDisarmed: false)
+            var next = captureState
+            next.pendingAlternateSource = nil
+            captureState = next
+            selectCaptureTargetApp(softwareID)
+            armAppAudioCapture()
+        case .inputDevice(let deviceID):
+            haltInputCapture(markUserDisarmed: false)
+            var next = captureState
+            next.pendingAlternateSource = nil
+            captureState = next
+            selectCaptureDevice(deviceID)
+            armInputCaptureWatching()
+        }
+    }
+
+    /// Keeps the current session running and stops prompting for this particular alternate
+    /// (until it goes away and a genuinely new one appears).
+    func dismissPendingAlternateSource() {
+        guard let pending = captureState.pendingAlternateSource else { return }
+        dismissedAlternateSourceIDs.insert(pending.id)
+        var next = captureState
+        next.pendingAlternateSource = nil
+        captureState = next
     }
 
     private func haltAppAudioCapture(markUserDisarmed: Bool) {
@@ -2080,6 +2486,9 @@ extension AppModel {
         }
         appAudioPollTask?.cancel()
         appAudioPollTask = nil
+        var next = captureState
+        next.appAudioSourceName = nil
+        captureState = next
         Task {
             if appAudioCaptureService.isWriting {
                 _ = try? appAudioCaptureService.endRecordingFile(discard: true)
@@ -2122,6 +2531,14 @@ extension AppModel {
         }
         next.phase = tick.phase
         next.inputLevel = tick.inputLevel
+        applyLiveCaptureListening(
+            to: &next,
+            hardwareMonitor: LiveCaptureHardwareMonitorReading(
+                monitoredDeviceID: captureState.selectedDeviceID,
+                level: tick.inputLevel,
+                observing: captureService.isMonitoring
+            )
+        )
         captureState = next
 
         guard let action = tick.engineAction else { return }
@@ -2161,7 +2578,9 @@ extension AppModel {
                     deviceID: result.deviceID,
                     deviceName: result.deviceName,
                     startedAt: result.startedAt,
-                    endedAt: result.endedAt
+                    endedAt: result.endedAt,
+                    captureRoute: result.captureRoute ?? .inputDevice,
+                    captureDeviceTransport: result.deviceTransport?.archiveLabel
                 )
                 notifyForNewArchive(session)
                 refresh()
@@ -2225,6 +2644,16 @@ extension AppModel {
             next.phase = .failed("Choose an audio input device before starting Capture.")
             next.statusMessage = "Choose an audio input device before starting Capture."
             captureState = next
+            return
+        }
+        // Last-line defense, same as armInputCaptureWatching(): never record from a blocked mic.
+        guard !device.isBlockedInput else {
+            var next = captureState
+            next.selectedDeviceID = nil
+            next.phase = .failed("The built-in microphone can't be used for capture.")
+            next.statusMessage = "The built-in microphone can't be used for capture. Choose a DJ mixer, deck, or App audio Capture."
+            captureState = next
+            statusMessage = "Built-in microphone blocked for capture"
             return
         }
         Task {
@@ -2325,7 +2754,15 @@ extension AppModel {
         captureState = saving
         do {
             let result = try captureService.stop()
-            let session = try archiveService().ingestCapture(stagingURL: result.stagingURL, deviceID: result.deviceID, deviceName: result.deviceName, startedAt: result.startedAt, endedAt: result.endedAt)
+            let session = try archiveService().ingestCapture(
+                stagingURL: result.stagingURL,
+                deviceID: result.deviceID,
+                deviceName: result.deviceName,
+                startedAt: result.startedAt,
+                endedAt: result.endedAt,
+                captureRoute: result.captureRoute ?? .inputDevice,
+                captureDeviceTransport: result.deviceTransport?.archiveLabel
+            )
             notifyForNewArchive(session)
             refresh()
             autopullTracklist(for: session)
@@ -2451,8 +2888,8 @@ extension AppModel {
             message = "App audio Capture failed: \(detail)"
             phase = .failed(message)
         case .streamStopped(let detail):
-            message = "App audio Capture stopped: \(detail). Arm again to resume watching. Folder Protection still works."
-            phase = .failed(message)
+            message = "App audio Capture stopped: \(detail). Retry to resume watching. Folder Protection still works."
+            phase = .armed
         case .alreadyMonitoring:
             message = "App audio Capture is already armed."
             phase = .watching
@@ -2473,13 +2910,69 @@ extension AppModel {
         failed.phase = phase
         failed.inputLevel = 0
         failed.statusMessage = message
+        if case .streamStopped = error {
+            failed.listeningState = .recoveryNeeded
+            failed.listeningSummary = message
+        }
         captureState = failed
         statusMessage = message
         switch error {
-        case .alreadyMonitoring, .alreadyWriting, .notWriting:
+        case .alreadyMonitoring, .alreadyWriting, .notWriting, .streamStopped:
             break
         default:
             Task { await appAudioCaptureService.stopMonitoring() }
         }
+    }
+
+    private func applyInterruptedAppAudioCapture(_ result: CaptureResult, error: AppAudioCaptureError) {
+        let reason: String
+        if case .streamStopped(let detail) = error {
+            reason = detail
+        } else {
+            reason = error.localizedDescription
+        }
+        saveInterruptedAppAudioCapture(result, reason: reason)
+    }
+
+    private func saveInterruptedAppAudioCapture(_ result: CaptureResult, reason: String) {
+        var saving = captureState
+        saving.phase = .saving
+        saving.statusMessage = "Saving interrupted take…"
+        captureState = saving
+        do {
+            let session = try archiveService().ingestCapture(
+                stagingURL: result.stagingURL,
+                deviceID: result.deviceID,
+                deviceName: result.deviceName,
+                startedAt: result.startedAt,
+                endedAt: result.endedAt,
+                sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID,
+                captureRoute: result.captureRoute ?? .appAudio,
+                captureBackend: result.captureBackend ?? appAudioCaptureService.activeBackendKind.archiveBackend,
+                captureDeviceTransport: result.deviceTransport?.archiveLabel
+                    ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel,
+                captureInterrupted: true,
+                captureInterruptionReason: reason
+            )
+            notifyForNewArchive(session)
+            refresh()
+            var done = captureState
+            done.phase = .armed
+            done.listeningState = .recoveryNeeded
+            done.listeningSummary = "App audio stream stopped. Retry to resume watching."
+            done.lastArchivedSessionID = session.id
+            done.statusMessage = "Interrupted take saved to your archive."
+            captureState = done
+            statusMessage = done.statusMessage
+        } catch {
+            var failed = captureState
+            failed.phase = .armed
+            failed.listeningState = .recoveryNeeded
+            failed.listeningSummary = "App audio stream stopped. Retry to resume watching."
+            failed.statusMessage = "Could not save interrupted take: \(error.localizedDescription)"
+            captureState = failed
+        }
+        appAudioPollTask?.cancel()
+        appAudioPollTask = nil
     }
 }
