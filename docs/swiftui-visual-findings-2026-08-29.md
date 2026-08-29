@@ -2,8 +2,8 @@
 
 Findings-only audit. No styling commits unless a token/hierarchy bug blocks shipping.
 
-Date: 2026-08-29  
-Branch: `cursor/invisible-capture-v1`  
+Date: 2026-08-29
+Branch: `cursor/invisible-capture-v1`
 Sources: live `.build/DJMemory.app`, `#Preview` coverage, `HANDOFF.md` / `Tokens.swift`, Codex trial review.
 
 ## Confirmed (no visual redesign)

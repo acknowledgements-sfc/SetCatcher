@@ -2,7 +2,7 @@
 
 Automated proof does not cover full VoiceOver or keyboard focus. Record checks against `.build/DJMemory.app`.
 
-Date: 2026-08-29  
+Date: 2026-08-29
 App: `.build/DJMemory.app` (debug) via `scripts/build-app.sh` + `scripts/smoke-app.sh`
 Evidence detail: `docs/swiftui-a11y-evidence-2026-08-29.md`
 

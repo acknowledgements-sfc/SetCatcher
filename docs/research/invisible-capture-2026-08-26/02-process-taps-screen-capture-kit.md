@@ -1,7 +1,7 @@
 # Process Audio Taps and ScreenCaptureKit — Invisible Capture Evidence
 
-**Access date:** 2026-08-26  
-**Scope:** macOS invisible app-audio capture for DJMemory after onboarding  
+**Access date:** 2026-08-26
+**Scope:** macOS invisible app-audio capture for DJMemory after onboarding
 **Question:** Can Core Audio Process Taps or ScreenCaptureKit capture one DJ application's audio automatically after onboarding, including when the application selects explicit USB/controller hardware rather than the system default output?
 
 **DJMemory implementation reference (read-only):** `Sources/DJMemoryCore/AppAudioCaptureService.swift` already implements both backends: `ProcessAudioTapCaptureService` (preferred on macOS 14.2+) and `ScreenCaptureKitAppAudioCaptureService` (fallback). Selection order: optional verified virtual input (opt-in env) → Process Audio Tap → ScreenCaptureKit.

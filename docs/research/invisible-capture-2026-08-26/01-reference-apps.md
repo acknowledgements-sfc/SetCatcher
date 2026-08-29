@@ -1,8 +1,8 @@
 # Reference apps: virtual audio device install and lifecycle
 
-**Access date:** 2026-08-26  
-**Worker:** 1 (reference-apps evidence)  
-**Scope:** MJAudioRecorder / `MJRecorderDevice.driver`, Record It Audio Device, NoteBurner-style Mingjie drivers, and comparable macOS recorders with public source or vendor documentation.  
+**Access date:** 2026-08-26
+**Worker:** 1 (reference-apps evidence)
+**Scope:** MJAudioRecorder / `MJRecorderDevice.driver`, Record It Audio Device, NoteBurner-style Mingjie drivers, and comparable macOS recorders with public source or vendor documentation.
 **Out of scope:** Final DJMemory architecture recommendation; DJ-app-specific routing claims beyond what each source supports.
 
 ---

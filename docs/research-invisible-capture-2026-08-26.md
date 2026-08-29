@@ -1,7 +1,7 @@
 # Invisible DJ-app capture: evidence synthesis and recommendation
 
-**Date and access date:** 2026-08-26  
-**Scope:** Serato DJ Pro, rekordbox, Traktor Pro, VirtualDJ, and djay Pro/2 on macOS.  
+**Date and access date:** 2026-08-26
+**Scope:** Serato DJ Pro, rekordbox, Traktor Pro, VirtualDJ, and djay Pro/2 on macOS.
 **Evidence labels:** **CONFIRMED** = stated by Apple or the relevant vendor, or directly present in this repository; **INFERRED** = a defensible design conclusion not promised by the source; **UNKNOWN** = requires a real-machine or real-DJ-software bench test.
 
 ## Decision

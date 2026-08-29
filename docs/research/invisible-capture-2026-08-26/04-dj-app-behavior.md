@@ -1,7 +1,7 @@
 # DJ app audio output behavior and invisible-capture implications
 
-**Access date:** 2026-08-26  
-**Scope:** Serato DJ Pro, rekordbox (macOS desktop), Traktor Pro, VirtualDJ, djay Pro/2 (macOS)  
+**Access date:** 2026-08-26
+**Scope:** Serato DJ Pro, rekordbox (macOS desktop), Traktor Pro, VirtualDJ, djay Pro/2 (macOS)
 **Question:** How is audio output selected in laptop-only and controller/mixer modes, and what does that imply for automatic capture?
 
 Evidence labels: **CONFIRMED** (primary vendor/Apple documentation), **INFERRED** (reasonable deduction not explicitly documented), **UNKNOWN** (no reliable public primary source).
@@ -26,13 +26,13 @@ Evidence labels: **CONFIRMED** (primary vendor/Apple documentation), **INFERRED*
 
 #### Output selection modes
 
-**Laptop-only (Practice / offline player)**  
+**Laptop-only (Practice / offline player)**
 Serato documents that the offline player—Practice mode when no hardware is connected—**outputs through the current default audio device** (**CONFIRMED**, [Offline Player](https://support.serato.com/hc/en-us/articles/235211327-Offline-Player)). This is **explicit OS-default coupling**, not a separate Serato-only output picker for that mode.
 
-**Controller / mixer**  
+**Controller / mixer**
 Primary workflow: connect Serato-compatible hardware; software **automatically detects hardware** when drivers are present (**CONFIRMED**, [Serato DJ Pro User Manual PDF](https://d1aeri3ty3izns.cloudfront.net/media/36/366330/download_366330.pdf), launch section). Master audio is normally taken from the **controller’s or mixer’s audio outputs** (physical master/booth RCA/XLR), with USB carrying the digital audio interface (**CONFIRMED**, [Numark controller audio guide](https://support.numark.com/en/support/solutions/articles/69000829471-how-do-i-get-sound-from-my-controller-) — Serato OEM pattern article).
 
-**Use Laptop Speakers (controller connected)**  
+**Use Laptop Speakers (controller connected)**
 From Serato DJ Pro 2.4+, when compatible hardware is connected, Setup → Audio → **Use Laptop Speakers** routes **master** to the computer’s output while **cue/headphones remain on the controller** (**CONFIRMED**, [Use Laptop Speakers](https://support.serato.com/hc/en-us/articles/360001860415-Use-Laptop-Speakers-or-External-Soundcard-as-Master-Output-with-Serato-DJ-Pro)). Prerequisites documented by Serato:
 
 - macOS **default output** must be set to Internal Speakers (or the intended external soundcard) **before** enabling the option (**CONFIRMED**, same article).
@@ -93,22 +93,22 @@ No Serato public doc states hog/exclusive mode (**UNKNOWN**). macOS troubleshoot
 
 #### Output selection modes
 
-**Laptop-only**  
+**Laptop-only**
 Preferences → Audio:
 
 - **Audio**: computer built-in speaker/device (**CONFIRMED**, [Cannot record in PERFORMANCE mode](https://support.pioneerdj.com/hc/en-us/articles/8213839784473-I-cannot-record-audio-in-PERFORMANCE-mode)).
 - **Mixer Mode**: **Internal** (**CONFIRMED**, same article).
 
-**Controller / all-in-one / DJM**  
+**Controller / all-in-one / DJM**
 Preferences → Audio:
 
 - **Audio**: hardware driver name (example Mac mapping: `XDJ-RX3` with `:MASTER`, `:PHONES`, deck channels) (**CONFIRMED**, [Sound incorrect article snippet](https://support.pioneerdj.com/hc/en-us/articles/4409257604761-Sound-comes-out-of-my-headphones-or-speakers-incorrectly-rekordbox)).
 - **Mixer Mode**: **Internal** (software mixer on hardware) or **External** (per-deck outputs to external mixer) (**CONFIRMED**, [Internal/External FAQ](https://rekordbox.com/en/support/faq/operation-hint/#faq-q500212)).
 
-**PC MASTER OUT**  
+**PC MASTER OUT**
 When enabled, rekordbox can output master to **PC/Mac speakers** while DJ hardware is connected (**CONFIRMED**, [AlphaTheta DE output FAQ](https://support.pioneerdj.com/hc/de/articles/12185292173337-Warum-kommt-der-Ton-aus-meinem-PC-Mac-oder-dem-eingebauten-Lautsprecher-meines-mobilen-Ger%C3%A4ts-nicht-richtig-heraus)). PC MASTER OUT volume follows **computer speaker volume**, not controller MASTER knob (**CONFIRMED**, [rekordbox troubleshooting FAQ](https://rekordbox.com/en/support/faq/trouble-shooting-5/#faq-q500342)).
 
-**CDJ/XDJ multi-player (Mac)**  
+**CDJ/XDJ multi-player (Mac)**
 Requires **CDJ/XDJ Aggregator** aggregate device; rekordbox Audio = **Pioneer CDJ/XDJ**; External mixer mode; per-deck output channels (**CONFIRMED**, [Aggregator manual](https://support.pioneerdj.com/hc/en-us/articles/4413832776345-CDJ-XDJ-Aggregator-Instruction-Manual), [Connection guide PDF](https://cdn.rekordbox.com/files/20200312171207/rekordbox5.3.0_connection_guide_for_performance_mode_EN.pdf)).
 
 #### System-default vs explicit selection
@@ -161,10 +161,10 @@ When Audio = Pioneer USB driver, rekordbox talks to the **vendor driver/device**
 
 #### Output selection modes
 
-**Laptop-only**  
+**Laptop-only**
 Preferences → Audio Setup → **Audio Device: built-in sound card**; Output Routing → **Internal** → assign **Output Master** (only one stereo pair; **no cue** on built-in-only setup) (**CONFIRMED**, [Setting Up Traktor](https://docs.native-instruments.com/ni-tech-manuals/traktor-pro-manual/en/setting-up-traktor), [Preferences](https://docs.native-instruments.com/ni-tech-manuals/traktor-pro-manual/en/preferences)).
 
-**External audio interface / controller**  
+**External audio interface / controller**
 Select interface as **Audio Device**. Kontrol/certified controllers: routing **usually auto-configured** (**CONFIRMED**, Preferences). Manual setups:
 
 - **Internal mixing**: Output Master + Output Monitor (cue) pairs (**CONFIRMED**).
@@ -222,13 +222,13 @@ Traktor **Broadcasting** uses in-app server/client configuration (**CONFIRMED**,
 
 #### Output selection modes
 
-**Laptop-only**  
+**Laptop-only**
 Basic: **SPEAKER ONLY** + **COMPUTER AUDIO** → uses **default soundcard of the computer** (**CONFIRMED**, [Audio Setup](https://virtualdj.com/manuals/virtualdj/settings/audiosetup.html)). Advanced OUTPUTS table can assign Master/Headphones to specific drivers/channels (**CONFIRMED**).
 
-**Controller / multi-channel**  
+**Controller / multi-channel**
 Supported controllers show a **hardware button** that auto-creates predefined routing (**CONFIRMED**, [Controller audio setup](https://virtualdj.com/manuals/virtualdj/settings/audiosetup/controller.html)). **SEPARATE DECKS** sends each deck to interface channels for external mixer (**CONFIRMED**, Audio Setup).
 
-**macOS 4-channel interfaces**  
+**macOS 4-channel interfaces**
 May require **Audio MIDI Setup** channel format change (Quadraphonic) before all outputs work (**CONFIRMED**, [Mac 4 Channel Audio wiki](https://virtualdj.com/wiki/Mac%204%20Channel%20Audio.html)).
 
 #### System-default vs explicit selection
@@ -280,13 +280,13 @@ Broadcast tab streams from VirtualDJ (direct/server/podcast) (**CONFIRMED**, [Br
 
 #### Output selection modes
 
-**Laptop-only**  
+**Laptop-only**
 Settings → Devices → **Internal** mixer mode; choose **Main Output** (Mac speakers/headphones); optional **Split Output** + DJ split cable for pre-cue (**CONFIRMED**, [Audio settings getting started](https://help.algoriddim.com/user-manual/djay-pro-mac/getting-started/audio-settings), [Audio devices](https://help.algoriddim.com/user-manual/djay-pro-mac/settings/audio-devices)).
 
-**Controller**  
+**Controller**
 Supported controllers: **automatic detection and audio configuration**; master on controller master, cue on headphone output (**CONFIRMED**, getting started + [topic audio setup](https://help.algoriddim.com/topic/first-steps/audio-setup)).
 
-**External mixer / multi-channel interface**  
+**External mixer / multi-channel interface**
 **External** mode: assign Decks 1–4, Pre-cueing, Sampler, Looper outputs separately (**CONFIRMED**, Audio devices; [External mixers](https://help.algoriddim.com/user-manual/djay-pro-mac/hardware/external-mixers)).
 
 #### Internal vs External implications

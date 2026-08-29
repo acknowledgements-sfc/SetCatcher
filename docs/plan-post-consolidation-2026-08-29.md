@@ -1,8 +1,8 @@
 # Post-consolidation next-phase plan
 
-**Date:** 2026-08-29  
-**Checkout:** `main` @ `89eef91` (ahead of `origin/main` by 33 commits)  
-**Prior work:** SwiftUI hardening + invisible-capture landed locally; report at [`docs/swiftui-hardening-final-report-2026-08-29.md`](swiftui-hardening-final-report-2026-08-29.md).  
+**Date:** 2026-08-29
+**Checkout:** `main` @ `89eef91` (ahead of `origin/main` by 33 commits)
+**Prior work:** SwiftUI hardening + invisible-capture landed locally; report at [`docs/swiftui-hardening-final-report-2026-08-29.md`](swiftui-hardening-final-report-2026-08-29.md).
 **Do not redo:** TrackPlayCount identity, Home ForEach fix, LibrarySelection helper, Settings previews, static a11y family audit, integration merge.
 
 This plan assumes the default next-phase scope: **close the merge safely, then prove capture and accessibility with human/hardware evidence**. Alternate scopes (product briefs roadmap, beta packaging) are listed as forks at the end.
@@ -127,13 +127,13 @@ Choose one:
 
 ## Suggested session prompts
 
-**Push + a11y:**  
+**Push + a11y:**
 “On SetCatcher `main`, re-run the full local gate, then wait for my OK to push. After push, drive the manual a11y checklist and update `docs/swiftui-manual-a11y-notes-2026-08-29.md`.”
 
-**Live capture:**  
+**Live capture:**
 “Run live-invisible-capture and live-hardware-route checks with Serato running; write `docs/live-capture-evidence-2026-08-29.md` with route facts only.”
 
-**Briefs:**  
+**Briefs:**
 “Propose A/B/C for the four untracked briefs; do not commit them until I pick.”
 
 ---
@@ -150,7 +150,7 @@ Choose one:
 
 This plan is complete when:
 
-1. It reflects verified `main` @ `89eef91` and ahead-33 vs origin.  
-2. It lists remaining work from the final report without reopening finished hardening.  
-3. Each phase has acceptance criteria and clear keep-out rules for experimental branches.  
+1. It reflects verified `main` @ `89eef91` and ahead-33 vs origin.
+2. It lists remaining work from the final report without reopening finished hardening.
+3. Each phase has acceptance criteria and clear keep-out rules for experimental branches.
 4. The artifact lives at `docs/plan-post-consolidation-2026-08-29.md`.

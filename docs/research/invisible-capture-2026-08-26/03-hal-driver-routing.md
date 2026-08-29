@@ -1,7 +1,7 @@
 # HAL Driver Routing — Invisible Capture Evidence (Worker 3)
 
-**Access date:** 2026-08-26  
-**Scope:** Original `DJMemoryAudio.driver` AudioServerPlugIn + privileged helper install model. Intended identity from `Sources/DJMemoryCore/DJMemoryAudioDriver.swift`: bundle `DJMemoryAudio.driver`, device name **DJMemory Audio**, UID `app.djmemory.DJMemoryAudio:device`, bundle ID `app.djmemory.DJMemoryAudio`.  
+**Access date:** 2026-08-26
+**Scope:** Original `DJMemoryAudio.driver` AudioServerPlugIn + privileged helper install model. Intended identity from `Sources/DJMemoryCore/DJMemoryAudioDriver.swift`: bundle `DJMemoryAudio.driver`, device name **DJMemory Audio**, UID `app.djmemory.DJMemoryAudio:device`, bundle ID `app.djmemory.DJMemoryAudio`.
 **Out of scope:** Final architecture recommendation; DJ-app behavior inferred from Serato Virtual Audio; copying BlackHole or proprietary recorder drivers.
 
 ---
