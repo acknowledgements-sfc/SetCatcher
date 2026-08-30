@@ -7,6 +7,10 @@ Branch: **`main`**, consolidated locally through **`255a6b0`** before the scoped
 Read `AGENTS.md` first. This file is the fleet leave-off, not the UI spec
 (`HANDOFF.md` / `CURSOR-HANDOFF.md`).
 
+## Current local verification checkpoint (2026-08-29)
+
+Phase 1 is committed at `f7e9bb9`. The technical SetCatcher rename and app-owned DJMemory-to-SetCatcher data migration are committed at `b6a1a5e` on `codex/setcatcher-rename`. Full tests, release build, debug packaging, strict signature verification, and app smoke pass. This branch has not been merged to `main` or pushed. External beta remains blocked by Developer ID signing, notarization, clean-Mac validation, and human UI/listening checks. Historical sections below are retained as dated evidence.
+
 ---
 
 ## Final beta-readiness gate (2026-08-29)

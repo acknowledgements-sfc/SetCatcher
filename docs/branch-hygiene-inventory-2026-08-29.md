@@ -4,6 +4,8 @@
 
 ## Primary
 
+Current local verification branch: `codex/setcatcher-rename` at `b6a1a5e`, with Phase 1 at `f7e9bb9`. It contains the technical rename and app-owned migration. Keep `.cursor/settings.json` and `docs/phase2-new-chat-seed.md` untracked; keep product briefs excluded.
+
 | Ref | Tip (approx) | Role | Action |
 |-----|--------------|------|--------|
 | `main` | Scoped beta-readiness tip descended from `255a6b0` | Consolidated capture + hardening locally; **ahead 37** of `origin/main` after the two scoped gate commits | Push only after separate explicit approval |

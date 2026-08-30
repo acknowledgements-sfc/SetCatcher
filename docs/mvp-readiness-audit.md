@@ -4,6 +4,12 @@ Last updated: August 29, 2026.
 
 This audit maps the v0.1 PRD acceptance criteria to current implementation evidence and the manual checks still needed before handing a beta to DJs.
 
+## Current renamed-branch status (2026-08-29)
+
+The Phase 1 library/playback fixes are committed at `f7e9bb9`. The technical SetCatcher rename and app-owned data migration are committed at `b6a1a5e` on `codex/setcatcher-rename`. The renamed branch passes the full test suite, release build, debug app packaging, strict signature verification, and app smoke. This section supersedes only the current-candidate statements below; dated historical results remain unchanged.
+
+External beta is still blocked by Developer ID signing, notarization, clean-Mac validation, and remaining human UI/listening checks. The available signing identity is Apple Development only.
+
 ## Automated Evidence
 
 Current local gate baseline (2026-08-29, base `main` at `255a6b0` before scoped readiness fixes):
