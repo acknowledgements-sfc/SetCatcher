@@ -42,6 +42,7 @@ final class AppModel: ObservableObject {
     /// What DJMemory is listening to (hardware USB feed vs laptop driver). Plain language.
     @Published private(set) var liveCaptureListening = LiveCaptureListeningSnapshot.detecting
     @Published private(set) var virtualDJNetworkCommandResult: VirtualDJNetworkCommandResult?
+    @Published private(set) var playbackState = PlaybackViewState()
 
     // MARK: Menu bar state
     /// True briefly after launch while background services spin up.
@@ -153,7 +154,9 @@ final class AppModel: ObservableObject {
     private let folderChangeMonitor = FolderChangeMonitor()
     /// Watches history-export folders so late-written exports still auto-attach.
     private let historyChangeMonitor = FolderChangeMonitor()
+    private let audioPlaybackService = LocalAudioPlaybackService()
     private var historyIngestTask: Task<Void, Never>?
+    private var playbackProgressTask: Task<Void, Never>?
     let captureService = CaptureService()
     let appAudioCaptureService = AppAudioCaptureService()
     private var captureSession = CaptureSessionCoordinator()
@@ -203,12 +206,12 @@ final class AppModel: ObservableObject {
         // Launch catch-up: heal any set whose history export landed while the
         // app was closed, before the user ever looks at the library.
         ingestHistoryNow()
-        // Defer audio-device enumeration off the init path. `refreshAudioInputs()` reaches
-        // `AVAudioEngine.inputNode`, which queries the Core Audio HAL and can block the main
-        // thread — and this init runs *during* SwiftUI scene instantiation, so a block here
-        // stalls creation of the window and menu bar. Running it on the next main-actor hop
-        // lets the scene come up first.
+        // Defer audio-device enumeration until after the first frame. `refreshAudioInputs()`
+        // can still touch Core Audio via dual-route policy; this init runs during SwiftUI
+        // scene instantiation, so a HAL stall here would prevent the window from appearing.
         Task { @MainActor [weak self] in
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 500_000_000)
             self?.refreshAudioInputs()
         }
 
@@ -226,6 +229,7 @@ final class AppModel: ObservableObject {
         captureTargetPollTask?.cancel()
         captureInputPollTask?.cancel()
         historyIngestTask?.cancel()
+        playbackProgressTask?.cancel()
         folderChangeMonitor.stop()
         historyChangeMonitor.stop()
     }
@@ -276,25 +280,12 @@ final class AppModel: ObservableObject {
     // MARK: Menu bar
 
     var menuBarState: MenuBarState {
-        if isLaunchingForMenuBar { return .launching }
-        if justSavedUntil != nil { return .saved }
-
-        let djName = captureState.selectedTargetApp?.software.displayName
-
-        switch captureState.phase {
-        case .idle, .requestingPermission, .needsScreenRecordingPermission:
-            return .ready
-        case .armed:
-            return .armed(djAppName: djName)
-        case .watching:
-            return .armed(djAppName: djName)
-        case .recording:
-            return .capturing(djAppName: djName)
-        case .saving:
-            return .saving
-        case .failed(let reason):
-            return .failed(reason)
-        }
+        MenuBarState.derive(
+            isLaunching: isLaunchingForMenuBar,
+            justSaved: justSavedUntil != nil,
+            phase: captureState.phase,
+            djAppName: captureState.selectedTargetApp?.software.displayName
+        )
     }
 
     var menuBarElapsedText: String? {
@@ -375,7 +366,7 @@ final class AppModel: ObservableObject {
 
     func openMainWindow() {
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        Self.activateApp()
         // If a WindowGroup window already exists (the common case after launch), just bring
         // it front — avoids spawning a duplicate. Otherwise ask SwiftUI to create one; with a
         // MenuBarExtra present the window is created lazily and may not exist yet.
@@ -383,6 +374,14 @@ final class AppModel: ObservableObject {
             window.makeKeyAndOrderFront(nil)
         } else {
             requestOpenMainWindow?()
+        }
+    }
+
+    static func activateApp() {
+        if #available(macOS 15.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 
@@ -1160,6 +1159,73 @@ final class AppModel: ObservableObject {
         } catch {
             statusMessage = "Could not open archive folder: \(error.localizedDescription)"
         }
+    }
+
+    func togglePlayback(sessionID: UUID, url: URL) {
+        do {
+            if playbackState.sessionID != sessionID || audioPlaybackService.loadedURL != url {
+                playbackProgressTask?.cancel()
+                try audioPlaybackService.load(url: url)
+                playbackState = PlaybackViewState(
+                    sessionID: sessionID,
+                    currentTime: audioPlaybackService.currentTime,
+                    duration: audioPlaybackService.duration
+                )
+            }
+
+            if audioPlaybackService.isPlaying {
+                audioPlaybackService.pause()
+                syncPlaybackState(isPlaying: false)
+                playbackProgressTask?.cancel()
+            } else {
+                audioPlaybackService.play()
+                syncPlaybackState(isPlaying: audioPlaybackService.isPlaying)
+                startPlaybackProgressUpdates()
+            }
+        } catch {
+            playbackProgressTask?.cancel()
+            audioPlaybackService.stop()
+            playbackState = PlaybackViewState(
+                sessionID: sessionID,
+                errorMessage: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            )
+        }
+    }
+
+    func seekPlayback(sessionID: UUID, progress: Double) {
+        guard playbackState.sessionID == sessionID, playbackState.duration > 0 else { return }
+        audioPlaybackService.seek(to: playbackState.duration * min(1, max(0, progress)))
+        syncPlaybackState(isPlaying: audioPlaybackService.isPlaying)
+    }
+
+    func stopPlayback(sessionID: UUID? = nil) {
+        if let sessionID, playbackState.sessionID != sessionID { return }
+        playbackProgressTask?.cancel()
+        audioPlaybackService.stop()
+        playbackState = PlaybackViewState()
+    }
+
+    private func startPlaybackProgressUpdates() {
+        playbackProgressTask?.cancel()
+        playbackProgressTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled, let self else { return }
+                let isPlaying = self.audioPlaybackService.isPlaying
+                self.syncPlaybackState(isPlaying: isPlaying)
+                if !isPlaying { return }
+            }
+        }
+    }
+
+    private func syncPlaybackState(isPlaying: Bool) {
+        guard let sessionID = playbackState.sessionID else { return }
+        playbackState = PlaybackViewState(
+            sessionID: sessionID,
+            isPlaying: isPlaying,
+            currentTime: audioPlaybackService.currentTime,
+            duration: audioPlaybackService.duration
+        )
     }
 
     private func startBackgroundScanning() {

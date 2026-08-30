@@ -1,4 +1,5 @@
 import SwiftUI
+import DJMemoryCore
 
 /// Visual state for the menu bar icon + adjacent label.
 /// Derived from AppModel.captureState — see AppModel.menuBarState.
@@ -10,6 +11,29 @@ enum MenuBarState: Equatable {
     case saving
     case saved
     case failed(String)
+
+    static func derive(
+        isLaunching: Bool,
+        justSaved: Bool,
+        phase: CapturePhase,
+        djAppName: String?
+    ) -> MenuBarState {
+        if isLaunching { return .launching }
+        if justSaved { return .saved }
+
+        switch phase {
+        case .idle, .requestingPermission, .needsScreenRecordingPermission:
+            return .ready
+        case .armed, .watching:
+            return .armed(djAppName: djAppName)
+        case .recording:
+            return .capturing(djAppName: djAppName)
+        case .saving:
+            return .saving
+        case .failed(let reason):
+            return .failed(reason)
+        }
+    }
 
     var symbolName: String {
         switch self {

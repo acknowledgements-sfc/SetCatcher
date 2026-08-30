@@ -126,7 +126,8 @@ public struct TracklistAutopull {
                     appID: appID,
                     sourceURL: candidate.url,
                     kind: Self.tracklistKind(appID: appID, sourceURL: candidate.url),
-                    tracks: tracks
+                    tracks: tracks,
+                    importedAt: candidate.modificationDate
                 )
                 guard tracklist.kind.isMatchableToRecording else { continue }
                 tracklist = tracklist.stampingPlayedOn(Calendar.current.startOfDay(for: session.detectedAt))

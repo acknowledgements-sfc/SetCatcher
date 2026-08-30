@@ -80,6 +80,10 @@ enum DJToken {
         static let metric: CGFloat = 22
     }
 
+    enum RowHeight {
+        static let library: CGFloat = 36
+    }
+
     private static let appAccents: [String: Color] = [
         "serato": Color(srgbHex: 0x4BD07A),
         "rekordbox": Color(srgbHex: 0x5B8CFF),

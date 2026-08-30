@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // SPM executables don't get .regular activation policy automatically —
             // set it explicitly so the window and dock icon appear.
             NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps: true)
+            AppModel.activateApp()
         }
     }
 }
@@ -179,10 +179,10 @@ private struct LaunchMainWindowOnce: ViewModifier {
             let menuBarOnly = (try? AppSettingsStore().load())?.menuBarOnly ?? false
             guard !menuBarOnly else { return }
 
-            // Defer one main-actor hop so scene setup finishes, then open the main window only
-            // if it didn't already come up on its own (avoids a duplicate window).
+            // Open on the next run loop so the MenuBarExtra scene finishes attaching.
+            // macOS 15+ will not auto-present a WindowGroup when a MenuBarExtra exists.
             DispatchQueue.main.async {
-                if !NSApp.windows.contains(where: { $0.canBecomeKey }) {
+                if !NSApp.windows.contains(where: { $0.canBecomeKey && $0.isVisible }) {
                     openWindow(id: DJMemoryApplication.mainWindowID)
                 }
             }

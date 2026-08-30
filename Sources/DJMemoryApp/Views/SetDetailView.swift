@@ -2,6 +2,7 @@ import SwiftUI
 import DJMemoryCore
 
 struct SetDetailView: View {
+    @EnvironmentObject private var model: AppModel
     let summary: LibrarySessionSummary
     let appName: String
     let candidateTracklists: [ImportedTracklist]
@@ -53,6 +54,28 @@ struct SetDetailView: View {
                 revealArchive: revealArchive,
                 revealSource: revealSource,
                 revealHardwareBackup: revealHardwareBackup
+            )
+
+            SetDetailPlaybackView(
+                sessionID: summary.id,
+                seed: summary.archive.originalFilename,
+                tint: DJToken.accent(forAppID: summary.archive.sourceAppID),
+                state: model.playbackState,
+                togglePlayback: {
+                    model.togglePlayback(
+                        sessionID: summary.id,
+                        url: URL(fileURLWithPath: summary.archive.archivePath)
+                    )
+                },
+                seek: { model.seekPlayback(sessionID: summary.id, progress: $0) },
+                retry: {
+                    model.stopPlayback(sessionID: summary.id)
+                    model.togglePlayback(
+                        sessionID: summary.id,
+                        url: URL(fileURLWithPath: summary.archive.archivePath)
+                    )
+                },
+                openArchiveFolder: model.openArchiveFolder
             )
 
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
@@ -138,8 +161,16 @@ struct SetDetailView: View {
 
             if let tracklist = summary.matchedTracklist {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Matched Tracklist")
-                        .font(.callout.weight(.medium))
+                    HStack(spacing: 8) {
+                        Text("Tracklist")
+                            .font(.callout.weight(.medium))
+                        Badge(
+                            title: summary.tracklistMatchOrigin == .manual ? "Manual" : "Auto matched",
+                            tone: summary.tracklistMatchOrigin == .manual ? .info : .ok
+                        )
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("setDetail.\(summary.id).tracklistMatchOrigin")
 
                     ForEach(tracklist.tracks.prefix(6)) { track in
                         HStack {
@@ -177,9 +208,13 @@ struct SetDetailView: View {
             RoundedRectangle(cornerRadius: DJToken.Radius.control)
                 .stroke(DJToken.border, lineWidth: 1)
         )
-        .onChange(of: summary.id) {
+        .onChange(of: summary.id) { oldID, _ in
+            model.stopPlayback(sessionID: oldID)
             draftContext = summary.context
             selectedTracklistID = summary.matchedTracklist?.id
+        }
+        .onDisappear {
+            model.stopPlayback(sessionID: summary.id)
         }
     }
 

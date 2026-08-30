@@ -9,6 +9,8 @@ struct SessionLibraryView: View {
     @State private var trackSearch = ""
     @State private var segment: LibrarySegment = .archivedSets
     @State private var dateFilter: LibraryDateFilter = .all
+    @State private var sourceFilter: LibrarySourceFilter = .all
+    @State private var sort: LibrarySessionSort = .newestFirst
 
     private enum LibrarySegment: String, CaseIterable {
         case archivedSets = "Archived Sets"
@@ -17,39 +19,66 @@ struct SessionLibraryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Text("Library")
-                    .font(.system(size: DJToken.TypeSize.title, weight: .semibold))
-                    .foregroundStyle(DJToken.foreground)
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    Text("Library")
+                        .font(.system(size: DJToken.TypeSize.title, weight: .semibold))
+                        .foregroundStyle(DJToken.foreground)
 
-                Picker("Library", selection: $segment) {
-                    ForEach(LibrarySegment.allCases, id: \.self) { item in
-                        Text(item.rawValue).tag(item)
+                    Picker("Library", selection: $segment) {
+                        ForEach(LibrarySegment.allCases, id: \.self) { item in
+                            Text(item.rawValue).tag(item)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 360)
+                    .accessibilityLabel("Library")
+                    .accessibilityIdentifier("library.segment")
+
+                    Spacer()
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 360)
-                .accessibilityLabel("Library")
-                .accessibilityIdentifier("library.segment")
 
-                Spacer()
-
-                Picker("Date", selection: $dateFilter) {
-                    ForEach(LibraryDateFilter.menuCases, id: \.displayName) { filter in
-                        Text(filter.displayName).tag(filter)
+                HStack(spacing: 12) {
+                    Picker("Sort", selection: $sort) {
+                        Text("Newest first").tag(LibrarySessionSort.newestFirst)
+                        Text("Name A–Z").tag(LibrarySessionSort.nameAscending)
                     }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 120)
-                .accessibilityLabel("Date")
-                .accessibilityIdentifier("library.dateFilter")
+                    .pickerStyle(.menu)
+                    .frame(width: 130)
+                    .disabled(segment != .archivedSets)
+                    .accessibilityIdentifier("library.sort")
 
-                TextField(segment == .archivedSets ? "Search archived sets" : "Search tracklists", text: $sessionSearch)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 260)
-                    .help("Filter by recording name, event, venue, city, tags, or app.")
-                    .accessibilityLabel(segment == .archivedSets ? "Search archived sets" : "Search tracklists")
-                    .accessibilityIdentifier("library.archivedSets.search")
+                    Picker("Source", selection: $sourceFilter) {
+                        Text("All sources").tag(LibrarySourceFilter.all)
+                        ForEach(Self.softwareSourceOptions, id: \.id) { software in
+                            Text(software.name).tag(LibrarySourceFilter.app(software.id))
+                        }
+                        Text("Pioneer Hardware").tag(LibrarySourceFilter.pioneerHardware)
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 160)
+                    .disabled(segment != .archivedSets)
+                    .accessibilityIdentifier("library.sourceFilter")
+
+                    Picker("Date", selection: $dateFilter) {
+                        ForEach(LibraryDateFilter.menuCases, id: \.displayName) { filter in
+                            Text(filter.displayName).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 120)
+                    .accessibilityLabel("Date")
+                    .accessibilityIdentifier("library.dateFilter")
+
+                    Spacer()
+
+                    TextField(segment == .archivedSets ? "Search archived sets" : "Search tracklists", text: $sessionSearch)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 260)
+                        .help("Filter by recording name, event, venue, city, tags, notes, or app.")
+                        .accessibilityLabel(segment == .archivedSets ? "Search archived sets" : "Search tracklists")
+                        .accessibilityIdentifier("library.archivedSets.search")
+                }
             }
 
             HStack(alignment: .top, spacing: 12) {
@@ -82,6 +111,12 @@ struct SessionLibraryView: View {
             selectedTracklistID = LibrarySelection.retainingIfPresent(
                 selectedTracklistID,
                 among: filteredTracklists.map(\.id)
+            )
+        }
+        .onChange(of: sourceFilter) {
+            selectedSessionID = LibrarySelection.retainingIfPresent(
+                selectedSessionID,
+                among: filteredLibrarySummaries.map(\.id)
             )
         }
         .onChange(of: model.librarySummaries.map(\.id)) { _, ids in
@@ -151,6 +186,7 @@ struct SessionLibraryView: View {
                                 .lineLimit(1)
                         }
                     }
+                    .frame(height: DJToken.RowHeight.library)
                 }
                 .width(min: 220)
 
@@ -304,9 +340,19 @@ struct SessionLibraryView: View {
             model.librarySummaries,
             query: sessionSearch,
             dateFilter: dateFilter,
+            sourceFilter: sourceFilter,
+            sort: sort,
             appDisplayName: model.displayName(for:)
         )
     }
+
+    private static let softwareSourceOptions: [(id: String, name: String)] = [
+        ("serato", "Serato DJ Pro"),
+        ("rekordbox", "rekordbox"),
+        ("traktor", "Traktor"),
+        ("virtualdj", "VirtualDJ"),
+        ("djay", "djay Pro")
+    ]
 
     private var matchedSetDatesByTracklistID: [UUID: Date] {
         var map: [UUID: Date] = [:]

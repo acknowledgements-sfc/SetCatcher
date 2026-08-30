@@ -1,5 +1,11 @@
 import Foundation
 
+public enum TracklistMatchOrigin: Equatable, Sendable {
+    case none
+    case automatic
+    case manual
+}
+
 public struct LibrarySessionSummary: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let archive: ArchiveMetadata
@@ -23,6 +29,11 @@ public struct LibrarySessionSummary: Identifiable, Equatable, Sendable {
 
     public var trackCount: Int {
         matchedTracklist?.tracks.count ?? 0
+    }
+
+    public var tracklistMatchOrigin: TracklistMatchOrigin {
+        guard let matchedTracklist else { return .none }
+        return context.manualTracklistID == matchedTracklist.id ? .manual : .automatic
     }
 
     public var performanceDate: Date {
@@ -91,6 +102,7 @@ public struct LibrarySessionMatcher {
             return importedTracklists.first { $0.id == manualTracklistID && $0.kind.isMatchableToRecording }
         }
 
+        let referenceDate = archive.completedAt ?? archive.detectedAt
         let candidates: [ImportedTracklist]
         if Self.hardwareCaptureAppIDs.contains(archive.sourceAppID) {
             // A hardware Capture / Pioneer recording carries no app identity of
@@ -101,16 +113,19 @@ public struct LibrarySessionMatcher {
             // upgrade an earlier auto-match.
             candidates = importedTracklists.filter { tracklist in
                 tracklist.kind.isMatchableToRecording
-                    && abs(tracklist.importedAt.timeIntervalSince(archive.detectedAt)) <= Self.captureMatchWindowSeconds
+                    && abs(tracklist.importedAt.timeIntervalSince(referenceDate)) <= Self.captureMatchWindowSeconds
             }
         } else {
             candidates = importedTracklists.filter {
-                $0.appID == archive.sourceAppID && $0.kind.isMatchableToRecording
+                $0.appID == archive.sourceAppID
+                    && $0.kind.isMatchableToRecording
+                    && abs($0.importedAt.timeIntervalSince(referenceDate)) <= Self.captureMatchWindowSeconds
             }
         }
 
         return candidates.min { lhs, rhs in
-            abs(lhs.importedAt.timeIntervalSince(archive.detectedAt)) < abs(rhs.importedAt.timeIntervalSince(archive.detectedAt))
+            abs(lhs.importedAt.timeIntervalSince(referenceDate))
+                < abs(rhs.importedAt.timeIntervalSince(referenceDate))
         }
     }
 }
