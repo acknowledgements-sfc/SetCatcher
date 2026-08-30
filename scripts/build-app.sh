@@ -9,6 +9,8 @@ BUNDLE_DIR="$ROOT_DIR/.build/$APP_NAME.app"
 CONTENTS_DIR="$BUNDLE_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+ICON_SOURCE="$ROOT_DIR/packaging/assets/SetCatcher-Beta-Intrnl-v1.svg"
+ICON_PATH="$RESOURCES_DIR/SetCatcher.icns"
 EXECUTABLE_PATH="$ROOT_DIR/.build/$CONFIGURATION/SetCatcherApp"
 ENTITLEMENTS_PATH="$ROOT_DIR/packaging/SetCatcher.entitlements"
 DISTRIBUTION="${SETCATCHER_DISTRIBUTION:-adhoc}"
@@ -46,6 +48,21 @@ rm -rf "$BUNDLE_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$EXECUTABLE_PATH" "$MACOS_DIR/$APP_NAME"
 
+if [[ -f "$ICON_SOURCE" ]]; then
+  ICON_WORK_DIR="$(mktemp -d)"
+  trap 'rm -rf "$ICON_WORK_DIR"' EXIT
+  qlmanage -t -s 1024 -o "$ICON_WORK_DIR" "$ICON_SOURCE" >/dev/null 2>&1
+  ICON_PNG="$ICON_WORK_DIR/SetCatcher-Beta-Intrnl-v1.svg.png"
+  ICONSET_DIR="$ICON_WORK_DIR/SetCatcher.iconset"
+  mkdir -p "$ICONSET_DIR"
+  for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" "$ICON_PNG" --out "$ICONSET_DIR/icon_${size}x${size}.png" >/dev/null
+    doubled="$((size * 2))"
+    sips -z "$doubled" "$doubled" "$ICON_PNG" --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" >/dev/null
+  done
+  iconutil -c icns "$ICONSET_DIR" -o "$ICON_PATH"
+fi
+
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -59,6 +76,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 	<string>$APP_NAME</string>
 	<key>CFBundleIdentifier</key>
 	<string>$BUNDLE_ID</string>
+	<key>CFBundleIconFile</key>
+	<string>SetCatcher.icns</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
