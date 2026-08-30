@@ -1,6 +1,6 @@
-# DJMemory
+# SetCatcher
 
-DJMemory is a planned macOS app for DJs that automatically captures set recordings and attaches usable session metadata from Serato DJ Pro, rekordbox, djay Pro, VirtualDJ, and Traktor.
+SetCatcher is a planned macOS app for DJs that automatically captures set recordings and attaches usable session metadata from Serato DJ Pro, rekordbox, djay Pro, VirtualDJ, and Traktor.
 
 The first scaffold is intentionally small:
 
@@ -11,31 +11,31 @@ The first scaffold is intentionally small:
 ## Run  
 
 ```bash
-swift run djmemory probe
-swift run djmemory archive /path/to/set.wav serato
-swift run djmemory scan ~/Music/_Serato_/Recording serato
-swift run djmemory watch ~/Music/_Serato_/Recording serato
-swift run djmemory diagnostics ./DJMemory-Diagnostics.json
-swift run djmemory virtualdj-network
-swift run DJMemoryApp
+swift run setcatcher probe
+swift run setcatcher archive /path/to/set.wav serato
+swift run setcatcher scan ~/Music/_Serato_/Recording serato
+swift run setcatcher watch ~/Music/_Serato_/Recording serato
+swift run setcatcher diagnostics ./SetCatcher-Diagnostics.json
+swift run setcatcher virtualdj-network
+swift run SetCatcherApp
 swift test
 bash scripts/smoke-cli.sh
 bash scripts/smoke-app.sh
 ```
 
-Set `DJMEMORY_ARCHIVE_ROOT=/path/to/archive` when testing CLI archive, scan, or watch commands against a temporary archive folder.
-Use `swift run djmemory diagnostics [output.json|-]` to write a privacy-redacted support report from local DJMemory state.
+Set `SETCATCHER_ARCHIVE_ROOT=/path/to/archive` when testing CLI archive, scan, or watch commands against a temporary archive folder.
+Use `swift run setcatcher diagnostics [output.json|-]` to write a privacy-redacted support report from local SetCatcher state.
 
-Archived recordings are copied to `~/Music/DJMemory` by default with a JSON metadata sidecar. The default archive folder is created on launch. A custom archive folder can be set in Settings. Source files are never moved, renamed, or deleted.
+Archived recordings are copied to `~/Music/SetCatcher` by default with a JSON metadata sidecar. The default archive folder is created on launch. A custom archive folder can be set in Settings. Source files are never moved, renamed, or deleted.
 
-`DJMemoryApp` launches the first SwiftUI app shell with setup status, menu-bar status, and an archived-session library view.
+`SetCatcherApp` launches the first SwiftUI app shell with setup status, menu-bar status, and an archived-session library view.
 First launch shows a setup sheet that summarizes detected DJ apps, the archive location, and the next setup action.
 
 For a clickable local macOS app bundle:
 
 ```bash
 bash scripts/build-app.sh
-open .build/DJMemory.app
+open .build/SetCatcher.app
 ```
 
 For a zipped local beta handoff with a checksum manifest:
@@ -44,7 +44,7 @@ For a zipped local beta handoff with a checksum manifest:
 bash scripts/package-beta.sh
 ```
 
-The local bundle is signed ad hoc with sandbox-oriented entitlements in `packaging/DJMemory.entitlements`. Xcode is still needed later for Developer ID/App Store signing, icons, notarization, and archived release export.
+The local bundle is signed ad hoc with sandbox-oriented entitlements in `packaging/SetCatcher.entitlements`. Xcode is still needed later for Developer ID/App Store signing, icons, notarization, and archived release export.
 
 Beta handoff checks live in `docs/beta-release-checklist.md`.
 MVP acceptance evidence lives in `docs/mvp-readiness-audit.md`.
@@ -65,9 +65,9 @@ Xcode is not required for day-to-day preview, but it will be needed for producti
 
 ### Cursor / SweetPad (iPad scheme)
 
-This repo recommends the SweetPad, Swift, and CodeLLDB extensions (see `.vscode/extensions.json`). Use the SweetPad sidebar to build and run the **DJMemoryiPad** scheme on an iPad simulator or device; regenerate the Xcode project with SweetPad’s XcodeGen command or `xcodegen generate --spec project.yml`. Press **F5** to build, launch, and attach via `.vscode/launch.json`.
+This repo recommends the SweetPad, Swift, and CodeLLDB extensions (see `.vscode/extensions.json`). Use the SweetPad sidebar to build and run the **SetCatcheriPad** scheme on an iPad simulator or device; regenerate the Xcode project with SweetPad’s XcodeGen command or `xcodegen generate --spec project.yml`. Press **F5** to build, launch, and attach via `.vscode/launch.json`.
 
-Mac day-to-day work stays on SPM (`swift run DJMemoryApp`). Do not commit `buildServer.json` — a root build-server config overrides SourceKit-LSP’s native `Package.swift` support.
+Mac day-to-day work stays on SPM (`swift run SetCatcherApp`). Do not commit `buildServer.json` — a root build-server config overrides SourceKit-LSP’s native `Package.swift` support.
 
 ## Product Direction
 

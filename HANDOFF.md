@@ -1,10 +1,10 @@
-# DJMemory — Design Handoff (prototype → SwiftUI)
+# SetCatcher — Design Handoff (prototype → SwiftUI)
 
-This document hands the DJMemory UI prototype to an agent working in this repo.
+This document hands the SetCatcher UI prototype to an agent working in this repo.
 
-**Target:** `Sources/DJMemoryApp` — SwiftUI, macOS 14+, SwiftPM, no external dependencies.
+**Target:** `Sources/SetCatcherApp` — SwiftUI, macOS 14+, SwiftPM, no external dependencies.
 **Not the target:** porting React code. The prototype is a *visual and behavioural reference*.
-Every screen is built in SwiftUI against the existing `DJMemoryCore` types.
+Every screen is built in SwiftUI against the existing `SetCatcherCore` types.
 
 Verified against `main` commit `d11d0c8`.
 
@@ -16,8 +16,8 @@ something is genuinely ambiguous, say so in the PR rather than inventing a layou
 
 ## 1. Current state of the Swift app
 
-The SwiftUI app is now split across dedicated views under `Sources/DJMemoryApp/Views/` and theme
-primitives under `Sources/DJMemoryApp/Theme/`; `ContentView` is the app shell.
+The SwiftUI app is now split across dedicated views under `Sources/SetCatcherApp/Views/` and theme
+primitives under `Sources/SetCatcherApp/Theme/`; `ContentView` is the app shell.
 Most panes already exist in rough form:
 
 | Pane | Swift view (line) | Status vs prototype |
@@ -39,7 +39,7 @@ So this remains a **refinement and extraction** job, not a greenfield build. The
 primarily feature-state completion and visual refinement:
 
 1. Complete the remaining protection, recovery, settings, and activity-state gaps below.
-2. Continue keeping domain logic in `DJMemoryCore` and app composition in dedicated SwiftUI views.
+2. Continue keeping domain logic in `SetCatcherCore` and app composition in dedicated SwiftUI views.
 
 **Out of scope for this repo:** the prototype's Flow Map, Sign In, Account, and Admin Console
 screens. Those are design concepts only — do not build them in the app.
@@ -48,7 +48,7 @@ screens. Those are design concepts only — do not build them in the app.
 
 ## 2. Design tokens
 
-Port to `Sources/DJMemoryApp/Theme/Tokens.swift`. Dark is the default appearance; both must work.
+Port to `Sources/SetCatcherApp/Theme/Tokens.swift`. Dark is the default appearance; both must work.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
@@ -96,7 +96,7 @@ keyed by `software.id`, used for the sidebar swatch and the waveform tint:
 
 ## 3. Type mapping
 
-The prototype's models were written to mirror `DJMemoryCore`. Use the **Swift** types; do not
+The prototype's models were written to mirror `SetCatcherCore`. Use the **Swift** types; do not
 introduce parallel models.
 
 | Prototype | Existing Swift type | Notes |
@@ -112,7 +112,7 @@ introduce parallel models.
 | `ActivityRow` | `ActivityEvent` | See gap G1 |
 | Settings | `AppSettings` | See gap G4 |
 
-### Gaps that require `DJMemoryCore` changes
+### Gaps that require `SetCatcherCore` changes
 
 Each of these is a real API gap, not a UI detail. Handle them in T4.
 
@@ -149,7 +149,7 @@ its current behaviour.
   `settings`, `app(String)`, `recovery(String)`).
 - Sidebar rows: 3px accent swatch for DJ apps, trailing status dot (ok/warn/danger/info,
   pulsing while scanning), and a count badge on Library.
-- Sidebar sections: `DJMemory` → Protection, Library, Activity; `DJ Apps` → one row per probe
+- Sidebar sections: `SetCatcher` → Protection, Library, Activity; `DJ Apps` → one row per probe
   result; footer → a status strip (state + one-line detail) above Settings.
 - Sidebar uses `.background(.ultraThinMaterial)`; main pane uses the opaque `content` token.
 - Keep every existing `.accessibilityIdentifier` — the smoke tests in `scripts/` depend on them.
@@ -158,7 +158,7 @@ its current behaviour.
 - Headline block: 40pt icon tile, state name, one-sentence explanation, and inline fix buttons.
   All four states of G2, each with its own icon and tone. Copy:
   - *Protected* — "Your sets are being backed up automatically."
-  - *Needs Setup* — "Choose a recordings folder so DJMemory can protect your sets."
+  - *Needs Setup* — "Choose a recordings folder so SetCatcher can protect your sets."
   - *Scanning* — "Checking watched folders for new recordings."
   - *Attention Needed* — "A saved folder is unavailable, so new sets are not being archived."
 - `Attention Needed` renders a `Fix <App>` button per unreachable folder → recovery route.
@@ -209,7 +209,7 @@ Closest to done already. Deltas:
 
 ### 4.4c Dual-route Pioneer (laptop + USB)
 
-Target rig: DJMemory on the Mac, Serato or rekordbox on that Mac, XDJ-XZ or CDJs over USB. The Mac
+Target rig: SetCatcher on the Mac, Serato or rekordbox on that Mac, XDJ-XZ or CDJs over USB. The Mac
 stays in the audio loop. Pure hardware-to-mixer rigs where no audio reaches the Mac stay labeled.
 
 - **Both (default):** Folder Protection watches the DJ-app record folder. When Pioneer USB input is
@@ -283,13 +283,13 @@ One PR per task. Each task assumes the previous one merged. Every task must keep
 `swift build`, `swift test`, and `bash scripts/smoke-app.sh` green, and must not break existing
 `.accessibilityIdentifier` values.
 
-**T1 — Theme layer.** Add `Sources/DJMemoryApp/Theme/Tokens.swift` with the §2 color set (light +
+**T1 — Theme layer.** Add `Sources/SetCatcherApp/Theme/Tokens.swift` with the §2 color set (light +
 dark via `NSColor(name:dynamicProvider:)`), radius/spacing/type constants, the micro-label
 `ViewModifier`, and the per-app accent map. No view changes yet. *Done when:* tokens compile and a
 preview renders both appearances.
 
 **T2 — Split `ContentView.swift`.** Move each of the 24 views into
-`Sources/DJMemoryApp/Views/<Name>.swift`, `internal` instead of `private`, no behaviour change.
+`Sources/SetCatcherApp/Views/<Name>.swift`, `internal` instead of `private`, no behaviour change.
 Introduce the `Route` enum from §4.1. *Done when:* no file over ~250 lines, behaviour identical.
 
 **T3 — Primitives.** `Panel`, `Badge(tone:)`, `StatusDot`, `PathChip`, `MetricTile`, `KeyValueRow`,
@@ -297,7 +297,7 @@ Introduce the `Route` enum from §4.1. *Done when:* no file over ~250 lines, beh
 ad-hoc `RoundedRectangle`/`.quaternary` call sites. *Done when:* no raw hex or `cornerRadius:`
 literal outside `Theme/`.
 
-**T4 — Core gaps.** Implement G1–G5 in `DJMemoryCore` with unit tests: `diagnostics` activity kind
+**T4 — Core gaps.** Implement G1–G5 in `SetCatcherCore` with unit tests: `diagnostics` activity kind
 with legacy-decode fallback, `ProtectionState`, folder reachability probe, three new `AppSettings`
 fields with `Codable` defaults, `setupState` as an enum. *Done when:* `swift test` covers old
 `settings.json` and old activity-log JSON still decoding.
@@ -322,7 +322,7 @@ states, keyboard focus order.
 ### Prompt template
 
 > Read `HANDOFF.md` §2, §3, §4.<n>, and §7. Implement **T<n>** in
-> `Sources/DJMemoryApp`. Use the existing `DJMemoryCore` types listed in §3 — do not create
+> `Sources/SetCatcherApp`. Use the existing `SetCatcherCore` types listed in §3 — do not create
 > parallel models. Use only tokens from `Theme/Tokens.swift`; no raw hex, no `cornerRadius:`
 > literals, no `.green`/`.red`/`.yellow`. Preserve every existing `.accessibilityIdentifier`.
 > Add a `#Preview` for each state listed in §5 that this screen owns. Run `swift build`,

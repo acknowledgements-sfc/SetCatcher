@@ -1,4 +1,4 @@
-# DJMemory
+# SetCatcher
 
 Native macOS utility that automatically backs up DJ set recordings from Serato DJ Pro, rekordbox,
 Traktor, VirtualDJ, and djay Pro. Local-first. Swift Package Manager, SwiftUI, macOS 14+.
@@ -7,40 +7,40 @@ Traktor, VirtualDJ, and djay Pro. Local-first. Swift Package Manager, SwiftUI, m
 
 ```sh
 swift build                        # build all targets
-swift test                         # DJMemoryCoreTests
-swift run DJMemoryApp              # run the SwiftUI app
-swift run djmemory probe           # CLI: detect installed DJ software
-swift run djmemory scan            # CLI: one-shot scan of configured folders
-swift run djmemory watch           # CLI: continuous watch
-swift run djmemory virtualdj-network
-bash scripts/build-app.sh          # produce .build/DJMemory.app (ad-hoc signed)
+swift test                         # SetCatcherCoreTests
+swift run SetCatcherApp              # run the SwiftUI app
+swift run setcatcher probe           # CLI: detect installed DJ software
+swift run setcatcher scan            # CLI: one-shot scan of configured folders
+swift run setcatcher watch           # CLI: continuous watch
+swift run setcatcher virtualdj-network
+bash scripts/build-app.sh          # produce .build/SetCatcher.app (ad-hoc signed)
 bash scripts/smoke-app.sh          # UI smoke test — run before finishing UI work
 bash scripts/open-xcode.sh
 ```
 
-`DJMemoryCore` and `djmemory` stay dependency-free (platform SDK only). Optional Account auth in
-`DJMemoryApp` may use `clerk-ios` (`ClerkKit` / `ClerkKitUI`); local archive, scan, and protection
+`SetCatcherCore` and `setcatcher` stay dependency-free (platform SDK only). Optional Account auth in
+`SetCatcherApp` may use `clerk-ios` (`ClerkKit` / `ClerkKitUI`); local archive, scan, and protection
 never depend on it. Do not add further packages without saying why in the PR description.
 
 ## Layout
 
-- `Package.swift` — tools 5.10, `.macOS(.v14)`. Products: `DJMemoryApp` (executable),
-  `djmemory` (CLI executable), `DJMemoryCore` (library).
-- `Sources/DJMemoryCore/` — all models, stores, scanning, and archiving. **No SwiftUI, no AppKit
+- `Package.swift` — tools 5.10, `.macOS(.v14)`. Products: `SetCatcherApp` (executable),
+  `setcatcher` (CLI executable), `SetCatcherCore` (library).
+- `Sources/SetCatcherCore/` — all models, stores, scanning, and archiving. **No SwiftUI, no AppKit
   UI.** This layer is unit-tested and must stay UI-agnostic.
-- `Sources/DJMemoryCLI/` — thin CLI over Core.
-- `Sources/DJMemoryApp/` — SwiftUI app. `DJMemoryApp.swift` (entry), `AppModel.swift`
+- `Sources/SetCatcherCLI/` — thin CLI over Core.
+- `Sources/SetCatcherApp/` — SwiftUI app. `SetCatcherApp.swift` (entry), `AppModel.swift`
   (`@MainActor ObservableObject`, the single view-model), `ContentView.swift`,
   `MenuBarStatusView.swift`, `LocalNotificationService.swift`.
-- `Sources/DJMemoryApp/Theme/` — design tokens and primitives.
-- `Sources/DJMemoryApp/Views/` — one view per file.
-- `Tests/DJMemoryCoreTests/`
+- `Sources/SetCatcherApp/Theme/` — design tokens and primitives.
+- `Sources/SetCatcherApp/Views/` — one view per file.
+- `Tests/SetCatcherCoreTests/`
 - `docs/` — `prd.md`, `research.md`, `integration-status.md`,
   `onboarding-accounts-security.md`, `automation-testing-plan.md`, `user-testing-plan.md`,
   `beta-release-checklist.md`, `m14-vdj-plugin-spec.md` (VDJ plugin JSONL contract).
 - `HANDOFF-CODEX.md` — current leave-off for the M11b/M12/M14 fleet (what is committed vs next).
 - `CONTEXT.md` — domain glossary. Prefer those names.
-- `packaging/DJMemory.entitlements`
+- `packaging/SetCatcher.entitlements`
 
 ## Architecture rules
 
@@ -48,8 +48,8 @@ never depend on it. Do not add further packages without saying why in the PR des
   call `AppModel` methods. No view owns persistence, file IO, or scanning.
 - **All mutation goes through `AppModel`.** Its `@Published` properties are `private(set)`; keep
   them that way.
-- **New domain logic belongs in `DJMemoryCore` with a unit test**, not in a view.
-- Persistence lives in `~/Library/Application Support/DJMemory/` as JSON
+- **New domain logic belongs in `SetCatcherCore` with a unit test**, not in a view.
+- Persistence lives in `~/Library/Application Support/SetCatcher/` as JSON
   (`settings.json`, `set-contexts.json`, activity log, folder access). New fields must decode
   against files written by older builds — give every added property a `Codable` default.
 - Folder access uses **security-scoped bookmarks** via `FolderAccessStore`. Never hardcode a path
@@ -97,7 +97,7 @@ never depend on it. Do not add further packages without saying why in the PR des
 
 ### Issue tracker
 
-GitHub Issues on `acknowledgements-sfc/DJMemory` via `gh`. See `docs/agents/issue-tracker.md`.
+GitHub Issues on `acknowledgements-sfc/SetCatcher` via `gh`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

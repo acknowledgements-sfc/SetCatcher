@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="DJMemory"
-VERSION="${DJMEMORY_VERSION:-0.1.0}"
+APP_NAME="SetCatcher"
+VERSION="${SETCATCHER_VERSION:-0.1.0}"
 DIST_DIR="$ROOT_DIR/.build/distribution"
-DISTRIBUTION="${DJMEMORY_DISTRIBUTION:-adhoc}"
+DISTRIBUTION="${SETCATCHER_DISTRIBUTION:-adhoc}"
 
 cd "$ROOT_DIR"
 
@@ -18,7 +18,7 @@ MANIFEST_PATH="$DIST_DIR/$ARTIFACT_BASENAME.json"
 mkdir -p "$DIST_DIR"
 
 if [[ "$DISTRIBUTION" == "developer-id" ]]; then
-  export DJMEMORY_DISTRIBUTION=developer-id
+  export SETCATCHER_DISTRIBUTION=developer-id
   bash scripts/build-app.sh release >/dev/null
   bash scripts/notarize-app.sh
   SIGNING_LABEL="Developer ID Application (hardened runtime)"

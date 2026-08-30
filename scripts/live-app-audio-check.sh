@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SECONDS_PER_PROBE="${DJMEMORY_LIVE_PROBE_SECONDS:-8}"
+SECONDS_PER_PROBE="${SETCATCHER_LIVE_PROBE_SECONDS:-8}"
 
 cd "$ROOT_DIR"
 
-swift build --product djmemory >/dev/null
-CLI="$ROOT_DIR/.build/debug/djmemory"
+swift build --product setcatcher >/dev/null
+CLI="$ROOT_DIR/.build/debug/setcatcher"
 
 run_probe() {
     local label="$1"
@@ -32,6 +32,6 @@ run_probe() {
 
 run_probe "Serato Process Audio Tap" "serato" "Serato DJ Pro" env
 run_probe "rekordbox Process Audio Tap" "rekordbox" "rekordbox" env
-run_probe "Serato ScreenCaptureKit fallback" "serato" "Serato DJ Pro" env DJMEMORY_FORCE_SCK_APP_AUDIO=1
+run_probe "Serato ScreenCaptureKit fallback" "serato" "Serato DJ Pro" env SETCATCHER_FORCE_SCK_APP_AUDIO=1
 
-echo "DJMemory live app-audio check passed."
+echo "SetCatcher live app-audio check passed."

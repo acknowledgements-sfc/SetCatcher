@@ -2,18 +2,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SECONDS_PER_PROBE="${DJMEMORY_LIVE_PROBE_SECONDS:-30}"
-JSONL_PATH="${DJMEMORY_INVISIBLE_CAPTURE_JSONL:-/tmp/djmemory-invisible-capture-results.jsonl}"
-OUTPUT_MODE_LABEL="${DJMEMORY_OUTPUT_MODE_LABEL:-system-default}"
+SECONDS_PER_PROBE="${SETCATCHER_LIVE_PROBE_SECONDS:-30}"
+JSONL_PATH="${SETCATCHER_INVISIBLE_CAPTURE_JSONL:-/tmp/setcatcher-invisible-capture-results.jsonl}"
+OUTPUT_MODE_LABEL="${SETCATCHER_OUTPUT_MODE_LABEL:-system-default}"
 
 cd "$ROOT_DIR"
 
-swift build --product djmemory >/dev/null
-CLI="$ROOT_DIR/.build/debug/djmemory"
+swift build --product setcatcher >/dev/null
+CLI="$ROOT_DIR/.build/debug/setcatcher"
 
 rm -f "$JSONL_PATH"
-export DJMEMORY_INVISIBLE_CAPTURE_JSONL="$JSONL_PATH"
-export DJMEMORY_OUTPUT_MODE_LABEL="$OUTPUT_MODE_LABEL"
+export SETCATCHER_INVISIBLE_CAPTURE_JSONL="$JSONL_PATH"
+export SETCATCHER_OUTPUT_MODE_LABEL="$OUTPUT_MODE_LABEL"
 
 APPS=(serato rekordbox traktor virtualdj djay)
 
@@ -71,11 +71,11 @@ for app in "${APPS[@]}"; do
         *) name="$app" ;;
     esac
     run_scenario "${app} Process Audio Tap" "$app" "$name" env
-    run_scenario "${app} ScreenCaptureKit fallback" "$app" "$name" env DJMEMORY_FORCE_SCK_APP_AUDIO=1
+    run_scenario "${app} ScreenCaptureKit fallback" "$app" "$name" env SETCATCHER_FORCE_SCK_APP_AUDIO=1
 done
 
 echo
 echo "Invisible capture JSONL results:"
 cat "$JSONL_PATH"
 echo
-echo "DJMemory invisible capture check passed."
+echo "SetCatcher invisible capture check passed."

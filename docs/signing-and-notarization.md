@@ -1,4 +1,4 @@
-# DJMemory Signing and Notarization
+# SetCatcher Signing and Notarization
 
 Last updated: August 7, 2026.
 
@@ -20,9 +20,9 @@ You need a line like `Developer ID Application: Your Name (TEAMID)`.
 
 | Script | Default | External |
 | --- | --- | --- |
-| `scripts/build-app.sh` | Ad-hoc | `DJMEMORY_DISTRIBUTION=developer-id` (or `DJMEMORY_SIGN_IDENTITY="Developer ID Application: …"`) |
+| `scripts/build-app.sh` | Ad-hoc | `SETCATCHER_DISTRIBUTION=developer-id` (or `SETCATCHER_SIGN_IDENTITY="Developer ID Application: …"`) |
 | `scripts/notarize-app.sh` | Fails loudly without Developer ID + credentials | Submits with `notarytool`, staples ticket |
-| `scripts/package-beta.sh` | Ad-hoc zip + honest manifest | `DJMEMORY_DISTRIBUTION=developer-id` builds, notarizes, zips |
+| `scripts/package-beta.sh` | Ad-hoc zip + honest manifest | `SETCATCHER_DISTRIBUTION=developer-id` builds, notarizes, zips |
 
 Ad-hoc remains zero-config:
 
@@ -34,7 +34,7 @@ bash scripts/package-beta.sh
 External:
 
 ```sh
-export DJMEMORY_DISTRIBUTION=developer-id
+export SETCATCHER_DISTRIBUTION=developer-id
 # Preferred App Store Connect API key auth:
 export APP_STORE_CONNECT_API_KEY_PATH=/path/to/AuthKey_XXXX.p8
 export APP_STORE_CONNECT_KEY_ID=XXXX
@@ -56,9 +56,9 @@ Without a Developer ID identity, `build-app.sh` / `notarize-app.sh` exit with a 
 ## Verify after notarization
 
 ```sh
-codesign --verify --deep --strict .build/DJMemory.app
-spctl --assess --type execute -vv .build/DJMemory.app
-xcrun stapler validate .build/DJMemory.app
+codesign --verify --deep --strict .build/SetCatcher.app
+spctl --assess --type execute -vv .build/SetCatcher.app
+xcrun stapler validate .build/SetCatcher.app
 ```
 
 Then copy the zip to a clean Mac (Downloads), open it, and confirm Gatekeeper allows launch without confusing “unidentified developer” blocks.
@@ -69,7 +69,7 @@ Then copy the zip to a clean Mac (Downloads), open it, and confirm Gatekeeper al
 
 ## Sandbox
 
-Keep `packaging/DJMemory.entitlements` sandbox posture enabled for beta and App Store later. Hardened runtime is added only on the Developer ID path (`--options runtime --timestamp`).
+Keep `packaging/SetCatcher.entitlements` sandbox posture enabled for beta and App Store later. Hardened runtime is added only on the Developer ID path (`--options runtime --timestamp`).
 
 ### Process Audio Tap entitlement (resolved 2026-08-13)
 

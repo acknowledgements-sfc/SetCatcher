@@ -3,16 +3,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "DJMemory",
+    name: "SetCatcher",
     platforms: [
         .macOS("14.2"),
         .iOS(.v17)
     ],
     products: [
-        .executable(name: "DJMemoryApp", targets: ["DJMemoryApp"]),
-        .executable(name: "djmemory", targets: ["DJMemoryCLI"]),
-        .library(name: "DJMemoryCore", targets: ["DJMemoryCore"]),
-        .library(name: "DJMemoryCompanion", targets: ["DJMemoryCompanion"])
+        .executable(name: "SetCatcherApp", targets: ["SetCatcherApp"]),
+        .executable(name: "setcatcher", targets: ["SetCatcherCLI"]),
+        .library(name: "SetCatcherCore", targets: ["SetCatcherCore"]),
+        .library(name: "SetCatcherCompanion", targets: ["SetCatcherCompanion"])
     ],
     dependencies: [
         // Optional Account (Settings) auth — local archive/scan/protection never depend on this.
@@ -20,35 +20,35 @@ let package = Package(
     ],
     targets: [
         // Header-only C atomics shim (platform SDK only) for the real-time capture ring.
-        .target(name: "DJMemoryAtomics"),
-        .target(name: "DJMemoryCore", dependencies: ["DJMemoryAtomics"]),
+        .target(name: "SetCatcherAtomics"),
+        .target(name: "SetCatcherCore", dependencies: ["SetCatcherAtomics"]),
         .target(
-            name: "DJMemoryCompanion",
+            name: "SetCatcherCompanion",
             dependencies: [
-                "DJMemoryCore",
+                "SetCatcherCore",
                 .product(name: "ClerkKit", package: "clerk-ios"),
                 .product(name: "ClerkKitUI", package: "clerk-ios")
             ]
         ),
         .executableTarget(
-            name: "DJMemoryCLI",
-            dependencies: ["DJMemoryCore"]
+            name: "SetCatcherCLI",
+            dependencies: ["SetCatcherCore"]
         ),
         .executableTarget(
-            name: "DJMemoryApp",
+            name: "SetCatcherApp",
             dependencies: [
-                "DJMemoryCore",
+                "SetCatcherCore",
                 .product(name: "ClerkKit", package: "clerk-ios"),
                 .product(name: "ClerkKitUI", package: "clerk-ios")
             ]
         ),
         .testTarget(
-            name: "DJMemoryCoreTests",
-            dependencies: ["DJMemoryCore"]
+            name: "SetCatcherCoreTests",
+            dependencies: ["SetCatcherCore"]
         ),
         .testTarget(
-            name: "DJMemoryAppTests",
-            dependencies: ["DJMemoryApp", "DJMemoryCore"]
+            name: "SetCatcherAppTests",
+            dependencies: ["SetCatcherApp", "SetCatcherCore"]
         )
     ]
 )

@@ -1,17 +1,17 @@
-# PRD: DJMemory Mac Private Beta
+# PRD: SetCatcher Mac Private Beta
 
 Status: current beta requirements  
 Last updated: August 14, 2026.
 
 ## Summary
 
-The first external beta must prove that a new Mac user can install DJMemory, connect a real recording workflow, understand whether protection is active, preserve a completed set without changing its source, and find the result later without developer assistance.
+The first external beta must prove that a new Mac user can install SetCatcher, connect a real recording workflow, understand whether protection is active, preserve a completed set without changing its source, and find the result later without developer assistance.
 
 The beta includes multiple protection paths already implemented, but **Folder Protection is the minimum dependable promise**. Capture and history attachment improve coverage without weakening that baseline.
 
 ## Problem statement
 
-Active DJs create valuable recordings in workflows that depend on memory, application-specific folders, permissions, and inconsistent history exports. If DJMemory cannot make protection legible and dependable during a real workflow, the user will not trust it to remain running for the next set.
+Active DJs create valuable recordings in workflows that depend on memory, application-specific folders, permissions, and inconsistent history exports. If SetCatcher cannot make protection legible and dependable during a real workflow, the user will not trust it to remain running for the next set.
 
 ## Goals
 
@@ -40,30 +40,30 @@ Active DJs create valuable recordings in workflows that depend on memory, applic
 
 ### Journey A — Protect recordings written by a DJ app
 
-1. User opens DJMemory and sees current protection status.
-2. DJMemory detects supported applications and likely recording folders.
+1. User opens SetCatcher and sees current protection status.
+2. SetCatcher detects supported applications and likely recording folders.
 3. User grants access to a detected or manually selected recording folder.
-4. DJMemory watches the reachable folder while the app is running.
+4. SetCatcher watches the reachable folder while the app is running.
 5. A new audio file appears and stops changing.
-6. DJMemory creates a uniquely named archive copy and JSON sidecar.
+6. SetCatcher creates a uniquely named archive copy and JSON sidecar.
 7. The source remains unchanged and the set appears in Library.
 8. The user receives a quiet success notification and can open the archive location.
 
 ### Journey B — Capture app audio when Record/Save was not used
 
 1. User selects a shareable running DJ application and arms App audio Capture.
-2. DJMemory uses Process Audio Tap on supported macOS versions and falls back to ScreenCaptureKit when necessary.
-3. DJMemory displays permission, target, meter, recording, saving, and failure states.
+2. SetCatcher uses Process Audio Tap on supported macOS versions and falls back to ScreenCaptureKit when necessary.
+3. SetCatcher displays permission, target, meter, recording, saving, and failure states.
 4. Audio activity starts a take; the configured silence policy ends and archives it.
 5. The resulting 24-bit/48 kHz stereo WAV appears in the same Library and archive model as a protected folder recording.
-6. If the mix does not reach Mac system audio, DJMemory explains that the user should use Input device Capture or Folder Protection.
+6. If the mix does not reach Mac system audio, SetCatcher explains that the user should use Input device Capture or Folder Protection.
 
 ### Journey C — Capture a mixer or USB input
 
 1. User selects or auto-detects an audio input device.
-2. DJMemory requests microphone/input permission and displays a level meter.
+2. SetCatcher requests microphone/input permission and displays a level meter.
 3. User starts and stops Capture, or uses supported silence behavior.
-4. DJMemory archives the WAV through the same copy, metadata, and Library path.
+4. SetCatcher archives the WAV through the same copy, metadata, and Library path.
 5. Missing device, denied permission, engine failure, and disk-full states produce actionable messages.
 
 ### Journey D — Find and enrich a protected set
@@ -71,16 +71,16 @@ Active DJs create valuable recordings in workflows that depend on memory, applic
 1. User opens Library and searches or filters archived sessions.
 2. User opens Set Detail and can add event, venue, city, tags, and private notes.
 3. User imports or selects an available track history.
-4. DJMemory may attach the closest eligible history automatically.
+4. SetCatcher may attach the closest eligible history automatically.
 5. User can attach or detach a tracklist manually; a manual choice is never overridden.
 6. User may export a local publish pack. Nothing is uploaded.
 
 ### Journey E — Recover from lost access
 
-1. DJMemory detects a moved, missing, file-backed, or unreadable saved folder.
+1. SetCatcher detects a moved, missing, file-backed, or unreadable saved folder.
 2. Protection changes to Attention Needed without claiming the folder is protected.
 3. User chooses the folder again, chooses a replacement, or clears the saved folder.
-4. DJMemory resumes scanning without deleting any source or archive data.
+4. SetCatcher resumes scanning without deleting any source or archive data.
 
 ## P0 requirements
 
@@ -92,7 +92,7 @@ Active DJs create valuable recordings in workflows that depend on memory, applic
 
 Acceptance:
 
-- Given a supported clean Mac, when a tester downloads and opens DJMemory, then Gatekeeper permits normal launch and the main window appears.
+- Given a supported clean Mac, when a tester downloads and opens SetCatcher, then Gatekeeper permits normal launch and the main window appears.
 - Given no account configuration, when the app launches, then Protection, Capture, Library, and local Settings remain available.
 
 ### P0.2 Protection status and setup
@@ -110,7 +110,7 @@ Acceptance:
 
 ### P0.3 Completed-file protection
 
-- DJMemory detects supported audio files in granted recording folders.
+- SetCatcher detects supported audio files in granted recording folders.
 - It waits for stability before copying.
 - It never mutates the source, never overwrites an archive, and avoids duplicate archives through file identity and metadata.
 - It writes a metadata sidecar and adds the session to Library.
@@ -120,7 +120,7 @@ Acceptance:
 
 - Given a growing file, when scanning occurs, then the app reports active/waiting and does not archive it early.
 - Given a stable recording, when protection runs, then an archive copy and sidecar are created and the source hash is unchanged.
-- Given the same recording is scanned again, then DJMemory does not create an unintended duplicate.
+- Given the same recording is scanned again, then SetCatcher does not create an unintended duplicate.
 - Given a naming collision, then a unique archive name is created without overwriting an existing file.
 
 ### P0.4 Library and set detail
@@ -248,7 +248,7 @@ Evaluate:
 These are non-blocking for the first invite cohort unless explicitly promoted into scope:
 
 - Final post-beta price and packaging.
-- Dedicated DJMemory domain.
+- Dedicated SetCatcher domain.
 - Whether paid major upgrades or an optional compatibility-update plan best funds ongoing integration work.
-- Whether remote backup should use DJMemory storage or user-owned storage.
+- Whether remote backup should use SetCatcher storage or user-owned storage.
 - The minimum validated demand required before Windows development.

@@ -1,4 +1,4 @@
-# DJMemory Release Boundaries
+# SetCatcher Release Boundaries
 
 Last updated: August 14, 2026.
 
@@ -48,7 +48,7 @@ Add only after clean installation and support load are stable:
 - broader community recruitment and referral loops;
 - more representative Traktor, VirtualDJ, djay Pro, and hardware testing;
 - pricing and packaging experiment without removing access to existing beta data;
-- dedicated DJMemory domain and production account configuration.
+- dedicated SetCatcher domain and production account configuration.
 
 ## Post-beta candidate work
 

@@ -1,4 +1,4 @@
-# DJMemory Beta Release Checklist
+# SetCatcher Beta Release Checklist
 
 Last updated: August 29, 2026.
 
@@ -23,18 +23,18 @@ Do not push or distribute from this checklist. Those actions require separate ex
 
 - Run `swift test`.
 - Run `bash scripts/smoke-cli.sh`.
-- Run `swift build --product DJMemoryApp`.
+- Run `swift build --product SetCatcherApp`.
 - Run `bash scripts/build-app.sh release`.
 - Run `bash scripts/package-beta.sh`.
-- Confirm `.build/DJMemory.app` exists.
-- Confirm `codesign --verify --deep --strict .build/DJMemory.app` passes.
+- Confirm `.build/SetCatcher.app` exists.
+- Confirm `codesign --verify --deep --strict .build/SetCatcher.app` passes.
 - Confirm `.build/distribution/` contains a zip and JSON manifest with a SHA-256 checksum.
 - Review `docs/mvp-readiness-audit.md` for automated evidence and remaining manual checks.
 
 ## Signing and Distribution
 
 - Debug/local beta builds may use ad hoc signing (default `scripts/build-app.sh` / `scripts/package-beta.sh`).
-- External beta builds: set `DJMEMORY_DISTRIBUTION=developer-id` (see [`docs/signing-and-notarization.md`](signing-and-notarization.md)).
+- External beta builds: set `SETCATCHER_DISTRIBUTION=developer-id` (see [`docs/signing-and-notarization.md`](signing-and-notarization.md)).
 - `scripts/notarize-app.sh` submits with `notarytool` and staples; fails loudly without Developer ID + credentials.
 - Developer ID signing + notarization are required before broad direct-download distribution.
 - App Store distribution remains later, but sandbox posture should stay enabled.
@@ -49,16 +49,16 @@ Do not push or distribute from this checklist. Those actions require separate ex
 - Confirm the folder still appears.
 - Run Scan Now against a folder with no new files.
 - Confirm the Protection dashboard and menu-bar status show last-scan and next-scan timing.
-- Add or update an audio file in a watched folder and confirm DJMemory schedules a scan soon.
-- Arm App audio Capture with Serato on macOS 14.2+ and confirm Process Audio Tap records meter + WAV + archive. Probe command: `swift run djmemory app-audio-probe 8 serato`.
-- Arm App audio Capture with rekordbox on macOS 14.2+ and confirm Process Audio Tap records meter + WAV + archive. Probe command: `swift run djmemory app-audio-probe 8 rekordbox`.
-- Run fallback verification with `DJMEMORY_FORCE_SCK_APP_AUDIO=1` and confirm ScreenCaptureKit still records meter + WAV + archive. Probe command: `DJMEMORY_FORCE_SCK_APP_AUDIO=1 swift run djmemory app-audio-probe 8 serato`.
+- Add or update an audio file in a watched folder and confirm SetCatcher schedules a scan soon.
+- Arm App audio Capture with Serato on macOS 14.2+ and confirm Process Audio Tap records meter + WAV + archive. Probe command: `swift run setcatcher app-audio-probe 8 serato`.
+- Arm App audio Capture with rekordbox on macOS 14.2+ and confirm Process Audio Tap records meter + WAV + archive. Probe command: `swift run setcatcher app-audio-probe 8 rekordbox`.
+- Run fallback verification with `SETCATCHER_FORCE_SCK_APP_AUDIO=1` and confirm ScreenCaptureKit still records meter + WAV + archive. Probe command: `SETCATCHER_FORCE_SCK_APP_AUDIO=1 swift run setcatcher app-audio-probe 8 serato`.
 - Or run `bash scripts/live-app-audio-check.sh` with Serato and rekordbox open and playing through Mac system output; it fails unless Serato Process Audio Tap, rekordbox Process Audio Tap, and forced Serato ScreenCaptureKit each report `PASS meter+archive`.
 - Confirm the capture-start notification says `Recording started - HH:MM`.
 - Import one supported tracklist file.
 - Search archived sets by filename, app, venue, or matched track text.
 - Export diagnostics and confirm the report avoids track titles by default.
-- Run `swift run djmemory diagnostics ./DJMemory-Diagnostics.json` and confirm it writes a redacted support report.
+- Run `swift run setcatcher diagnostics ./SetCatcher-Diagnostics.json` and confirm it writes a redacted support report.
 
 ## Permission Recovery
 

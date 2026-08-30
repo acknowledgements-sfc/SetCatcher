@@ -1,4 +1,4 @@
-# DJMemory Feature and Workflow Catalog
+# SetCatcher Feature and Workflow Catalog
 
 Last updated: August 14, 2026. Dual-route Pioneer linking and unattended Input Capture added August 15, 2026; Pioneer Input Capture remains Manual Setup until external XDJ-XZ verification.
 
@@ -24,7 +24,7 @@ This catalog describes user-visible product behavior. Status reflects the reposi
 - Monitors reachable recording folders for file-system changes, with a periodic scan as a backstop.
 - Detects active/growing recordings separately from completed files.
 - Waits for file stability before archive.
-- Copies completed audio into the DJMemory archive.
+- Copies completed audio into the SetCatcher archive.
 - Writes a JSON sidecar and session-library record.
 - Deduplicates previously archived inputs and resolves naming collisions.
 - Supports manual scan/recovery for recent recordings.
@@ -41,7 +41,7 @@ This catalog describes user-visible product behavior. Status reflects the reposi
 
 ## Archive
 
-- Default root: `~/Music/DJMemory` with a protected archive subfolder used by current implementation.
+- Default root: `~/Music/SetCatcher` with a protected archive subfolder used by current implementation.
 - Custom root supported through a security-scoped bookmark.
 - Default naming includes date/time, source software, and set label.
 - Naming template is user-editable.
@@ -151,7 +151,7 @@ For engineering-level detail and the latest verification, use [`../integration-s
 
 ## iPad product boundary
 
-DJMemory for iPad is a standalone product surface. It does not connect to, mirror, or sync the Mac archive. Mac and iPad may share optional account identity only. iPad Capture uses device input because iPadOS cannot tap another application's audio.
+SetCatcher for iPad is a standalone product surface. It does not connect to, mirror, or sync the Mac archive. Mac and iPad may share optional account identity only. iPad Capture uses device input because iPadOS cannot tap another application's audio.
 
 ## Known beta limitations
 

@@ -1,10 +1,10 @@
-# DJMemory Product Strategy
+# SetCatcher Product Strategy
 
 Last updated: August 14, 2026.
 
 ## Product in one sentence
 
-DJMemory is a local-first Mac safety net that automatically protects completed DJ sets, keeps their context attached, and leaves the artist's original files untouched.
+SetCatcher is a local-first Mac safety net that automatically protects completed DJ sets, keeps their context attached, and leaves the artist's original files untouched.
 
 ## The problem
 
@@ -16,7 +16,7 @@ The result is not merely disorganized storage. DJs lose a record of their creati
 
 The finished set deserves its own protection layer, separate from the music library and separate from the DJ software that created it.
 
-DJMemory wins when it becomes a quiet, trusted habit:
+SetCatcher wins when it becomes a quiet, trusted habit:
 
 1. It watches or captures the right source.
 2. It detects when a set is complete.
@@ -28,9 +28,9 @@ DJMemory wins when it becomes a quiet, trusted habit:
 
 **Category:** automatic set protection.
 
-**Positioning:** For active DJs who record performances but cannot rely on a perfect post-set filing habit, DJMemory automatically preserves completed recordings and builds a usable history of the work. Unlike cloud-library products, production suites, or manual recording setups, DJMemory focuses on the finished set and works without taking custody of the artist's audio.
+**Positioning:** For active DJs who record performances but cannot rely on a perfect post-set filing habit, SetCatcher automatically preserves completed recordings and builds a usable history of the work. Unlike cloud-library products, production suites, or manual recording setups, SetCatcher focuses on the finished set and works without taking custody of the artist's audio.
 
-DJMemory is not primarily:
+SetCatcher is not primarily:
 
 - a music-library manager;
 - a cloud-storage provider;
@@ -93,7 +93,7 @@ Support labels describe tested capability, not brand presence. `Supported`, `Par
 
 ### 5. Proof builds trust
 
-DJMemory should show what it protected, when it did so, where the copy lives, whether the source remains reachable, and when it will check again. Trust is earned through receipts and recoverable states.
+SetCatcher should show what it protected, when it did so, where the copy lives, whether the source remains reachable, and when it will check again. Trust is earned through receipts and recoverable states.
 
 ## Product principles
 
@@ -109,7 +109,7 @@ DJMemory should show what it protected, when it did so, where the copy lives, wh
 
 ## Strategic differentiation
 
-| Alternative | What it does well | DJMemory's distinct job |
+| Alternative | What it does well | SetCatcher's distinct job |
 | --- | --- | --- |
 | Native DJ-app recording | Captures inside the performance tool | Protects and organizes the completed file across tools |
 | Cloud/library products | Protect tracks, metadata, and libraries | Protects the unique recording created by a performance |
@@ -123,14 +123,14 @@ The invite-only beta is free. The leading post-beta hypothesis is a one-time Mac
 
 ## Success model
 
-The north-star behavior is **a second real set protected within 30 days of activation**. A second set demonstrates that DJMemory has moved from a demo into the DJ's working routine.
+The north-star behavior is **a second real set protected within 30 days of activation**. A second set demonstrates that SetCatcher has moved from a demo into the DJ's working routine.
 
 Supporting measures:
 
 - setup completed without developer help;
 - first protected set created successfully;
 - source-file integrity confirmed;
-- user can explain what DJMemory does and does not do;
+- user can explain what SetCatcher does and does not do;
 - trust rating of at least 4/5 after first protection;
 - actionable support events per protected set trend downward;
 - users can find a protected set in under one minute.

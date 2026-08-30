@@ -3,15 +3,15 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIGURATION="${1:-debug}"
-APP_NAME="DJMemory"
-BUNDLE_ID="app.djmemory.DJMemory"
+APP_NAME="SetCatcher"
+BUNDLE_ID="app.setcatcher.SetCatcher"
 BUNDLE_DIR="$ROOT_DIR/.build/$APP_NAME.app"
 CONTENTS_DIR="$BUNDLE_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
-EXECUTABLE_PATH="$ROOT_DIR/.build/$CONFIGURATION/DJMemoryApp"
-ENTITLEMENTS_PATH="$ROOT_DIR/packaging/DJMemory.entitlements"
-DISTRIBUTION="${DJMEMORY_DISTRIBUTION:-adhoc}"
+EXECUTABLE_PATH="$ROOT_DIR/.build/$CONFIGURATION/SetCatcherApp"
+ENTITLEMENTS_PATH="$ROOT_DIR/packaging/SetCatcher.entitlements"
+DISTRIBUTION="${SETCATCHER_DISTRIBUTION:-adhoc}"
 
 detect_developer_id_identity() {
   security find-identity -v -p codesigning 2>/dev/null \
@@ -20,16 +20,16 @@ detect_developer_id_identity() {
 }
 
 resolve_sign_identity() {
-  if [[ -n "${DJMEMORY_SIGN_IDENTITY:-}" ]]; then
-    printf '%s\n' "$DJMEMORY_SIGN_IDENTITY"
+  if [[ -n "${SETCATCHER_SIGN_IDENTITY:-}" ]]; then
+    printf '%s\n' "$SETCATCHER_SIGN_IDENTITY"
     return
   fi
   if [[ "$DISTRIBUTION" == "developer-id" ]]; then
     local detected
     detected="$(detect_developer_id_identity)"
     if [[ -z "$detected" ]]; then
-      echo "error: DJMEMORY_DISTRIBUTION=developer-id but no Developer ID Application identity was found." >&2
-      echo "Install a Developer ID Application certificate, or set DJMEMORY_SIGN_IDENTITY." >&2
+      echo "error: SETCATCHER_DISTRIBUTION=developer-id but no Developer ID Application identity was found." >&2
+      echo "Install a Developer ID Application certificate, or set SETCATCHER_SIGN_IDENTITY." >&2
       echo "See docs/signing-and-notarization.md" >&2
       exit 1
     fi
@@ -40,7 +40,7 @@ resolve_sign_identity() {
 }
 
 cd "$ROOT_DIR"
-swift build --configuration "$CONFIGURATION" --product DJMemoryApp
+swift build --configuration "$CONFIGURATION" --product SetCatcherApp
 
 rm -rf "$BUNDLE_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"

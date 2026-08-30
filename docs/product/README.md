@@ -1,12 +1,12 @@
-# DJMemory Product Documentation
+# SetCatcher Product Documentation
 
 Last updated: August 14, 2026.
 
-This folder is the current product source of truth for DJMemory. It separates the enduring strategy from the beta requirements and the implemented feature inventory.
+This folder is the current product source of truth for SetCatcher. It separates the enduring strategy from the beta requirements and the implemented feature inventory.
 
 ## Read in this order
 
-1. [`product-strategy.md`](product-strategy.md) — why DJMemory exists, who it serves, where it competes, and the product principles that guide decisions.
+1. [`product-strategy.md`](product-strategy.md) — why SetCatcher exists, who it serves, where it competes, and the product principles that guide decisions.
 2. [`mvp-prd.md`](mvp-prd.md) — the requirements and acceptance criteria for the first external Mac beta.
 3. [`feature-catalog.md`](feature-catalog.md) — what the product currently does, how each workflow behaves, and what is deliberately limited.
 4. [`release-boundaries.md`](release-boundaries.md) — what belongs in Beta 1, what follows after validation, and what remains research.

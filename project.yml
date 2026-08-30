@@ -1,6 +1,6 @@
-name: DJMemory
+name: SetCatcher
 options:
-  bundleIdPrefix: app.djmemory
+  bundleIdPrefix: app.setcatcher
   deploymentTarget:
     iOS: "17.0"
     macOS: "14.0"
@@ -9,59 +9,59 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
 packages:
-  DJMemoryPackage:
+  SetCatcherPackage:
     path: .
 targets:
-  DJMemoryiPad:
+  SetCatcheriPad:
     type: application
     platform: iOS
     sources:
-      - path: Apps/DJMemoryCompanion
+      - path: Apps/SetCatcherCompanion
         excludes:
           - "**/*.entitlements"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.djmemory.DJMemory.iPad
-        PRODUCT_NAME: DJMemory
-        INFOPLIST_FILE: Apps/DJMemoryCompanion/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Apps/DJMemoryCompanion/DJMemoryCompanion.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: app.setcatcher.SetCatcher.iPad
+        PRODUCT_NAME: SetCatcher
+        INFOPLIST_FILE: Apps/SetCatcherCompanion/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
     entitlements:
-      path: Apps/DJMemoryCompanion/DJMemoryCompanion.entitlements
+      path: Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements
     dependencies:
-      - package: DJMemoryPackage
-        product: DJMemoryCompanion
-      - package: DJMemoryPackage
-        product: DJMemoryCore
-      - target: DJMemoryShareExtension
-  DJMemoryShareExtension:
+      - package: SetCatcherPackage
+        product: SetCatcherCompanion
+      - package: SetCatcherPackage
+        product: SetCatcherCore
+      - target: SetCatcherShareExtension
+  SetCatcherShareExtension:
     type: app-extension
     platform: iOS
     sources:
-      - path: Apps/DJMemoryShareExtension
+      - path: Apps/SetCatcherShareExtension
         excludes:
           - "**/*.entitlements"
           - "**/*.plist"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.djmemory.DJMemory.iPad.ShareExtension
-        PRODUCT_NAME: DJMemoryShareExtension
-        INFOPLIST_FILE: Apps/DJMemoryShareExtension/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Apps/DJMemoryShareExtension/DJMemoryShareExtension.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: app.setcatcher.SetCatcher.iPad.ShareExtension
+        PRODUCT_NAME: SetCatcherShareExtension
+        INFOPLIST_FILE: Apps/SetCatcherShareExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Apps/SetCatcherShareExtension/SetCatcherShareExtension.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
     entitlements:
-      path: Apps/DJMemoryShareExtension/DJMemoryShareExtension.entitlements
+      path: Apps/SetCatcherShareExtension/SetCatcherShareExtension.entitlements
     dependencies:
-      - package: DJMemoryPackage
-        product: DJMemoryCompanion
-      - package: DJMemoryPackage
-        product: DJMemoryCore
+      - package: SetCatcherPackage
+        product: SetCatcherCompanion
+      - package: SetCatcherPackage
+        product: SetCatcherCore
 schemes:
-  DJMemoryiPad:
+  SetCatcheriPad:
     build:
       targets:
-        DJMemoryiPad: all
-        DJMemoryShareExtension: all
+        SetCatcheriPad: all
+        SetCatcherShareExtension: all
     run:
       config: Debug

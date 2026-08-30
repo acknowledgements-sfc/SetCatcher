@@ -3,16 +3,16 @@
 # Does NOT change the macOS default input (no SwitchAudioSource / Homebrew).
 set -euo pipefail
 
-DEVICE_NAME="${DJMEMORY_XDJ_DEVICE_NAME:-XDJ-XZ}"
-DURATION="${DJMEMORY_XDJ_MAP_SECONDS:-15}"
-SIGNAL_THRESHOLD_DB="${DJMEMORY_XDJ_SIGNAL_THRESHOLD_DB:--33.98}"
+DEVICE_NAME="${SETCATCHER_XDJ_DEVICE_NAME:-XDJ-XZ}"
+DURATION="${SETCATCHER_XDJ_MAP_SECONDS:-15}"
+SIGNAL_THRESHOLD_DB="${SETCATCHER_XDJ_SIGNAL_THRESHOLD_DB:--33.98}"
 RUN_STAMP="$(date -u '+%Y%m%dT%H%M%SZ')"
-OUTPUT_DIR="${DJMEMORY_XDJ_MAP_OUTPUT_DIR:-/tmp/djmemory-xdj-channel-map-$RUN_STAMP}"
+OUTPUT_DIR="${SETCATCHER_XDJ_MAP_OUTPUT_DIR:-/tmp/setcatcher-xdj-channel-map-$RUN_STAMP}"
 CAPTURE_PATH="$OUTPUT_DIR/$DEVICE_NAME-native.wav"
 REPORT_PATH="$OUTPUT_DIR/channel-levels.txt"
 
 # Hypothesized 0-based REC OUT pair (see docs/xdj-usb-routing-2026-08-29.md).
-# Override with DJMEMORY_XDJ_HYPOTHESIZED_LEFT / _RIGHT when probing another layout.
+# Override with SETCATCHER_XDJ_HYPOTHESIZED_LEFT / _RIGHT when probing another layout.
 hypothesized_pair_for_device() {
     local name_lc
     name_lc="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
@@ -48,15 +48,15 @@ fi
 
 HYP_LEFT=""
 HYP_RIGHT=""
-if [[ -n "${DJMEMORY_XDJ_HYPOTHESIZED_LEFT:-}" && -n "${DJMEMORY_XDJ_HYPOTHESIZED_RIGHT:-}" ]]; then
-    HYP_LEFT="$DJMEMORY_XDJ_HYPOTHESIZED_LEFT"
-    HYP_RIGHT="$DJMEMORY_XDJ_HYPOTHESIZED_RIGHT"
+if [[ -n "${SETCATCHER_XDJ_HYPOTHESIZED_LEFT:-}" && -n "${SETCATCHER_XDJ_HYPOTHESIZED_RIGHT:-}" ]]; then
+    HYP_LEFT="$SETCATCHER_XDJ_HYPOTHESIZED_LEFT"
+    HYP_RIGHT="$SETCATCHER_XDJ_HYPOTHESIZED_RIGHT"
 else
     read -r HYP_LEFT HYP_RIGHT <<<"$(hypothesized_pair_for_device "$DEVICE_NAME")"
 fi
 
 cat <<MSG
-DJMemory XDJ input channel map
+SetCatcher XDJ input channel map
 device=$DEVICE_NAME
 avfoundationIndex=$DEVICE_INDEX
 durationSeconds=$DURATION

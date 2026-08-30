@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Submit .build/DJMemory.app to Apple notary service and staple the ticket.
+# Submit .build/SetCatcher.app to Apple notary service and staple the ticket.
 # Requires Developer ID signing (see docs/signing-and-notarization.md).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="DJMemory"
-BUNDLE_DIR="${DJMEMORY_APP_PATH:-$ROOT_DIR/.build/$APP_NAME.app}"
+APP_NAME="SetCatcher"
+BUNDLE_DIR="${SETCATCHER_APP_PATH:-$ROOT_DIR/.build/$APP_NAME.app}"
 DIST_DIR="$ROOT_DIR/.build/distribution"
-ZIP_FOR_NOTARY="$DIST_DIR/DJMemory-notarize-upload.zip"
+ZIP_FOR_NOTARY="$DIST_DIR/SetCatcher-notarize-upload.zip"
 
 if [[ ! -d "$BUNDLE_DIR" ]]; then
   echo "error: app bundle not found at $BUNDLE_DIR" >&2
-  echo "Run: DJMEMORY_DISTRIBUTION=developer-id bash scripts/build-app.sh release" >&2
+  echo "Run: SETCATCHER_DISTRIBUTION=developer-id bash scripts/build-app.sh release" >&2
   exit 1
 fi
 
@@ -19,7 +19,7 @@ SIGNING_INFO="$(codesign -dv --verbose=4 "$BUNDLE_DIR" 2>&1 || true)"
 if ! grep -q "Authority=Developer ID Application" <<<"$SIGNING_INFO"; then
   echo "error: $BUNDLE_DIR is not signed with Developer ID Application." >&2
   echo "Ad-hoc or Apple Development signatures cannot be notarized." >&2
-  echo "Create a Developer ID Application certificate, then rebuild with DJMEMORY_DISTRIBUTION=developer-id." >&2
+  echo "Create a Developer ID Application certificate, then rebuild with SETCATCHER_DISTRIBUTION=developer-id." >&2
   exit 1
 fi
 

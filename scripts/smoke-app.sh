@@ -2,16 +2,16 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="DJMemory"
+APP_NAME="SetCatcher"
 BUNDLE_DIR="$ROOT_DIR/.build/$APP_NAME.app"
-STRICT="${DJMEMORY_SMOKE_STRICT:-0}"
+STRICT="${SETCATCHER_SMOKE_STRICT:-0}"
 
 cd "$ROOT_DIR"
 
 bash scripts/build-app.sh debug >/dev/null
 codesign --verify --deep --strict "$BUNDLE_DIR"
 
-osascript -e "tell application id \"app.djmemory.DJMemory\" to quit" >/dev/null 2>&1 || true
+osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
 sleep 1
 
 open "$BUNDLE_DIR"
@@ -38,32 +38,32 @@ return "no-window"
 APPLESCRIPT
 )"; then
             if [[ "$WINDOW_CHECK_OUTPUT" == "window-found" ]]; then
-                echo "DJMemory window check passed."
+                echo "SetCatcher window check passed."
             else
-                echo "DJMemory smoke check warning: main window was not detected ($WINDOW_CHECK_OUTPUT)." >&2
+                echo "SetCatcher smoke check warning: main window was not detected ($WINDOW_CHECK_OUTPUT)." >&2
                 if [[ "$STRICT" == "1" ]]; then
-                    osascript -e "tell application id \"app.djmemory.DJMemory\" to quit" >/dev/null 2>&1 || true
-                    echo "DJMemory smoke check failed (strict): window missing." >&2
+                    osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
+                    echo "SetCatcher smoke check failed (strict): window missing." >&2
                     exit 1
                 fi
             fi
         else
-            echo "DJMemory smoke check warning: window check was blocked or unavailable." >&2
+            echo "SetCatcher smoke check warning: window check was blocked or unavailable." >&2
             echo "$WINDOW_CHECK_OUTPUT" >&2
             if [[ "$STRICT" == "1" ]]; then
-                osascript -e "tell application id \"app.djmemory.DJMemory\" to quit" >/dev/null 2>&1 || true
-                echo "DJMemory smoke check failed (strict): accessibility blocked." >&2
+                osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
+                echo "SetCatcher smoke check failed (strict): accessibility blocked." >&2
                 exit 1
             fi
         fi
 
-        echo "DJMemory smoke check passed."
-        osascript -e "tell application id \"app.djmemory.DJMemory\" to quit" >/dev/null 2>&1 || true
+        echo "SetCatcher smoke check passed."
+        osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
         exit 0
     fi
 
     sleep 0.5
 done
 
-echo "DJMemory smoke check failed: app process did not launch." >&2
+echo "SetCatcher smoke check failed: app process did not launch." >&2
 exit 1
