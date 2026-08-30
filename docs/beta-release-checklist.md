@@ -19,6 +19,8 @@ The current verification candidate is `codex/setcatcher-rename` at `b6a1a5e`, de
 
 Do not push or distribute from this checklist. Those actions require separate explicit approval.
 
+For the no-paid-account private beta workflow, use [`docs/external-beta-ad-hoc-guide.md`](external-beta-ad-hoc-guide.md). It covers checksum verification, Gatekeeper approval, permissions, migration, rollback, and known limitations.
+
 ## Build
 
 - Run `swift test`.
