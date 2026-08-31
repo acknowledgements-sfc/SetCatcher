@@ -23,6 +23,8 @@ bash scripts/smoke-cli.sh
 bash scripts/smoke-app.sh
 ```
 
+Pushes and pull requests to `main` run the same Swift gate on GitHub Actions (`swift build`, `swift test`, `bash scripts/smoke-cli.sh`) via [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
 Set `SETCATCHER_ARCHIVE_ROOT=/path/to/archive` when testing CLI archive, scan, or watch commands against a temporary archive folder.
 Use `swift run setcatcher diagnostics [output.json|-]` to write a privacy-redacted support report from local SetCatcher state.
 

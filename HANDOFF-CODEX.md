@@ -1,7 +1,7 @@
 # Codex / Claude leave-off — refreshed 2026-08-29
 
 Repo: `/Users/robcmartin/Documents/Claude/Projects/SetCatcher`
-Remote: `origin` → `https://github.com/acknowledgements-sfc/DJMemory.git`
+Remote: `origin` → `https://github.com/acknowledgements-sfc/SetCatcher.git`
 Branch: **`main`**, consolidated locally through **`255a6b0`** before the scoped beta-gate fixes.
 
 Read `AGENTS.md` first. This file is the fleet leave-off, not the UI spec

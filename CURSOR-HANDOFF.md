@@ -43,7 +43,7 @@ the reliable channel, so the rules restate what matters and point at the specs.
 ## Setup
 
 ```bash
-git clone https://github.com/acknowledgements-sfc/DJMemory.git
+git clone https://github.com/acknowledgements-sfc/SetCatcher.git
 cd DJMemory
 swift build          # confirm the baseline is green before Cursor touches anything
 open -a Cursor .
