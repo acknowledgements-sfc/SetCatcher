@@ -86,7 +86,14 @@ public enum LiveCaptureRouteFactsBuilder {
         from devices: [AudioInputDevice],
         cache: [String: (channels: Int, formatOK: Bool)]
     ) -> [HardwareInputObservation] {
-        devices.filter(\.isLikelyPioneerDJHardware).map { device in
+        hardwareDrafts(from: devices, cache: cache)
+    }
+
+    public static func hardwareDrafts(
+        from devices: [AudioInputDevice],
+        cache: [String: (channels: Int, formatOK: Bool)]
+    ) -> [HardwareInputObservation] {
+        devices.filter(\.isTrustedDJHardwareFeed).map { device in
             let cached = cache[device.id]
             return HardwareInputObservation(
                 device: device,

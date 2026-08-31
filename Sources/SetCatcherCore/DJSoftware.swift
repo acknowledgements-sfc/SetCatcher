@@ -142,7 +142,7 @@ public enum SupportedDJSoftware {
             defaultHistoryPaths: [],
             integrationDepth: .fileWatcher,
             supportStatus: .manualSetup,
-            notes: "App audio Capture prefers Process Audio Tap on macOS 14.2+ and falls back to ScreenCaptureKit. ScreenCaptureKit is verified with Serato, rekordbox, djay, VirtualDJ, and Traktor DJ 2; Process Audio Tap still needs live meter+archive PASS. Input device Capture remains available for DJM USB / mixer paths. Twitch Live Playlist, SSL-API, and Traktor QML CSI patches are research-only while sandboxed."
+            notes: "App audio Capture prefers Process Audio Tap and falls back to ScreenCaptureKit. ScreenCaptureKit is verified with Serato, rekordbox, djay, VirtualDJ, and Traktor DJ 2; Process Audio Tap still needs live meter+archive PASS. Input device Capture remains available for DJM USB / mixer paths. Twitch Live Playlist, SSL-API, and Traktor QML CSI patches are research-only while sandboxed."
         ),
         DJSoftware(
             id: "pioneer-hardware",
@@ -153,9 +153,50 @@ public enum SupportedDJSoftware {
             integrationDepth: .fileWatcher,
             supportStatus: .manualSetup,
             notes: "Watch USB MASTER REC folders (PIONEERREC / RECxxx.WAV). CDJs need a DJM or all-in-one REC path."
+        ),
+        DJSoftware(
+            id: "analog-mixer",
+            displayName: "Analog Mixer",
+            bundleIdentifiers: [],
+            defaultRecordingPaths: [],
+            defaultHistoryPaths: [],
+            integrationDepth: .fileWatcher,
+            supportStatus: .manualSetup,
+            notes: "Analog Mixer is Manual Setup. There is no DJ app folder to watch. Pin mixer REC OUT / SESSION OUT for unattended Input Capture, or grant a dump folder. This records the mixer rec-out, not a microphone. No tracklist is attached unless you import one."
+        ),
+        DJSoftware(
+            id: "denon-hardware",
+            displayName: "Denon Hardware",
+            bundleIdentifiers: [],
+            defaultRecordingPaths: [],
+            defaultHistoryPaths: [],
+            integrationDepth: .fileWatcher,
+            supportStatus: .manualSetup,
+            notes: "Watch Engine OS Sessions folders on USB/SD (24-bit/44.1 kHz WAV). USB Input Capture only after measured Core Audio identity. No Engine LAN scrape."
+        ),
+        DJSoftware(
+            id: "rane-hardware",
+            displayName: "Rane Hardware",
+            bundleIdentifiers: [],
+            defaultRecordingPaths: [],
+            defaultHistoryPaths: [],
+            integrationDepth: .fileWatcher,
+            supportStatus: .manualSetup,
+            notes: "Serato remains the primary path for Rane + DVS. USB mix feed and Session Out are Manual Setup extras; Session Out uses Analog Mixer pin. Channel map nil until live bench."
         )
     ]
 
     public static let captureAppID = "setcatcher-capture"
     public static let pioneerHardwareAppID = "pioneer-hardware"
+    public static let analogMixerAppID = "analog-mixer"
+    public static let denonHardwareAppID = "denon-hardware"
+    public static let raneHardwareAppID = "rane-hardware"
+
+    /// Catalog sources that are hardware adapters (no installed bundle to probe).
+    public static let hardwareAdapterAppIDs: Set<String> = [
+        pioneerHardwareAppID,
+        analogMixerAppID,
+        denonHardwareAppID,
+        raneHardwareAppID
+    ]
 }

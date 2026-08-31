@@ -37,6 +37,18 @@ struct HomeDJAppsSection: View {
                         .accessibilityIdentifier("home.app.\(result.software.id)")
                     }
                 }
+                HStack {
+                    Text("I play vinyl / analog mixer")
+                        .font(.system(size: DJToken.TypeSize.secondary))
+                        .foregroundStyle(DJToken.mutedForeground)
+                    Spacer()
+                    Button("Set up Analog Mixer") {
+                        model.selectedRoute = .app(SupportedDJSoftware.analogMixerAppID)
+                    }
+                    .buttonStyle(DJSecondaryButtonStyle())
+                    .accessibilityIdentifier("home.analogMixer.setup")
+                }
+                .padding(.top, 4)
             }
         }
     }

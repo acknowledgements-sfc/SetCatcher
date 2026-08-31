@@ -33,7 +33,10 @@ public enum PerformanceSessionLinker {
         "traktor",
         "virtualdj",
         "djay",
-        SupportedDJSoftware.pioneerHardwareAppID
+        SupportedDJSoftware.pioneerHardwareAppID,
+        SupportedDJSoftware.denonHardwareAppID,
+        SupportedDJSoftware.analogMixerAppID,
+        SupportedDJSoftware.raneHardwareAppID
     ]
 
     public static func groups(from archives: [ArchiveMetadata]) -> [PerformanceGroup] {

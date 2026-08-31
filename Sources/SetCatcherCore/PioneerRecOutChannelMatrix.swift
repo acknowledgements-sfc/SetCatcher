@@ -105,3 +105,30 @@ public enum PioneerRecOutChannelMatrix {
         }
     }
 }
+
+/// Vendor-agnostic REC OUT lookup. Pioneer rows are measured/hypothesized;
+/// Denon and Rane return `nil` until a live channel map exists (do not guess).
+public enum HardwareRecOutChannelMatrix {
+    public static func hypothesizedPair(forDeviceName name: String) -> HardwareStereoChannelPair? {
+        if let pioneer = PioneerRecOutChannelMatrix.hypothesizedPair(forDeviceName: name) {
+            return pioneer
+        }
+        // Denon / Rane: nil until live-mapped.
+        return nil
+    }
+
+    public static func resolvedPair(
+        forDeviceName deviceName: String,
+        channelCount: Int
+    ) -> Result<HardwareStereoChannelPair?, PioneerRecOutChannelMatrixError> {
+        guard let hypothesized = hypothesizedPair(forDeviceName: deviceName) else {
+            return .success(nil as HardwareStereoChannelPair?)
+        }
+        switch PioneerRecOutChannelMatrix.validate(hypothesized, channelCount: channelCount) {
+        case .success(let pair):
+            return .success(pair)
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+}

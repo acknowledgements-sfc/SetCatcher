@@ -190,28 +190,28 @@ final class AudioInputDeviceCatalogTests: XCTestCase {
 
 final class DualRoutePolicyTests: XCTestCase {
     func testBothPostureAutoSwitchesAndWatchesWhenPioneerPresent() {
-        XCTAssertTrue(DualRoutePolicy.shouldAutoSwitchToInput(posture: .both, pioneerPresent: true, userSuppressedAutoSwitch: false))
-        XCTAssertTrue(DualRoutePolicy.shouldUnattendedWatch(posture: .both, pioneerPresent: true, userDisarmedInput: false))
-        XCTAssertFalse(DualRoutePolicy.shouldUnattendedWatch(posture: .both, pioneerPresent: true, userDisarmedInput: true))
-        XCTAssertFalse(DualRoutePolicy.shouldAutoSwitchToInput(posture: .both, pioneerPresent: true, userSuppressedAutoSwitch: true))
+        XCTAssertTrue(DualRoutePolicy.shouldAutoSwitchToInput(posture: .both, hardwarePresent: true, userSuppressedAutoSwitch: false))
+        XCTAssertTrue(DualRoutePolicy.shouldUnattendedWatch(posture: .both, hardwarePresent: true, userDisarmedInput: false))
+        XCTAssertFalse(DualRoutePolicy.shouldUnattendedWatch(posture: .both, hardwarePresent: true, userDisarmedInput: true))
+        XCTAssertFalse(DualRoutePolicy.shouldAutoSwitchToInput(posture: .both, hardwarePresent: true, userSuppressedAutoSwitch: true))
     }
 
     func testFolderOnlyNeverAutoSwitches() {
-        XCTAssertFalse(DualRoutePolicy.shouldAutoSwitchToInput(posture: .folderOnly, pioneerPresent: true, userSuppressedAutoSwitch: false))
-        XCTAssertFalse(DualRoutePolicy.shouldUnattendedWatch(posture: .folderOnly, pioneerPresent: true, userDisarmedInput: false))
-        XCTAssertFalse(DualRoutePolicy.shouldAutoSelectPioneer(posture: .folderOnly))
+        XCTAssertFalse(DualRoutePolicy.shouldAutoSwitchToInput(posture: .folderOnly, hardwarePresent: true, userSuppressedAutoSwitch: false))
+        XCTAssertFalse(DualRoutePolicy.shouldUnattendedWatch(posture: .folderOnly, hardwarePresent: true, userDisarmedInput: false))
+        XCTAssertFalse(DualRoutePolicy.shouldAutoSelectHardware(posture: .folderOnly))
     }
 
     func testOnDemandSelectsButDoesNotUnattendedWatch() {
-        XCTAssertFalse(DualRoutePolicy.shouldAutoSwitchToInput(posture: .folderPrimaryInputOnDemand, pioneerPresent: true, userSuppressedAutoSwitch: false))
-        XCTAssertFalse(DualRoutePolicy.shouldUnattendedWatch(posture: .folderPrimaryInputOnDemand, pioneerPresent: true, userDisarmedInput: false))
-        XCTAssertTrue(DualRoutePolicy.shouldAutoSelectPioneer(posture: .folderPrimaryInputOnDemand))
+        XCTAssertFalse(DualRoutePolicy.shouldAutoSwitchToInput(posture: .folderPrimaryInputOnDemand, hardwarePresent: true, userSuppressedAutoSwitch: false))
+        XCTAssertFalse(DualRoutePolicy.shouldUnattendedWatch(posture: .folderPrimaryInputOnDemand, hardwarePresent: true, userDisarmedInput: false))
+        XCTAssertTrue(DualRoutePolicy.shouldAutoSelectHardware(posture: .folderPrimaryInputOnDemand))
     }
 
     func testFallbackToAppAudioWhenPioneerLeaves() {
-        XCTAssertTrue(DualRoutePolicy.shouldFallBackToAppAudio(posture: .both, pioneerPresent: false, userSuppressedAutoSwitch: false))
-        XCTAssertFalse(DualRoutePolicy.shouldFallBackToAppAudio(posture: .both, pioneerPresent: true, userSuppressedAutoSwitch: false))
-        XCTAssertFalse(DualRoutePolicy.shouldFallBackToAppAudio(posture: .both, pioneerPresent: false, userSuppressedAutoSwitch: true))
-        XCTAssertFalse(DualRoutePolicy.shouldFallBackToAppAudio(posture: .folderOnly, pioneerPresent: false, userSuppressedAutoSwitch: false))
+        XCTAssertTrue(DualRoutePolicy.shouldFallBackToAppAudio(posture: .both, hardwarePresent: false, userSuppressedAutoSwitch: false))
+        XCTAssertFalse(DualRoutePolicy.shouldFallBackToAppAudio(posture: .both, hardwarePresent: true, userSuppressedAutoSwitch: false))
+        XCTAssertFalse(DualRoutePolicy.shouldFallBackToAppAudio(posture: .both, hardwarePresent: false, userSuppressedAutoSwitch: true))
+        XCTAssertFalse(DualRoutePolicy.shouldFallBackToAppAudio(posture: .folderOnly, hardwarePresent: false, userSuppressedAutoSwitch: false))
     }
 }

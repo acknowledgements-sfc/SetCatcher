@@ -52,8 +52,8 @@ For the no-paid-account private beta workflow, use [`docs/external-beta-ad-hoc-g
 - Run Scan Now against a folder with no new files.
 - Confirm the Protection dashboard and menu-bar status show last-scan and next-scan timing.
 - Add or update an audio file in a watched folder and confirm SetCatcher schedules a scan soon.
-- Arm App audio Capture with Serato on macOS 14.2+ and confirm Process Audio Tap records meter + WAV + archive. Probe command: `swift run setcatcher app-audio-probe 8 serato`.
-- Arm App audio Capture with rekordbox on macOS 14.2+ and confirm Process Audio Tap records meter + WAV + archive. Probe command: `swift run setcatcher app-audio-probe 8 rekordbox`.
+- Arm App audio Capture with Serato on macOS 15+ and confirm Process Audio Tap records meter + WAV + archive. Probe command: `swift run setcatcher app-audio-probe 8 serato`.
+- Arm App audio Capture with rekordbox on macOS 15+ and confirm Process Audio Tap records meter + WAV + archive. Probe command: `swift run setcatcher app-audio-probe 8 rekordbox`.
 - Run fallback verification with `SETCATCHER_FORCE_SCK_APP_AUDIO=1` and confirm ScreenCaptureKit still records meter + WAV + archive. Probe command: `SETCATCHER_FORCE_SCK_APP_AUDIO=1 swift run setcatcher app-audio-probe 8 serato`.
 - Or run `bash scripts/live-app-audio-check.sh` with Serato and rekordbox open and playing through Mac system output; it fails unless Serato Process Audio Tap, rekordbox Process Audio Tap, and forced Serato ScreenCaptureKit each report `PASS meter+archive`.
 - Confirm the capture-start notification says `Recording started - HH:MM`.

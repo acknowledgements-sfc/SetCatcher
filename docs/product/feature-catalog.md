@@ -57,7 +57,7 @@ Protect a set even when the DJ forgot or could not use the DJ application's Reco
 ### Behavior
 
 - Discovers shareable running DJ applications.
-- Prefers Process Audio Tap on macOS 14.2+.
+- Prefers Process Audio Tap (macOS 15+).
 - Uses ScreenCaptureKit as the verified fallback.
 - Displays permission, target, backend, level, monitoring, recording, saving, completed, and failure states.
 - Supports armed monitoring, pre-roll, audio-triggered take start, and silence-based session split.
@@ -114,6 +114,9 @@ Protect a set even when the DJ forgot or could not use the DJ application's Reco
 | VirtualDJ | Supported | File/Network Control paths; JSONL ingest implemented | Supported and live-verified | Native plugin remains research |
 | djay Pro | Supported documented/manual folders | Limited compared with other apps | Supported and live-verified | Manual setup may be required |
 | Pioneer/DJM hardware | Manual Setup | May match the nearest eligible app history | Laptop + USB Input Capture (implemented; device verification pending) or `PIONEERREC` folder | Device-specific verification remains required. Dual-route overlap is one Library row. CDJs into a mixer that never reaches the Mac stay Manual Setup. |
+| Analog Mixer + turntables | Manual Setup | None unless the DJ imports one (or uses DVS + Serato/Traktor) | Pinned rec-out Input Capture (unattended after one-time pin) or dump-folder Protection | Not invisible Capture — see [`../analog-mixer-setup.md`](../analog-mixer-setup.md). Unknown USB stays manual-only until pinned. |
+| Denon Engine OS hardware | Manual Setup | No Engine LAN scrape | Grant USB/SD `Sessions` folder; optional USB Input Capture when measured | See [`../denon-rane-hardware-setup.md`](../denon-rane-hardware-setup.md). |
+| Rane hardware | Manual Setup | Prefer Serato history when using Serato | Serato folder + App audio (Supported); USB / Session Out extras Manual Setup | Session Out reuses Analog Mixer pin. |
 
 For engineering-level detail and the latest verification, use [`../integration-status.md`](../integration-status.md).
 

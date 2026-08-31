@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DJMemory — Every set, remembered",
+  title: "SetCatcher — Every set, remembered",
   description:
-    "DJMemory automatically protects completed DJ set recordings on your Mac and leaves the originals untouched. Join the private beta.",
+    "SetCatcher automatically protects completed DJ recordings on your Mac and leaves every original exactly where it found it.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_ACCOUNT_URL ?? "https://beatrevival.com"),
 };
 

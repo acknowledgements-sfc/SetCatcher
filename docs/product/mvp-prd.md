@@ -163,7 +163,7 @@ Acceptance:
 ### P1.1 App audio Capture
 
 - Auto-arm may be offered for a verified shareable DJ app, while preserving an explicit user Disarmed state.
-- Process Audio Tap is preferred on macOS 14.2+; ScreenCaptureKit remains the fallback.
+- Process Audio Tap is preferred; ScreenCaptureKit remains the fallback.
 - Silence thresholds, pre-roll, minimum take length, and idle split behavior are configurable within safe bounds.
 - Failed Capture never weakens an already configured Folder Protection path.
 

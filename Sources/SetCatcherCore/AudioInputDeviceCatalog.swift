@@ -98,7 +98,13 @@ public struct AudioInputDevice: Identifiable, Equatable, Sendable {
 
     public var isLikelyPioneerDJHardware: Bool {
         let haystack = "\(name) \(manufacturer)".lowercased()
-        return ["djm", "xdj", "cdj", "pioneer"].contains { haystack.contains($0) }
+        return ["djm", "xdj", "cdj", "pioneer", "alphatheta"].contains { haystack.contains($0) }
+    }
+
+    /// Trusted DJ hardware USB feed for DualRoute auto-select. Never includes unknown
+    /// USB interfaces — those require an explicit Analog Mixer pin.
+    public var isTrustedDJHardwareFeed: Bool {
+        SupportedHardware.isTrustedHardwareFeed(self)
     }
 
     /// Capture-safety classification for this device. See `AudioInputDeviceCatalog.safety(for:)`.
@@ -128,8 +134,8 @@ public enum AudioInputDeviceCatalog {
     public static func listInputs() -> [AudioInputDevice] {
         let devices = coreAudioInputDevices()
         return devices.sorted { lhs, rhs in
-            if lhs.isLikelyPioneerDJHardware != rhs.isLikelyPioneerDJHardware {
-                return lhs.isLikelyPioneerDJHardware && !rhs.isLikelyPioneerDJHardware
+            if lhs.isTrustedDJHardwareFeed != rhs.isTrustedDJHardwareFeed {
+                return lhs.isTrustedDJHardwareFeed && !rhs.isTrustedDJHardwareFeed
             }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
@@ -160,8 +166,25 @@ public enum AudioInputDeviceCatalog {
         default:
             break
         }
-        if device.isLikelyPioneerDJHardware {
-            return .trustedAutoSelectable(reason: "Pioneer DJ hardware")
+        if device.isTrustedDJHardwareFeed {
+            let reason: String
+            if let profile = SupportedHardware.profile(matching: device) {
+                switch profile.vendor {
+                case .pioneer:
+                    reason = "Pioneer DJ hardware"
+                case .denon:
+                    reason = "Denon DJ hardware"
+                case .rane:
+                    reason = "Rane DJ hardware"
+                case .genericMixer:
+                    reason = "Pinned mixer rec-out"
+                }
+            } else if device.isLikelyPioneerDJHardware {
+                reason = "Pioneer DJ hardware"
+            } else {
+                reason = "DJ hardware"
+            }
+            return .trustedAutoSelectable(reason: reason)
         }
         if let software = matchingVirtualSoftware(for: device, currentSoftwareIDs: currentSoftwareIDs) {
             return .trustedAutoSelectable(reason: "\(software.displayName) virtual audio device")
@@ -209,7 +232,7 @@ public enum AudioInputDeviceCatalog {
             }
             return false
         }
-        return trusted.first(where: \.isLikelyPioneerDJHardware) ?? trusted.first
+        return trusted.first(where: \.isTrustedDJHardwareFeed) ?? trusted.first
     }
 
     /// Devices the user may pick in the input picker: everything except blocked ambient mics.

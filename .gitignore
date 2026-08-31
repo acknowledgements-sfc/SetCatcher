@@ -23,3 +23,5 @@ skills-lock.json
 
 # Local design screenshots; keep large references out of Git history
 image-references/
+.vercel
+.env*

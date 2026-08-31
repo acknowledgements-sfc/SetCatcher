@@ -69,7 +69,7 @@ struct AddAppPickerView: View {
                 .fill(DJToken.hairline)
                 .frame(height: 1)
 
-            Text("Setting one up means choosing its recordings folder. Nothing is uploaded.")
+            Text(footerLine)
                 .font(.system(size: DJToken.TypeSize.micro))
                 .foregroundStyle(DJToken.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -77,6 +77,14 @@ struct AddAppPickerView: View {
                 .padding(.vertical, 6)
         }
         .background(DJToken.elevated)
+    }
+
+    private var footerLine: String {
+        let hasAnalog = options.contains { $0.software.id == SupportedDJSoftware.analogMixerAppID }
+        if hasAnalog {
+            return "DJ apps: choose a recordings folder. Analog Mixer: pin rec-out or grant a dump folder. Nothing is uploaded."
+        }
+        return "Setting one up means choosing its recordings folder. Nothing is uploaded."
     }
 }
 

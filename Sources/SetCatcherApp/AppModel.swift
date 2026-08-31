@@ -173,6 +173,8 @@ final class AppModel: ObservableObject {
     private var userDisarmedInputCapture = false
     /// When true, the DJ explicitly chose App audio and Pioneer auto-switch must wait for device reappear.
     private var userSuppressedPioneerAutoSwitch = false
+    /// When true, the next Input device selection pins Analog Mixer rec-out.
+    private var pendingAnalogRecOutPin = false
     private var lastPioneerDeviceID: String?
     /// `PendingAlternateSource.id`s the user has dismissed this session — suppresses
     /// re-prompting for the same still-running alternate on every poll.
@@ -383,11 +385,7 @@ final class AppModel: ObservableObject {
     }
 
     static func activateApp() {
-        if #available(macOS 15.0, *) {
-            NSApp.activate()
-        } else {
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        NSApp.activate()
     }
 
     func viewLastCaptureInMainWindow() {
@@ -499,8 +497,30 @@ final class AppModel: ObservableObject {
     }
 
     /// User-chosen recordings folder via security-scoped `FolderAccess` (HANDOFF-2 §4.10).
+    /// Analog Mixer also counts as configured when a rec-out is pinned.
     func hasConfiguredRecordingsFolder(appID: String) -> Bool {
-        folderAccesses.contains { $0.appID == appID && $0.kind == .recordings }
+        let hasDump = folderAccesses.contains { $0.appID == appID && $0.kind == .recordings }
+        if appID == SupportedDJSoftware.analogMixerAppID {
+            return AnalogMixerPolicy.isConfigured(
+                pinnedDeviceID: settings.pinnedAnalogInputDeviceID,
+                hasDumpFolder: hasDump
+            )
+        }
+        return hasDump
+    }
+
+    var hasPinnedAnalogRecOut: Bool {
+        if let id = settings.pinnedAnalogInputDeviceID, !id.isEmpty { return true }
+        return false
+    }
+
+    /// True while Choose rec-out is waiting for the DJ to pick an Input device in Capture.
+    var pendingAnalogRecOutPinning: Bool { pendingAnalogRecOutPin }
+
+    var pinnedAnalogInputDevice: AudioInputDevice? {
+        guard let id = settings.pinnedAnalogInputDeviceID else { return nil }
+        return captureState.devices.first { $0.id == id }
+            ?? AudioInputDeviceCatalog.listInputs().first { $0.id == id }
     }
 
     var hasAnyRecordingsFolderAccess: Bool {
@@ -635,9 +655,7 @@ final class AppModel: ObservableObject {
         panel.prompt = "Choose"
         panel.title = kind == .recordings ? "Set Recording Folder" : "Set History Folder"
         panel.message = kind == .recordings
-            ? (appID == SupportedDJSoftware.pioneerHardwareAppID
-                ? "Choose the USB stick or PIONEERREC folder where MASTER REC writes RECxxx.WAV files."
-                : "Choose the folder where this DJ app saves recordings.")
+            ? recordingsFolderPanelMessage(appID: appID)
             : "Choose the folder where this DJ app saves history or exports."
         panel.directoryURL = defaultFolderPanelURL(appID: appID, kind: kind)
 
@@ -655,6 +673,76 @@ final class AppModel: ObservableObject {
             appendActivity(kind: .error, message: "Folder access save failed", detail: error.localizedDescription)
             statusMessage = "Could not save folder access: \(error.localizedDescription)"
         }
+    }
+
+    private func recordingsFolderPanelMessage(appID: String) -> String {
+        switch appID {
+        case SupportedDJSoftware.pioneerHardwareAppID:
+            return "Choose the USB stick or PIONEERREC folder where MASTER REC writes RECxxx.WAV files."
+        case SupportedDJSoftware.denonHardwareAppID:
+            return "Choose the USB/SD Sessions folder where Engine OS writes set recordings."
+        case SupportedDJSoftware.analogMixerAppID:
+            return "Choose the dump folder on your recorder or USB stick. SetCatcher copies files and leaves the originals unchanged."
+        case SupportedDJSoftware.raneHardwareAppID:
+            return "Optional: choose a dump folder if you record outside Serato. Serato users should grant Serato’s Recording folder instead."
+        default:
+            return "Choose the folder where this DJ app saves recordings."
+        }
+    }
+
+    func pinAnalogRecOut(deviceID: String) {
+        pendingAnalogRecOutPin = false
+        let newSettings = settings.updating(
+            lastCaptureDeviceID: .some(deviceID),
+            captureMode: .inputDevice,
+            pinnedAnalogInputDeviceID: .some(deviceID)
+        )
+        do {
+            try appSettingsStore.save(newSettings)
+            settings = newSettings
+        } catch {
+            statusMessage = "Could not save pinned rec-out: \(error.localizedDescription)"
+            return
+        }
+        selectCaptureDevice(deviceID)
+        var next = captureState
+        next.mode = .inputDevice
+        if next.phase == .idle {
+            next.phase = .armed
+        }
+        next.statusMessage = AnalogMixerPolicy.listeningSummary(
+            deviceName: next.devices.first { $0.id == deviceID }?.name ?? "rec-out"
+        )
+        captureState = next
+        userDisarmedInputCapture = false
+        applyAnalogPinUnattendedWatch()
+        statusMessage = "Pinned rec-out. Recording starts when audio is detected; idle silence saves the take."
+        refresh()
+    }
+
+    func clearAnalogRecOutPin() {
+        let newSettings = settings.updating(pinnedAnalogInputDeviceID: .some(nil))
+        do {
+            try appSettingsStore.save(newSettings)
+            settings = newSettings
+        } catch {
+            statusMessage = "Could not clear pinned rec-out: \(error.localizedDescription)"
+            return
+        }
+        statusMessage = AnalogMixerPolicy.needsSetupMessage
+        refresh()
+    }
+
+    /// Presents the input-device picker flow for Analog Mixer Choose rec-out.
+    func beginChooseAnalogRecOut() {
+        pendingAnalogRecOutPin = true
+        refreshAudioInputs()
+        var next = captureState
+        next.mode = .inputDevice
+        next.phase = captureState.devices.isEmpty ? .idle : .armed
+        next.statusMessage = "Choose the mixer REC OUT / SESSION OUT input, then pin it."
+        captureState = next
+        selectedRoute = .capture
     }
 
     func clearFolder(appID: String, kind: FolderKind) {
@@ -1123,10 +1211,21 @@ final class AppModel: ObservableObject {
             && result.installedApplicationURLs.isEmpty
             && !result.isRunning
 
+        let hasConfigured = hasConfiguredRecordingsFolder(appID: result.software.id)
+        // Analog Mixer can be configured via pin alone (no dump folder). Treat pin as reachable.
+        let foldersReachable: Bool
+        if result.software.id == SupportedDJSoftware.analogMixerAppID,
+           hasPinnedAnalogRecOut,
+           configured.isEmpty {
+            foldersReachable = true
+        } else {
+            foldersReachable = configured.contains(where: isReachableDirectory(_:))
+        }
+
         return AppSetupState.derive(
             scanResults: scanResults(for: result.software.id),
-            hasConfiguredRecordingsFolder: hasConfiguredRecordingsFolder(appID: result.software.id),
-            configuredFoldersReachable: configured.contains(where: isReachableDirectory(_:)),
+            hasConfiguredRecordingsFolder: hasConfigured,
+            configuredFoldersReachable: foldersReachable,
             appNotInstalledOrRunning: appNotInstalledOrRunning,
             isScanning: isScanning,
             hasRecentUnstableRecording: hasRecentUnstableRecording(for: result.software.id)
@@ -2178,19 +2277,30 @@ extension AppModel {
             )?.id
         }
 
-        let preferred = devices.first(where: \.isLikelyPioneerDJHardware)
+        let preferred = devices.first(where: \.isTrustedDJHardwareFeed)
         if lastPioneerDeviceID == nil, preferred != nil {
             userSuppressedPioneerAutoSwitch = false
             userDisarmedInputCapture = false
         }
         lastPioneerDeviceID = preferred?.id
 
-        if DualRoutePolicy.shouldAutoSelectPioneer(posture: settings.dualRoutePosture),
+        // Analog pin wins over DualRoute auto-select when set.
+        if let pinnedID = settings.pinnedAnalogInputDeviceID,
+           devices.contains(where: { $0.id == pinnedID }),
+           next.mode == .inputDevice,
+           !next.isRecording,
+           next.phase != .saving,
+           next.selectedDeviceID != pinnedID,
+           !next.isWatchingOrRecording
+        {
+            next.selectedDeviceID = pinnedID
+        } else if DualRoutePolicy.shouldAutoSelectHardware(posture: settings.dualRoutePosture),
            next.mode == .inputDevice,
            !next.isRecording,
            next.phase != .saving,
            let preferred,
-           next.selectedDeviceID != preferred.id
+           next.selectedDeviceID != preferred.id,
+           settings.pinnedAnalogInputDeviceID == nil
         {
             if next.isWatchingOrRecording {
                 // DJs don't run multiple hardware sources at once. Already watching a device —
@@ -2232,6 +2342,12 @@ extension AppModel {
         {
             if clearedBlockedSelection {
                 next.statusMessage = "The built-in microphone can't be used for capture. Choose a DJ mixer, deck, or App audio Capture."
+            } else if let pinnedID = settings.pinnedAnalogInputDeviceID,
+                      !devices.contains(where: { $0.id == pinnedID }) {
+                let name = settings.lastCaptureDeviceID.flatMap { id in
+                    allDevices.first { $0.id == id }?.name
+                } ?? "your interface"
+                next.statusMessage = AnalogMixerPolicy.missingPinnedDeviceMessage(deviceName: name)
             } else {
                 next.statusMessage = devices.isEmpty
                     ? "Connect a DJM or other audio input, then refresh devices."
@@ -2254,8 +2370,24 @@ extension AppModel {
         var next = captureState
         next.selectedDeviceID = deviceID
         captureState = next
-        let newSettings = settings.updating(lastCaptureDeviceID: .some(deviceID))
+        let shouldPinAnalog = pendingAnalogRecOutPin
+            || selectedAppID == SupportedDJSoftware.analogMixerAppID
+        let newSettings: AppSettings
+        if shouldPinAnalog {
+            pendingAnalogRecOutPin = false
+            newSettings = settings.updating(
+                lastCaptureDeviceID: .some(deviceID),
+                pinnedAnalogInputDeviceID: .some(deviceID)
+            )
+        } else {
+            newSettings = settings.updating(lastCaptureDeviceID: .some(deviceID))
+        }
         do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
+        if shouldPinAnalog {
+            applyAnalogPinUnattendedWatch()
+            refresh()
+            statusMessage = "Pinned rec-out. Recording starts when audio is detected; idle silence saves the take."
+        }
     }
 
     private func applyDualRoutePolicy() {
@@ -2270,13 +2402,14 @@ extension AppModel {
         )
         // USB plug-in of a CDJ/player is not a capturable mix. Prefer a verified or
         // still-detecting mixer / all-in-one USB feed only.
-        let pioneerPresent = LiveCaptureHardwareClassifier.assess(observations).prefersHardwareInput
+        let hardwarePresent = LiveCaptureHardwareClassifier.assess(observations).prefersHardwareInput
 
         if DualRoutePolicy.shouldAutoSwitchToInput(
             posture: settings.dualRoutePosture,
-            pioneerPresent: pioneerPresent,
+            hardwarePresent: hardwarePresent,
             userSuppressedAutoSwitch: userSuppressedPioneerAutoSwitch
-        ), captureState.mode != .inputDevice, captureState.phase != .recording {
+        ), captureState.mode != .inputDevice, captureState.phase != .recording,
+           settings.pinnedAnalogInputDeviceID == nil {
             haltAppAudioCapture(markUserDisarmed: false)
             var next = captureState
             next.mode = .inputDevice
@@ -2289,12 +2422,13 @@ extension AppModel {
 
         if DualRoutePolicy.shouldFallBackToAppAudio(
             posture: settings.dualRoutePosture,
-            pioneerPresent: pioneerPresent,
+            hardwarePresent: hardwarePresent,
             userSuppressedAutoSwitch: userSuppressedPioneerAutoSwitch
         ), captureState.mode == .inputDevice,
            captureState.phase != .recording,
            captureState.phase != .watching,
-           captureState.phase != .saving {
+           captureState.phase != .saving,
+           settings.pinnedAnalogInputDeviceID == nil {
             haltInputCapture(markUserDisarmed: false)
             var next = captureState
             next.mode = .appAudio
@@ -2310,12 +2444,13 @@ extension AppModel {
 
         if DualRoutePolicy.shouldUnattendedWatch(
             posture: settings.dualRoutePosture,
-            pioneerPresent: pioneerPresent,
+            hardwarePresent: hardwarePresent,
             userDisarmedInput: userDisarmedInputCapture
         ), captureState.mode == .inputDevice,
            (captureState.phase == .idle || captureState.phase == .armed) {
             armInputCaptureWatching()
         }
+        applyAnalogPinUnattendedWatch()
         publishLiveCaptureListening(
             hardwareMonitor: LiveCaptureHardwareMonitorReading(
                 monitoredDeviceID: captureState.selectedDeviceID,
@@ -2325,9 +2460,27 @@ extension AppModel {
         )
     }
 
+    private func applyAnalogPinUnattendedWatch() {
+        guard AnalogMixerPolicy.shouldUnattendedWatch(
+            pinnedDeviceID: settings.pinnedAnalogInputDeviceID,
+            selectedDeviceID: captureState.selectedDeviceID,
+            userDisarmedInput: userDisarmedInputCapture
+        ) else { return }
+        if captureState.mode != .inputDevice {
+            var next = captureState
+            next.mode = .inputDevice
+            captureState = next
+            let newSettings = settings.updating(captureMode: .inputDevice)
+            do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
+        }
+        if captureState.phase == .idle || captureState.phase == .armed {
+            armInputCaptureWatching()
+        }
+    }
+
     private func refreshHardwareObservationCache(from devices: [AudioInputDevice]) {
         var cache: [String: (channels: Int, formatOK: Bool)] = [:]
-        for device in devices where device.isLikelyPioneerDJHardware {
+        for device in devices where device.isTrustedDJHardwareFeed {
             cache[device.id] = (
                 AudioInputDeviceCatalog.inputChannelCount(forUID: device.id),
                 AudioInputDeviceCatalog.isSupportedCaptureFormat(forUID: device.id)

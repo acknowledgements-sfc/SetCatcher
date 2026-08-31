@@ -12,7 +12,10 @@ final class SupportedDJSoftwareTests: XCTestCase {
             "virtualdj",
             "traktor",
             "setcatcher-capture",
-            "pioneer-hardware"
+            "pioneer-hardware",
+            "analog-mixer",
+            "denon-hardware",
+            "rane-hardware"
         ])
     }
 
@@ -38,6 +41,9 @@ final class SupportedDJSoftwareTests: XCTestCase {
         XCTAssertEqual(statuses["djay"], .manualSetup)
         XCTAssertEqual(statuses["setcatcher-capture"], .manualSetup)
         XCTAssertEqual(statuses["pioneer-hardware"], .manualSetup)
+        XCTAssertEqual(statuses["analog-mixer"], .manualSetup)
+        XCTAssertEqual(statuses["denon-hardware"], .manualSetup)
+        XCTAssertEqual(statuses["rane-hardware"], .manualSetup)
     }
 
     func testDjayIncludesDocumentedRecordingDefaults() throws {
@@ -59,12 +65,15 @@ final class SupportedDJSoftwareTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(byID["traktor"]).contains("com.native-instruments.tmnt"))
         XCTAssertTrue(try XCTUnwrap(byID["setcatcher-capture"]).isEmpty)
         XCTAssertTrue(try XCTUnwrap(byID["pioneer-hardware"]).isEmpty)
+        XCTAssertTrue(try XCTUnwrap(byID["analog-mixer"]).isEmpty)
+        XCTAssertTrue(try XCTUnwrap(byID["denon-hardware"]).isEmpty)
+        XCTAssertTrue(try XCTUnwrap(byID["rane-hardware"]).isEmpty)
     }
 
     func testOnlySeratoDeclaresVirtualAudioDeviceHints() {
         let byID = Dictionary(uniqueKeysWithValues: SupportedDJSoftware.all.map { ($0.id, $0.virtualAudioDeviceNameHints) })
         XCTAssertEqual(byID["serato"], ["Serato Virtual Audio"])
-        for id in ["rekordbox", "djay", "virtualdj", "traktor", "setcatcher-capture", "pioneer-hardware"] {
+        for id in ["rekordbox", "djay", "virtualdj", "traktor", "setcatcher-capture", "pioneer-hardware", "analog-mixer", "denon-hardware", "rane-hardware"] {
             XCTAssertEqual(byID[id], [], "\(id) must not declare an unverified virtual-audio hint")
         }
     }

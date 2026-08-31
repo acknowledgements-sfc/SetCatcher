@@ -31,8 +31,8 @@ fi
 
 PLIST="$ROOT_DIR/.build/$APP_NAME.app/Contents/Info.plist"
 PLIST_MIN="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$PLIST" 2>/dev/null || true)"
-if [[ "$PLIST_MIN" != "14.2" ]]; then
-  echo "ERROR: LSMinimumSystemVersion is '$PLIST_MIN', expected 14.2" >&2
+if [[ "$PLIST_MIN" != "15.0" ]]; then
+  echo "ERROR: LSMinimumSystemVersion is '$PLIST_MIN', expected 15.0" >&2
   exit 1
 fi
 
@@ -47,7 +47,7 @@ printf '  "app_name": "%s",\n' "$APP_NAME" >> "$MANIFEST_PATH"
 printf '  "version": "%s",\n' "$VERSION" >> "$MANIFEST_PATH"
 printf '  "commit": "%s",\n' "$COMMIT_SHA" >> "$MANIFEST_PATH"
 printf '  "build_date": "%s",\n' "$BUILD_DATE" >> "$MANIFEST_PATH"
-printf '  "minimum_macos": "14.2",\n' >> "$MANIFEST_PATH"
+printf '  "minimum_macos": "15.0",\n' >> "$MANIFEST_PATH"
 printf '  "artifact": "%s",\n' "$(basename "$ZIP_PATH")" >> "$MANIFEST_PATH"
 printf '  "sha256": "%s",\n' "$CHECKSUM" >> "$MANIFEST_PATH"
 printf '  "size_bytes": %s,\n' "$SIZE_BYTES" >> "$MANIFEST_PATH"

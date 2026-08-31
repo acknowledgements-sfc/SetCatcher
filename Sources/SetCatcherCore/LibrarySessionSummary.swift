@@ -61,12 +61,18 @@ public struct LibrarySessionMatcher {
 
     public static let hardwareCaptureAppIDs: Set<String> = [
         SupportedDJSoftware.captureAppID,
-        SupportedDJSoftware.pioneerHardwareAppID
+        SupportedDJSoftware.pioneerHardwareAppID,
+        SupportedDJSoftware.analogMixerAppID,
+        SupportedDJSoftware.denonHardwareAppID,
+        SupportedDJSoftware.raneHardwareAppID
     ]
 
     public static let hardwareRelatedTracklistAppIDs: Set<String> = [
         SupportedDJSoftware.captureAppID,
         SupportedDJSoftware.pioneerHardwareAppID,
+        SupportedDJSoftware.analogMixerAppID,
+        SupportedDJSoftware.denonHardwareAppID,
+        SupportedDJSoftware.raneHardwareAppID,
         "rekordbox"
     ]
 

@@ -10,7 +10,7 @@ DJMemory is a macOS safety net for DJs: it automatically preserves set recording
 
 ## Product Thesis
 
-DJMemory’s primary Mac safety net is **App audio Capture**: when armed, it records a running DJ app via Process Audio Tap on macOS 14.2+ with ScreenCaptureKit fallback, even if that app is **not** in Record/Save. After configurable idle silence, it saves the take and waits for the next set.
+DJMemory’s primary Mac safety net is **App audio Capture**: when armed, it records a running DJ app via Process Audio Tap with ScreenCaptureKit fallback, even if that app is **not** in Record/Save. After configurable idle silence, it saves the take and waits for the next set.
 
 Folder Protection remains the co-equal safety net for recordings the DJ app *does* write: DJMemory watches the right places, detects when a file has finished, copies it into a durable library, and never mutates or deletes the DJ software’s original files.
 
@@ -559,7 +559,7 @@ Status: documented in `docs/onboarding-accounts-security.md`.
 - Default archive location: `~/Music/DJMemory`.
 - First compatibility targets: Serato DJ Pro and rekordbox.
 - First metadata parser: Serato history export, followed by rekordbox XML/history imports.
-- Direct audio capture is an **in-app Capture mode** (not a separate product). **App audio** prefers Process Audio Tap on macOS 14.2+ and falls back to ScreenCaptureKit; **Input device** (Core Audio) remains for mixer/USB. Both are additive to folder Protection.
+- Direct audio capture is an **in-app Capture mode** (not a separate product). **App audio** prefers Process Audio Tap and falls back to ScreenCaptureKit; **Input device** (Core Audio) remains for mixer/USB. Both are additive to folder Protection.
 
 ## Open Decisions
 

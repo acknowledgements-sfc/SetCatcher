@@ -97,6 +97,7 @@ struct SetCatcherApplication: App {
                 .frame(minWidth: 980, minHeight: 640)
                 .modifier(RegisterOpenMainWindow(model: model))
         }
+        .defaultLaunchBehavior(.presented)
         .commands {
             AppCommands(model: model)
         }
@@ -104,9 +105,6 @@ struct SetCatcherApplication: App {
         MenuBarExtra {
             menuBarView
         } label: {
-            // The label is instantiated at launch (the WindowGroup window is not, when a
-            // MenuBarExtra is present on macOS 15+), so it's where we trigger the launch-time
-            // window open. See LaunchMainWindowOnce.
             MenuBarIconView(state: model.menuBarState)
                 .equatable()
                 .modifier(LaunchMainWindowOnce(model: model))
@@ -158,10 +156,9 @@ private struct RegisterOpenMainWindow: ViewModifier {
     }
 }
 
-/// Presents the main window once at launch. Attached to the `MenuBarExtra` label because that
-/// view IS created at launch, whereas on macOS 15+ the `WindowGroup` window is suppressed when a
-/// `MenuBarExtra` is present (so a modifier on the window content would never run at launch).
-/// Guarded to avoid opening a duplicate on OS versions / states where the window did auto-open.
+/// Registers `openWindow` from the menu-bar extra (always instantiated at launch) and presents
+/// the main window if `.defaultLaunchBehavior(.presented)` still left it closed (window restoration
+/// or a race with scene setup). No-ops when `menuBarOnly` is on.
 private struct LaunchMainWindowOnce: ViewModifier {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
@@ -179,8 +176,7 @@ private struct LaunchMainWindowOnce: ViewModifier {
             let menuBarOnly = (try? AppSettingsStore().load())?.menuBarOnly ?? false
             guard !menuBarOnly else { return }
 
-            // Open on the next run loop so the MenuBarExtra scene finishes attaching.
-            // macOS 15+ will not auto-present a WindowGroup when a MenuBarExtra exists.
+            // If the WindowGroup already came up via defaultLaunchBehavior, leave it.
             DispatchQueue.main.async {
                 if !NSApp.windows.contains(where: { $0.canBecomeKey && $0.isVisible }) {
                     openWindow(id: SetCatcherApplication.mainWindowID)

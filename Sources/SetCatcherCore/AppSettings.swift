@@ -24,6 +24,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public let menuBarOnly: Bool
     public let showFolderScanDetailsInMenuBar: Bool
     public let dualRoutePosture: DualRoutePosture
+    /// Pinned Core Audio UID for Analog Mixer rec-out. Nil until the DJ Choose-rec-out once.
+    public let pinnedAnalogInputDeviceID: String?
 
     public init(
         automaticScanningEnabled: Bool = true,
@@ -46,7 +48,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         autoArmOnDJAppFound: Bool = true,
         menuBarOnly: Bool = false,
         showFolderScanDetailsInMenuBar: Bool = false,
-        dualRoutePosture: DualRoutePosture = .both
+        dualRoutePosture: DualRoutePosture = .both,
+        pinnedAnalogInputDeviceID: String? = nil
     ) {
         self.automaticScanningEnabled = automaticScanningEnabled
         self.scanIntervalSeconds = scanIntervalSeconds
@@ -69,6 +72,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.menuBarOnly = menuBarOnly
         self.showFolderScanDetailsInMenuBar = showFolderScanDetailsInMenuBar
         self.dualRoutePosture = dualRoutePosture
+        self.pinnedAnalogInputDeviceID = pinnedAnalogInputDeviceID
     }
 
     public static let `default` = AppSettings()
@@ -90,6 +94,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case appAudioIdleSeconds, appAudioMinDurationSeconds, appAudioEnergyThreshold
         case cloudSyncEnabled, cloudArchiveBackupEnabled, autoArmOnDJAppFound
         case menuBarOnly, showFolderScanDetailsInMenuBar, dualRoutePosture
+        case pinnedAnalogInputDeviceID
     }
 
     public init(from decoder: Decoder) throws {
@@ -115,6 +120,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? false
         showFolderScanDetailsInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showFolderScanDetailsInMenuBar) ?? false
         dualRoutePosture = try c.decodeIfPresent(DualRoutePosture.self, forKey: .dualRoutePosture) ?? .both
+        pinnedAnalogInputDeviceID = try c.decodeIfPresent(String.self, forKey: .pinnedAnalogInputDeviceID)
     }
 
     public func updating(
@@ -138,7 +144,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         autoArmOnDJAppFound: Bool? = nil,
         menuBarOnly: Bool? = nil,
         showFolderScanDetailsInMenuBar: Bool? = nil,
-        dualRoutePosture: DualRoutePosture? = nil
+        dualRoutePosture: DualRoutePosture? = nil,
+        pinnedAnalogInputDeviceID: String?? = nil
     ) -> AppSettings {
         AppSettings(
             automaticScanningEnabled: automaticScanningEnabled ?? self.automaticScanningEnabled,
@@ -161,7 +168,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
             autoArmOnDJAppFound: autoArmOnDJAppFound ?? self.autoArmOnDJAppFound,
             menuBarOnly: menuBarOnly ?? self.menuBarOnly,
             showFolderScanDetailsInMenuBar: showFolderScanDetailsInMenuBar ?? self.showFolderScanDetailsInMenuBar,
-            dualRoutePosture: dualRoutePosture ?? self.dualRoutePosture
+            dualRoutePosture: dualRoutePosture ?? self.dualRoutePosture,
+            pinnedAnalogInputDeviceID: pinnedAnalogInputDeviceID ?? self.pinnedAnalogInputDeviceID
         )
     }
 }

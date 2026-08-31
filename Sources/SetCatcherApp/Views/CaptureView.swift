@@ -162,9 +162,13 @@ struct CaptureView: View {
         case .appAudio:
             return "Record audio from a running DJ app even when Record/Save is off. SetCatcher uses Process Audio Tap when available, then saves after idle silence."
         case .inputDevice:
-            if model.captureState.selectedDevice?.isLikelyPioneerDJHardware == true,
+            if model.captureState.selectedDevice?.isTrustedDJHardwareFeed == true,
                model.settings.dualRoutePosture == .both || model.settings.dualRoutePosture == .inputOnly {
                 return "Folder Protection copies Serato or rekordbox recordings. Input Capture records this USB output if Record was forgotten. USB MASTER REC sticks stay untouched—add Pioneer Hardware to watch PIONEERREC."
+            }
+            if model.selectedAppID == SupportedDJSoftware.analogMixerAppID
+                || model.hasPinnedAnalogRecOut {
+                return "This records the mixer rec-out, not a microphone. No tracklist is attached unless you import one. Pin the device once; after that, recording starts when audio is detected."
             }
             return "Record the master mix from a DJM USB input into your SetCatcher archive. USB MASTER REC sticks stay untouched—add Pioneer Hardware to watch PIONEERREC."
         }
@@ -220,8 +224,17 @@ struct CaptureView: View {
                     }
                     .accessibilityIdentifier("capture.devicePicker")
                 }
-                Button("Refresh Devices") { model.refreshAudioInputs() }
+                    Button("Refresh Devices") { model.refreshAudioInputs() }
                     .accessibilityIdentifier("capture.refreshDevices")
+                if (model.pendingAnalogRecOutPinning
+                    || model.selectedAppID == SupportedDJSoftware.analogMixerAppID),
+                   let deviceID = model.captureState.selectedDeviceID {
+                    Button("Pin this rec-out") {
+                        model.pinAnalogRecOut(deviceID: deviceID)
+                    }
+                    .buttonStyle(DJPrimaryButtonStyle())
+                    .accessibilityIdentifier("capture.pinAnalogRecOut")
+                }
                 levelMeter
             }
         }
@@ -290,10 +303,17 @@ struct CaptureView: View {
     }
 
     private var usesUnattendedInput: Bool {
-        let pioneer = model.captureState.selectedDevice?.isLikelyPioneerDJHardware == true
+        if AnalogMixerPolicy.shouldUnattendedWatch(
+            pinnedDeviceID: model.settings.pinnedAnalogInputDeviceID,
+            selectedDeviceID: model.captureState.selectedDeviceID,
+            userDisarmedInput: false
+        ) {
+            return true
+        }
+        let hardware = model.captureState.selectedDevice?.isTrustedDJHardwareFeed == true
         switch model.settings.dualRoutePosture {
         case .both, .inputOnly:
-            return pioneer
+            return hardware
         case .folderPrimaryInputOnDemand, .folderOnly:
             return false
         }

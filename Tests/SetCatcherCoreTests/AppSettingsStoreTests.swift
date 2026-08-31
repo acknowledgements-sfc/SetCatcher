@@ -62,5 +62,13 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(settings.appAudioEnergyThreshold, 0.02, accuracy: 0.0001)
         XCTAssertTrue(settings.autoArmOnDJAppFound)
         XCTAssertEqual(settings.dualRoutePosture, .both)
+        XCTAssertNil(settings.pinnedAnalogInputDeviceID)
+    }
+
+    func testPinnedAnalogInputDeviceIDRoundTrips() throws {
+        let store = AppSettingsStore(storageURL: tempRoot.appendingPathComponent("settings.json"))
+        let settings = AppSettings(pinnedAnalogInputDeviceID: "USBAudioDevice:Test:RecOut")
+        try store.save(settings)
+        XCTAssertEqual(try store.load().pinnedAnalogInputDeviceID, "USBAudioDevice:Test:RecOut")
     }
 }

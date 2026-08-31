@@ -9,10 +9,24 @@ final class HardwareProfileTests: XCTestCase {
         }
     }
 
+    func testCatalogIncludesDenonRaneAndAnalogProfiles() {
+        let ids = Set(SupportedHardware.all.map(\.id))
+        for id in ["prime-4", "prime-4-plus", "sc-live-4", "sc6000", "seventy", "seventy-two", "analog-rec-out"] {
+            XCTAssertTrue(ids.contains(id), id)
+        }
+        XCTAssertEqual(SupportedHardware.profile(id: "prime-4")?.vendor, .denon)
+        XCTAssertEqual(SupportedHardware.profile(id: "seventy")?.vendor, .rane)
+        XCTAssertEqual(SupportedHardware.profile(id: "analog-rec-out")?.vendor, .genericMixer)
+        XCTAssertEqual(SupportedHardware.profile(id: "prime-4")?.usbRecFolderHint, "Sessions")
+    }
+
     func testSoftwareCatalogIncludesCaptureAndPioneerHardware() {
         let ids = Set(SupportedDJSoftware.all.map(\.id))
         XCTAssertTrue(ids.contains(SupportedDJSoftware.captureAppID))
         XCTAssertTrue(ids.contains(SupportedDJSoftware.pioneerHardwareAppID))
+        XCTAssertTrue(ids.contains(SupportedDJSoftware.analogMixerAppID))
+        XCTAssertTrue(ids.contains(SupportedDJSoftware.denonHardwareAppID))
+        XCTAssertTrue(ids.contains(SupportedDJSoftware.raneHardwareAppID))
     }
 
     func testPioneerRECFilenameIsAudio() {
@@ -50,5 +64,22 @@ final class HardwareProfileTests: XCTestCase {
         XCTAssertEqual(SupportedHardware.profile(matching: xz)?.id, "xdj-xz")
         let unknown = AudioInputDevice(id: "mic", name: "MacBook Pro Microphone", manufacturer: "Apple Inc.", transportType: .builtIn)
         XCTAssertNil(SupportedHardware.profile(matching: unknown))
+        let prime = AudioInputDevice(id: "p4", name: "PRIME 4", manufacturer: "Denon DJ", transportType: .usb)
+        XCTAssertEqual(SupportedHardware.profile(matching: prime)?.id, "prime-4")
+        let focusrite = AudioInputDevice(id: "scarlett", name: "Scarlett 2i2", manufacturer: "Focusrite", transportType: .usb)
+        XCTAssertFalse(SupportedHardware.isTrustedHardwareFeed(focusrite))
+        XCTAssertTrue(SupportedHardware.isTrustedHardwareFeed(xz))
+        XCTAssertFalse(SupportedHardware.isTrustedHardwareFeed(
+            AudioInputDevice(id: "a", name: "Analog Mixer Rec Out", manufacturer: "Generic", transportType: .usb)
+        ))
+    }
+
+    func testHardwareRecOutMatrixLeavesDenonRaneUnmapped() {
+        XCTAssertNil(HardwareRecOutChannelMatrix.hypothesizedPair(forDeviceName: "PRIME 4"))
+        XCTAssertNil(HardwareRecOutChannelMatrix.hypothesizedPair(forDeviceName: "Rane Seventy"))
+        XCTAssertEqual(
+            HardwareRecOutChannelMatrix.hypothesizedPair(forDeviceName: "XDJ-XZ"),
+            HardwareStereoChannelPair(leftIndex: 4, rightIndex: 5)
+        )
     }
 }

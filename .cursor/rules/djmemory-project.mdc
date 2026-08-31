@@ -4,7 +4,7 @@ alwaysApply: true
 ---
 
 DJMemory is a native macOS utility that automatically archives DJ set recordings from Serato DJ Pro,
-rekordbox, Traktor, VirtualDJ, and djay Pro. SwiftUI, macOS 14+, SwiftPM tools 5.10, **no external
+rekordbox, Traktor, VirtualDJ, and djay Pro. SwiftUI, macOS 15+, SwiftPM tools 5.10, **no external
 dependencies**.
 
 ## Specs

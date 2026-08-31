@@ -91,7 +91,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.music</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>14.2</string>
+	<string>15.0</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright (c) 2026 SetCatcher</string>
 	<key>NSMicrophoneUsageDescription</key>

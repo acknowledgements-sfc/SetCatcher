@@ -14,8 +14,11 @@ Last updated: August 26, 2026.
 | Traktor | Supported | Recordings + NML; App audio Capture verified end-to-end on Traktor DJ 2 (meter + archive write). Pro QML CSI live API = Research only |
 | VirtualDJ | Supported | File watch + Network Control; App audio Capture verified end-to-end (meter + archive write). Native plugin = Research (M14) |
 | djay Pro | Supported | Documented folders; App audio Capture verified end-to-end on djay Pro 2 (meter + archive write) |
-| DJMemory Capture | Implemented | App audio backend selector prefers Process Audio Tap on macOS 14.2+ and falls back to ScreenCaptureKit; ScreenCaptureKit verified end-to-end on Serato, rekordbox, djay Pro 2, VirtualDJ, Traktor DJ 2; Input device (Core Audio); silence session split |
+| DJMemory Capture | Implemented | App audio backend selector prefers Process Audio Tap and falls back to ScreenCaptureKit; ScreenCaptureKit verified end-to-end on Serato, rekordbox, djay Pro 2, VirtualDJ, Traktor DJ 2; Input device (Core Audio); silence session split |
 | Pioneer Hardware | Manual Setup | USB PIONEERREC / RECxxx.WAV watch. Laptop + XDJ-XZ USB Input Capture: **dev-bench 15 Aug 2026** saw Core Audio `name` `XDJ-XZ` (manufacturer `AlphaTheta Corporation`, UID `USBAudioDevice:AlphaTheta Corporation:XDJ-XZ (2):1110000`), archived a 24-bit/48 kHz stereo WAV via `ingestCapture`, and grouped overlapping Serato + Capture as one Library session. Later the same day HAL bind (`setDeviceID`) is in the rebuilt app; operator also archived Serato and rekordbox via App audio Capture (Process Audio Tap) while playing through the XZ. That is the already-Supported app path, not USB Input Capture. **dev operator; Supported not flipped.** Meter-with-master, unplug, and mic-denied still need an operator, then a non-dev pass. See `docs/pioneer-hardware-setup.md`. |
+| Analog Mixer | Manual Setup | Vinyl / analog mixer: pin rec-out once, then unattended Input Capture on that UID only; or grant a dump folder. No invented tracklists. Unknown USB stays manual-only (webcam rule). See `docs/analog-mixer-setup.md`. **Supported not claimed.** |
+| Denon Hardware | Manual Setup | Engine OS `Sessions` stick/SD folder watch (PIONEERREC analogue). USB Input Capture only after measured Core Audio identity. No Engine LAN. See `docs/denon-rane-hardware-setup.md`. |
+| Rane Hardware | Manual Setup | Serato remains primary for Seventy-class + DVS. USB program pair and Session Out (Analog pin) are extras. Channel map nil until live bench. See `docs/denon-rane-hardware-setup.md`. |
 
 ## Source map (official vs community / sandbox-safe vs research)
 
@@ -23,7 +26,7 @@ Locked Mac product paths stay **sandbox-safe**. Community live-deck hacks stay *
 
 | Source | Kind | Use in DJMemory |
 | --- | --- | --- |
-| Process Audio Tap | Platform SDK | Preferred App audio Capture backend on macOS 14.2+; live-verified end-to-end (Serato, rekordbox 6, rekordbox 7) |
+| Process Audio Tap | Platform SDK | Preferred App audio Capture backend; live-verified end-to-end (Serato, rekordbox 6, rekordbox 7) |
 | ScreenCaptureKit App audio | Platform SDK | Product Capture |
 | Invisible DJ app capture research | Product research | Current design target: after initial onboarding, no supported DJ app may require routine manual output/input changes. Research must verify the exact macOS API/driver/helper path, permissions, entitlements, process targeting, minimum OS, real-audio bench, and automatic restore behavior before implementation. See `docs/handoff-cursor-fable-invisible-capture-research-2026-08-26.md`. |
 | Folder Protection + bookmarks | Product | Copy-only archive |
@@ -49,7 +52,7 @@ automatic activation, deactivation, restore-to-previous/default audio device beh
 real-audio capture before any final driver claim.
 
 Primary Mac feature: when a shareable DJ app is found, **auto-arm** Capture (unless the user Disarmed)
-→ Process Audio Tap captures the running DJ app on macOS 14.2+ → ScreenCaptureKit is the fallback
+→ Process Audio Tap captures the running DJ app → ScreenCaptureKit is the fallback
 backend → silence policy starts/stops/archives takes → stays watching. Writes **24-bit / 48 kHz**
 stereo WAV. Requires `NSAudioCaptureUsageDescription`; ScreenCaptureKit fallback also requires Screen
 & System Audio Recording. Does **not** work when the mix never hits Mac system audio (exclusive
@@ -76,7 +79,7 @@ Local verify (2026-08-12) — write-path bug found and fixed:
 
 Implementation update (2026-08-13):
 
-- `AppAudioCaptureService` now selects a backend: Process Audio Tap first on macOS 14.2+ unless `DJMEMORY_FORCE_SCK_APP_AUDIO=1`, then ScreenCaptureKit fallback. The Process Audio Tap service creates a private Core Audio tap with `CATapDescription`, attaches it to a private aggregate device, meters/writes PCM through the shared 24-bit / 48 kHz WAV path, and destroys the tap/device on stop or failed arm.
+- `AppAudioCaptureService` now selects a backend: Process Audio Tap first unless `DJMEMORY_FORCE_SCK_APP_AUDIO=1`, then ScreenCaptureKit fallback. The Process Audio Tap service creates a private Core Audio tap with `CATapDescription`, attaches it to a private aggregate device, meters/writes PCM through the shared 24-bit / 48 kHz WAV path, and destroys the tap/device on stop or failed arm.
 - Packaging check: `scripts/build-app.sh` already writes `NSAudioCaptureUsageDescription`. **Resolved (2026-08-13):** `com.apple.security.system-audio-capture` is not a real/documented Apple entitlement — it does not appear in Apple's Entitlement Key Reference, the CoreAudio/`AudioHardwareCreateProcessTap` docs, or App Sandbox docs, and no header/SDK search or public developer report confirms it exists. Do not add it to `packaging/DJMemory.entitlements`. The actual known risk for Process Audio Tap under Developer ID/App Store is different: independent reports (e.g. community writeups building CATap-based capture tools in 2026) describe CATap behavior as **fragile under App Sandbox** and disable `com.apple.security.app-sandbox` entirely for their sandboxed-unsafe builds, relying instead on `NSAudioCaptureUsageDescription` + a properly signed (not ad-hoc) binary to trigger the TCC prompt. Our entitlements file currently keeps `com.apple.security.app-sandbox = true` (required for Mac App Store distribution later) — this is the item to watch: if Process Audio Tap misbehaves under Developer ID + sandbox in live testing or on a clean Mac, the fallback is confirmed working (ScreenCaptureKit backend), not a missing entitlement. No entitlement change is needed before Developer ID signing.
 - Local probe: VirtualDJ was the only running target. Default backend reported `backend: Process Audio Tap` and forced fallback reported `backend: ScreenCaptureKit`; both armed and cleaned up. Meter was silent, so live meter + archive verification remains pending.
 - Probe update (2026-08-13): `swift run djmemory app-audio-probe <seconds> <softwareID>` and `.build/DJMemory.app/Contents/MacOS/DJMemory --app-audio-probe <seconds> <softwareID>` now archive successful metered captures through `ArchiveService.ingestCapture`, print archive + metadata paths, and confirm the new session appears in `SessionLibrary`.

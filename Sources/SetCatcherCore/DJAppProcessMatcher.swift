@@ -17,7 +17,7 @@ public enum DJAppProcessMatcher {
     public static var capturableSoftware: [DJSoftware] {
         SupportedDJSoftware.all.filter { software in
             software.id != SupportedDJSoftware.captureAppID
-                && software.id != SupportedDJSoftware.pioneerHardwareAppID
+                && !SupportedDJSoftware.hardwareAdapterAppIDs.contains(software.id)
                 && !software.bundleIdentifiers.isEmpty
         }
     }

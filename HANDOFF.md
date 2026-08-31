@@ -2,7 +2,7 @@
 
 This document hands the SetCatcher UI prototype to an agent working in this repo.
 
-**Target:** `Sources/SetCatcherApp` — SwiftUI, macOS 14+, SwiftPM, no external dependencies.
+**Target:** `Sources/SetCatcherApp` — SwiftUI, macOS 15+, SwiftPM, no external dependencies.
 **Not the target:** porting React code. The prototype is a *visual and behavioural reference*.
 Every screen is built in SwiftUI against the existing `SetCatcherCore` types.
 

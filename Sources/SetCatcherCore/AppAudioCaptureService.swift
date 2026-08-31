@@ -153,7 +153,7 @@ public enum AppAudioCaptureBackendSelector {
     }
 }
 
-/// Facade for app-audio capture. Process Audio Tap first on macOS 14.2+, then
+/// Facade for app-audio capture. Process Audio Tap first, then
 /// ScreenCaptureKit, then opt-in vendor virtual input after both Apple paths fail.
 public final class AppAudioCaptureService: @unchecked Sendable {
     public private(set) var activeBackendKind: AppAudioCaptureBackendKind = .screenCaptureKit
@@ -491,12 +491,7 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
         )
     }
 
-    public static var isSupported: Bool {
-        if #available(macOS 14.2, *) {
-            return true
-        }
-        return false
-    }
+    public static var isSupported: Bool { true }
 
     public func listShareableDJApps() async throws -> [MatchedDJApp] {
         let bundleIDs = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
@@ -509,9 +504,6 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
         prerollSeconds: TimeInterval = 1.0
     ) async throws {
         guard !isMonitoring else { throw AppAudioCaptureError.alreadyMonitoring }
-        guard Self.isSupported else {
-            throw AppAudioCaptureError.engineFailed("Process Audio Tap requires macOS 14.2 or later.")
-        }
         guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleIdentifier }) else {
             throw AppAudioCaptureError.appNotShareable(displayName)
         }
@@ -616,9 +608,6 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
         processObjectID: AudioObjectID? = nil,
         displayName: String
     ) throws -> AudioObjectID {
-        guard #available(macOS 14.2, *) else {
-            throw AppAudioCaptureError.engineFailed("Process Audio Tap requires macOS 14.2 or later.")
-        }
         let description: CATapDescription
         if #available(macOS 26, *) {
             description = CATapDescription()
@@ -707,9 +696,7 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
 
     private func destroyTap(_ tapID: AudioObjectID) {
         guard tapID != kAudioObjectUnknown else { return }
-        if #available(macOS 14.2, *) {
-            _ = AudioHardwareDestroyProcessTap(tapID)
-        }
+        _ = AudioHardwareDestroyProcessTap(tapID)
     }
 
     private func statusError(_ action: String, _ status: OSStatus) -> AppAudioCaptureError {

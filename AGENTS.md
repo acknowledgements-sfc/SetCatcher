@@ -1,7 +1,7 @@
 # SetCatcher
 
 Native macOS utility that automatically backs up DJ set recordings from Serato DJ Pro, rekordbox,
-Traktor, VirtualDJ, and djay Pro. Local-first. Swift Package Manager, SwiftUI, macOS 14+.
+Traktor, VirtualDJ, and djay Pro. Local-first. Swift Package Manager, SwiftUI, macOS 15+.
 
 ## Commands
 
@@ -24,7 +24,7 @@ never depend on it. Do not add further packages without saying why in the PR des
 
 ## Layout
 
-- `Package.swift` — tools 5.10, `.macOS(.v14)`. Products: `SetCatcherApp` (executable),
+- `Package.swift` — tools 5.10, macOS 15.0. Products: `SetCatcherApp` (executable),
   `setcatcher` (CLI executable), `SetCatcherCore` (library).
 - `Sources/SetCatcherCore/` — all models, stores, scanning, and archiving. **No SwiftUI, no AppKit
   UI.** This layer is unit-tested and must stay UI-agnostic.

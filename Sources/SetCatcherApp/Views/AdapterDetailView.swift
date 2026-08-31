@@ -77,15 +77,19 @@ struct AdapterDetailView: View {
                 }
 
                 if result.software.id == SupportedDJSoftware.pioneerHardwareAppID {
-                    Panel(title: "Supported hardware", padding: 12) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(SupportedHardware.all) { profile in
-                                Text("\(profile.displayName) — \(profile.adapterListCaption)")
-                                    .font(.system(size: DJToken.TypeSize.secondary))
-                                    .foregroundStyle(DJToken.mutedForeground)
-                            }
-                        }
-                    }
+                    hardwareProfilesPanel(vendor: .pioneer)
+                }
+
+                if result.software.id == SupportedDJSoftware.denonHardwareAppID {
+                    hardwareProfilesPanel(vendor: .denon)
+                }
+
+                if result.software.id == SupportedDJSoftware.raneHardwareAppID {
+                    hardwareProfilesPanel(vendor: .rane)
+                }
+
+                if result.software.id == SupportedDJSoftware.analogMixerAppID {
+                    analogMixerPinPanel
                 }
 
                 Panel(title: "Setup", padding: 12) {
@@ -114,14 +118,87 @@ struct AdapterDetailView: View {
                 primaryAction: {
                     model.selectedRoute = .protection
                 },
-                secondaryTitle: "Browse first app",
+                secondaryTitle: "I play vinyl / analog mixer",
                 secondaryAction: {
-                    if let first = model.probeResults.first {
-                        model.selectedRoute = .app(first.software.id)
-                    }
+                    model.selectedRoute = .app(SupportedDJSoftware.analogMixerAppID)
                 }
             )
             .accessibilityIdentifier("adapter.empty")
+        }
+    }
+
+    @ViewBuilder
+    private func hardwareProfilesPanel(vendor: HardwareVendor) -> some View {
+        Panel(title: "Supported hardware", padding: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(SupportedHardware.profiles(vendor: vendor)) { profile in
+                    Text("\(profile.displayName) — \(profile.adapterListCaption)")
+                        .font(.system(size: DJToken.TypeSize.secondary))
+                        .foregroundStyle(DJToken.mutedForeground)
+                }
+            }
+        }
+    }
+
+    private var analogMixerPinPanel: some View {
+        Panel(title: "Rec-out pin", padding: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Analog Mixer is Manual Setup. There is no DJ app folder to watch.")
+                    .font(.system(size: DJToken.TypeSize.body))
+                    .foregroundStyle(DJToken.foreground)
+                Text("Once: connect mixer REC OUT or SESSION OUT to this Mac, then Choose rec-out. After that, SetCatcher records when audio is detected and saves on idle silence.")
+                    .font(.system(size: DJToken.TypeSize.secondary))
+                    .foregroundStyle(DJToken.mutedForeground)
+                Text("This records the mixer rec-out, not a microphone. No tracklist is attached unless you import one.")
+                    .font(.system(size: DJToken.TypeSize.secondary))
+                    .foregroundStyle(DJToken.mutedForeground)
+                Text("Do not use booth, headphones, or a built-in mic. Those are not the set.")
+                    .font(.system(size: DJToken.TypeSize.secondary))
+                    .foregroundStyle(DJToken.warn)
+
+                if let pinned = model.pinnedAnalogInputDevice {
+                    PathChip(path: pinned.name)
+                    Text(AnalogMixerPolicy.listeningSummary(deviceName: pinned.name))
+                        .font(.system(size: DJToken.TypeSize.secondary))
+                        .foregroundStyle(DJToken.mutedForeground)
+                } else if model.hasPinnedAnalogRecOut {
+                    Text(AnalogMixerPolicy.missingPinnedDeviceMessage(deviceName: "your interface"))
+                        .font(.system(size: DJToken.TypeSize.secondary))
+                        .foregroundStyle(DJToken.danger)
+                } else {
+                    Text(AnalogMixerPolicy.needsSetupMessage)
+                        .font(.system(size: DJToken.TypeSize.secondary))
+                        .foregroundStyle(DJToken.warn)
+                }
+
+                HStack(spacing: 8) {
+                    Button("Choose rec-out") {
+                        model.beginChooseAnalogRecOut()
+                    }
+                    .buttonStyle(DJPrimaryButtonStyle())
+                    .accessibilityIdentifier("setup.analog-mixer.chooseRecOut")
+
+                    Button("Refresh") {
+                        model.refreshAudioInputs()
+                    }
+                    .buttonStyle(DJHollowButtonStyle())
+                    .accessibilityIdentifier("setup.analog-mixer.refresh")
+
+                    if model.hasPinnedAnalogRecOut {
+                        Button("Clear pin") {
+                            model.clearAnalogRecOutPin()
+                        }
+                        .buttonStyle(DJGhostButtonStyle())
+                        .accessibilityIdentifier("setup.analog-mixer.clearPin")
+                    }
+
+                    Button("Choose dump folder") {
+                        model.chooseFolder(appID: SupportedDJSoftware.analogMixerAppID, kind: .recordings)
+                    }
+                    .buttonStyle(DJHollowButtonStyle())
+                    .accessibilityIdentifier("setup.analog-mixer.chooseDumpFolder")
+                }
+            }
         }
     }
 
@@ -160,6 +237,32 @@ struct AdapterDetailView: View {
                 "SetCatcher copies stable RECxxx.WAV files into your archive and leaves the stick unchanged.",
                 "MASTER REC files have no clock — archive time uses the file modification date.",
                 "CDJs need the Mac in the USB audio path, a DJM Capture path, or a PIONEERREC folder. A mixer that never reaches the Mac is Manual Setup."
+            ]
+        case "analog-mixer":
+            return [
+                "Analog Mixer is Manual Setup. There is no DJ app folder to watch.",
+                "Once: connect mixer REC OUT or SESSION OUT to this Mac, then Choose rec-out. After that, SetCatcher records when audio is detected and saves on idle silence.",
+                "This records the mixer rec-out, not a microphone. No tracklist is attached unless you import one.",
+                "Do not use booth, headphones, or a built-in mic. Those are not the set.",
+                "Every gig: plug in the same interface and play. If the pinned device is missing, Refresh or Choose rec-out again.",
+                "Dump path: if the Mac is out of the mix, grant the folder on your recorder or USB stick after the set. SetCatcher copies files and leaves the originals unchanged.",
+                "Track history is optional and import-only. Skipping is expected for vinyl-only sets."
+            ]
+        case "denon-hardware":
+            return [
+                "Once: record on the Engine OS unit when you want a set on the stick (forgetting Record is still possible).",
+                "After the gig, mount the USB/SD and choose the Sessions folder at the media root.",
+                "SetCatcher copies stable WAVs into your archive and leaves the stick unchanged.",
+                "Engine Sessions files may have no clock — archive time uses the file modification date.",
+                "USB Input Capture for Denon stays Manual Setup until Core Audio identity is measured on a live unit.",
+                "Do not join Engine OS LAN for now-playing or library scrape."
+            ]
+        case "rane-hardware":
+            return [
+                "Serato remains the primary path for Rane + DVS turntables — grant Serato’s Recording folder and use App audio Capture.",
+                "USB mix feed is Manual Setup until a live bench maps the program pair (not DVS control tone).",
+                "Session Out RCA into a second interface uses Analog Mixer Choose rec-out (same pin as vinyl-only).",
+                "Do not vendor BlackHole or other HAL loopbacks."
             ]
         case "setcatcher-capture":
             return [
