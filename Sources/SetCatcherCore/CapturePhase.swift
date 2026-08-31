@@ -9,6 +9,19 @@ public enum CapturePhase: Equatable, Sendable {
     case recording
     case saving
     case failed(String)
+
+    /// Whether Capture is on duty and idle system sleep must be prevented.
+    ///
+    /// True for `.watching` (Armed, waiting for audio), `.recording`, and `.saving`.
+    /// False for `.armed` alone (targets known but not monitoring) and idle/permission/failed.
+    public var shouldPreventIdleSleep: Bool {
+        switch self {
+        case .watching, .recording, .saving:
+            return true
+        case .idle, .requestingPermission, .needsScreenRecordingPermission, .armed, .failed:
+            return false
+        }
+    }
 }
 
 /// A different DJ app or input device detected while one is already armed/watching/recording.
@@ -104,9 +117,6 @@ public struct CaptureUIState: Equatable, Sendable {
     }
 
     public var isWatchingOrRecording: Bool {
-        switch phase {
-        case .watching, .recording, .saving: return true
-        default: return false
-        }
+        phase.shouldPreventIdleSleep
     }
 }

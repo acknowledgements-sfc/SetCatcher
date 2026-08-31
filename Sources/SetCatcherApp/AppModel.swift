@@ -161,6 +161,9 @@ final class AppModel: ObservableObject {
     let captureService = CaptureService()
     let appAudioCaptureService = AppAudioCaptureService()
     private var captureSession = CaptureSessionCoordinator()
+    private let captureIdleSleepGuard = CaptureIdleSleepGuard()
+    /// Weak handle so `AppDelegate.applicationWillTerminate` can release the idle-sleep activity.
+    static weak var lifecycleOwner: AppModel?
     private var scanTask: Task<Void, Never>?
     private var folderChangeScanTask: Task<Void, Never>?
     var captureMeterTask: Task<Void, Never>?
@@ -188,6 +191,7 @@ final class AppModel: ObservableObject {
     private var suppressProfilePersistence = false
 
     init() {
+        Self.lifecycleOwner = self
         notificationService.requestAuthorization()
         let migrationResult = dataMigration.run()
         refresh()
@@ -242,6 +246,12 @@ final class AppModel: ObservableObject {
         playbackProgressTask?.cancel()
         folderChangeMonitor.stop()
         historyChangeMonitor.stop()
+        captureIdleSleepGuard.release()
+    }
+
+    /// Ends any idle-sleep activity held for Capture (Disarm, terminate, teardown).
+    func releaseCaptureIdleSleepAssertion() {
+        captureIdleSleepGuard.release()
     }
 
     var protectedAdapterCount: Int {
@@ -345,6 +355,10 @@ final class AppModel: ObservableObject {
             recordingStartedAt = Date()
         } else if captureState.phase != .recording {
             recordingStartedAt = nil
+        }
+
+        if oldValue.phase != captureState.phase {
+            captureIdleSleepGuard.sync(shouldHold: captureState.phase.shouldPreventIdleSleep)
         }
 
         if case .failed(let reason) = captureState.phase, oldValue.phase != captureState.phase {

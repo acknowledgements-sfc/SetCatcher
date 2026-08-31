@@ -34,6 +34,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyActivationPolicyFromSettings()
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        // Synchronous release so the ProcessInfo activity ends before process exit.
+        // AppModel is @MainActor; terminate runs on the main thread.
+        MainActor.assumeIsolated {
+            AppModel.lifecycleOwner?.releaseCaptureIdleSleepAssertion()
+        }
+    }
+
     private func applyActivationPolicyFromSettings() {
         let menuBarOnly = (try? AppSettingsStore().load())?.menuBarOnly ?? false
         if menuBarOnly {
