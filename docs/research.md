@@ -1,6 +1,6 @@
 # Research Notes
 
-Last checked: August 15, 2026.
+Last checked: August 30, 2026.
 
 ## Competitor: Serauto
 
@@ -30,7 +30,8 @@ DJMemory ships **App Store–sandbox-safe** paths only for Mac Capture/Protectio
 | Traktor Kontrol D2 QML CSI replacement (ErikMinekus et al.) | **Research only** — patches Traktor.app; Pro-oriented; not sandbox-safe |
 | PRO DJ LINK unofficial clients (`prolink-connect`, `alphatheta-connect`, beat-link) | **Research only** — reverse-engineered LAN join, pcap, NFS USB/SD; not sandbox-safe; AlphaTheta 8 Aug 2026 advisory is a hard stop on joining that network |
 | VirtualDJ native plugin | **Research** (M14) — JSONL ingest (Artifact B) is in Core; the C++ `.bundle` (Artifact A) is not started. Network Control remains the Partial live-control path |
-| Process taps / BlackHole | Out of scope while sandbox is on |
+| Core Audio Process Tap | **Product** — preferred App audio Capture path; ScreenCaptureKit remains the verified fallback |
+| BlackHole / Background Music / other HAL loopback drivers | **Out of scope** — routing ritual + (BlackHole) GPLv3; do not vendor or require. See `docs/research-awesome-macos-2026-08-30.md` and `docs/research-invisible-capture-2026-08-26.md` |
 
 ## Integration Depth By Platform
 
