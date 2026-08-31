@@ -353,10 +353,12 @@ public struct ArchiveService {
     private func uniqueDestinationURL(for sourceURL: URL, sourceAppID: String, detectedAt: Date) -> URL {
         let dateFormatter = DateFormatter()
         dateFormatter.calendar = calendar
+        dateFormatter.timeZone = calendar.timeZone
         dateFormatter.dateFormat = "yyyy-MM-dd"
 
         let timeFormatter = DateFormatter()
         timeFormatter.calendar = calendar
+        timeFormatter.timeZone = calendar.timeZone
         timeFormatter.dateFormat = "HHmm"
 
         let appName = SupportedDJSoftware.all.first { $0.id == sourceAppID }?.displayName ?? sourceAppID

@@ -99,9 +99,12 @@ final class ArchiveServiceTests: XCTestCase {
         let archiveRoot = tempRoot.appendingPathComponent("Archive", isDirectory: true)
         try Data("audio".utf8).write(to: sourceURL)
 
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
         let service = ArchiveService(
             archiveRoot: archiveRoot,
-            calendar: Calendar(identifier: .gregorian),
+            calendar: calendar,
             namingTemplate: "{date} - {app} - {source}"
         )
         let session = try service.archive(
@@ -112,7 +115,7 @@ final class ArchiveServiceTests: XCTestCase {
 
         XCTAssertEqual(
             session.archiveURL?.lastPathComponent,
-            "1969-12-31 - Serato DJ Pro - source.wav"
+            "1970-01-01 - Serato DJ Pro - source.wav"
         )
     }
 
