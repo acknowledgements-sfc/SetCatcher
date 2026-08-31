@@ -56,6 +56,8 @@ public protocol AppAudioCaptureBackend: AnyObject, Sendable {
     func beginRecordingFile() throws
     func endRecordingFile(discard: Bool) throws -> CaptureResult?
     func currentInputLevel() -> Float
+    /// Byte size of the in-progress staging WAV while writing; nil when not recording.
+    func currentStagingByteCount() -> Int64?
 }
 
 /// Chosen App Audio engine, including the bound virtual device when that path wins.
@@ -371,6 +373,10 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         activeBackend.currentInputLevel()
     }
 
+    public func currentStagingByteCount() -> Int64? {
+        activeBackend.currentStagingByteCount()
+    }
+
     static func isScreenCapturePermissionError(_ error: Error) -> Bool {
         ScreenCaptureKitAppAudioCaptureService.isScreenCapturePermissionError(error)
     }
@@ -578,6 +584,10 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
 
     public func currentInputLevel() -> Float {
         capture.currentInputLevel()
+    }
+
+    public func currentStagingByteCount() -> Int64? {
+        capture.currentStagingByteCount()
     }
 
     private func translatePIDToProcessObject(_ pid: pid_t, displayName: String) throws -> AudioObjectID {
@@ -953,6 +963,11 @@ public final class ScreenCaptureKitAppAudioCaptureService: NSObject, @unchecked 
     public func currentInputLevel() -> Float {
         levelLock.lock(); defer { levelLock.unlock() }
         return inputLevel
+    }
+
+    public func currentStagingByteCount() -> Int64? {
+        guard isWriting, let stagingURL else { return nil }
+        return (try? stagingURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
     }
 
     private func setInputLevel(_ value: Float) {

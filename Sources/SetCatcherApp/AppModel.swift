@@ -10,6 +10,39 @@ enum LastCaptureOutcome: Equatable {
     case failed(String)
 }
 
+/// Canonical presentation input shared by the main Live surface and menu-bar cockpit.
+/// Filesystem and bookmark checks are cached separately, so reading this snapshot is cheap.
+struct CockpitSnapshot: Equatable {
+    let state: LiveProtectionState
+    let sourceDisplayName: String?
+    let attentionEvent: AttentionEvent?
+    let inputLevel: Float
+    let recordingStartedAt: Date?
+    let armedSinceText: String?
+    let lastProtectedFooterText: String?
+}
+
+struct ProtectionReceipt: Equatable {
+    let filename: String
+    let archivePath: String
+    let durationText: String
+    let sizeText: String
+}
+
+private enum MenuBarPulseMode: Equatable {
+    case none
+    case flash
+    case pulse
+}
+
+private struct PendingCaptureRecovery {
+    let result: CaptureResult
+    let sourceAppID: String
+    let captureRoute: CaptureArchiveRoute
+    let captureBackend: CaptureArchiveBackend?
+    let captureDeviceTransport: String?
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published private(set) var probeResults: [SoftwareProbeResult] = []
@@ -45,17 +78,42 @@ final class AppModel: ObservableObject {
     @Published private(set) var playbackState = PlaybackViewState()
 
     // MARK: Menu bar state
-    /// True briefly after launch while background services spin up.
+    /// True briefly after launch while background services spin up (prototype: ~1.6s flash).
     ///
-    /// This intentionally changes the status item once, rather than animating it. Continuously
-    /// invalidating a `MenuBarExtra` label makes AppKit repeatedly recreate its status button.
-    @Published private(set) var isLaunchingForMenuBar = true
-    /// Set when a capture just finished archiving; the menu bar shows "SAVED" until this passes.
-    @Published private(set) var justSavedUntil: Date?
+    /// Icon flash/pulse is a ~10Hz `Task` (`menuBarIconOpacity`), never `TimelineView` in the
+    /// `MenuBarExtra` label — that host spins CPU on `NSStatusBarButton.setImage`.
+    @Published private(set) var isLaunchingForMenuBar = true {
+        didSet {
+            if oldValue != isLaunchingForMenuBar {
+                noteMenuBarPresentationChanged()
+            }
+        }
+    }
+    /// Set when a capture just finished archiving; the menu bar shows "Protected" until this passes.
+    @Published private(set) var justSavedUntil: Date? {
+        didSet { noteMenuBarPresentationChanged() }
+    }
+    /// 1 = full; driven at ~10Hz while launching (flash) or capturing (pulse).
+    @Published private(set) var menuBarIconOpacity: Double = 1
+    /// 0…1 linear progress for the 1.35s label slide-in; 1 = settled.
+    @Published private(set) var menuBarLabelSlideProgress: Double = 1
+    private var menuBarPulseTask: Task<Void, Never>?
+    private var menuBarPulseAnchor = Date()
+    private var menuBarLabelSlideStartedAt: Date?
+    private var lastMenuBarHadLabel = false
+    private var lastMenuBarPulseMode: MenuBarPulseMode = .none
     @Published private(set) var recordingStartedAt: Date?
+    @Published private(set) var armedSince: Date?
     @Published private(set) var lastCaptureOutcome: LastCaptureOutcome?
+    /// Live staging WAV byte count while capturing (for the capture strip).
+    @Published private(set) var captureStagingBytes: Int64?
+    @Published private(set) var liveAttentionEvents: [AttentionEvent] = []
+    @Published private(set) var recoverableStagingURL: URL?
     private var savedFlashTask: Task<Void, Never>?
     private static let savedFlashDuration: TimeInterval = 5
+    private static let queuedToastMaxAge: TimeInterval = 30
+    /// When the app was backgrounded at save time, hold toast until return if still fresh.
+    private var queuedProtectedToastAt: Date?
 
     /// Optional account license snapshot. Nil when signed out or unreachable — local features stay full.
     @Published private(set) var accountLicenseSummary: String?
@@ -189,6 +247,9 @@ final class AppModel: ObservableObject {
     private var hardwareObservationCache: [String: (channels: Int, formatOK: Bool)] = [:]
     /// When true, profile mutations stay in memory (SwiftUI previews).
     private var suppressProfilePersistence = false
+    /// Attention event IDs already posted as urgent notifications this session.
+    private var notifiedAttentionIDs: Set<String> = []
+    private var pendingCaptureRecovery: PendingCaptureRecovery?
 
     init() {
         Self.lifecycleOwner = self
@@ -230,14 +291,16 @@ final class AppModel: ObservableObject {
         }
 
         Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
             await MainActor.run { self?.isLaunchingForMenuBar = false }
         }
+        noteMenuBarPresentationChanged()
     }
 
     deinit {
         scanTask?.cancel()
         folderChangeScanTask?.cancel()
+        menuBarPulseTask?.cancel()
         captureMeterTask?.cancel()
         appAudioPollTask?.cancel()
         captureTargetPollTask?.cancel()
@@ -302,19 +365,463 @@ final class AppModel: ObservableObject {
     var menuBarState: MenuBarState {
         MenuBarState.derive(
             isLaunching: isLaunchingForMenuBar,
-            justSaved: justSavedUntil != nil,
-            phase: captureState.phase,
-            djAppName: captureState.selectedTargetApp?.software.displayName
+            live: liveProtectionState,
+            djAppName: liveSourceDisplayName
         )
     }
 
     var menuBarElapsedText: String? {
         guard let recordingStartedAt else { return nil }
         let elapsed = Int(Date().timeIntervalSince(recordingStartedAt))
-        let minutes = elapsed / 60
-        let seconds = elapsed % 60
-        return String(format: "%d:%02d", minutes, seconds)
+        return ElapsedClockFormat.minutesSeconds(elapsed)
     }
+
+    var menuBarElapsedHMS: String? {
+        guard let recordingStartedAt else { return nil }
+        let elapsed = Int(Date().timeIntervalSince(recordingStartedAt))
+        return ElapsedClockFormat.hms(elapsed)
+    }
+
+    /// Starts or stops the 10Hz status-item opacity/slide task. Safe to call on every state change.
+    func noteMenuBarPresentationChanged() {
+        let state = menuBarState
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let hasLabel = state.label != nil
+
+        if hasLabel && !lastMenuBarHadLabel {
+            menuBarLabelSlideStartedAt = Date()
+            menuBarLabelSlideProgress = reduceMotion ? 1 : 0
+        } else if !hasLabel {
+            menuBarLabelSlideStartedAt = nil
+            menuBarLabelSlideProgress = 1
+        }
+        lastMenuBarHadLabel = hasLabel
+
+        let mode: MenuBarPulseMode = state.isFlashing ? .flash : (state.isPulsing ? .pulse : .none)
+        if mode != lastMenuBarPulseMode {
+            menuBarPulseAnchor = Date()
+            lastMenuBarPulseMode = mode
+            if mode == .none || reduceMotion {
+                menuBarIconOpacity = 1
+            }
+        }
+
+        let needsTask = !reduceMotion && (state.isFlashing || state.isPulsing || menuBarLabelSlideProgress < 1)
+        if !needsTask {
+            menuBarPulseTask?.cancel()
+            menuBarPulseTask = nil
+            menuBarIconOpacity = 1
+            if reduceMotion {
+                menuBarLabelSlideProgress = 1
+            }
+            return
+        }
+        guard menuBarPulseTask == nil else { return }
+        menuBarPulseTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await MainActor.run { self?.tickMenuBarPresentation() }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+    }
+
+    private func tickMenuBarPresentation() {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            menuBarIconOpacity = 1
+            menuBarLabelSlideProgress = 1
+            menuBarPulseTask?.cancel()
+            menuBarPulseTask = nil
+            return
+        }
+
+        let state = menuBarState
+        let now = Date()
+        if state.isFlashing {
+            let t = now.timeIntervalSince(menuBarPulseAnchor)
+            menuBarIconOpacity = 0.625 + 0.375 * cos(2 * Double.pi * t / 0.8)
+        } else if state.isPulsing {
+            let t = now.timeIntervalSince(menuBarPulseAnchor)
+            menuBarIconOpacity = 0.725 + 0.275 * cos(2 * Double.pi * t / 2.4)
+        } else {
+            menuBarIconOpacity = 1
+        }
+
+        if let start = menuBarLabelSlideStartedAt {
+            menuBarLabelSlideProgress = min(1, max(0, now.timeIntervalSince(start) / 1.35))
+            if menuBarLabelSlideProgress >= 1 {
+                menuBarLabelSlideStartedAt = nil
+            }
+        }
+
+        if !state.isFlashing, !state.isPulsing, menuBarLabelSlideProgress >= 1 {
+            menuBarPulseTask?.cancel()
+            menuBarPulseTask = nil
+            menuBarIconOpacity = 1
+        }
+    }
+
+    // MARK: Live protection card
+
+    var liveProtectionState: LiveProtectionState {
+        LiveProtectionState.derive(input: LiveProtectionDeriveInput(
+            capturePhase: captureState.phase,
+            hasSelectedSource: captureState.selectedTargetApp != nil || captureState.selectedDeviceID != nil,
+            hasDetectedSource: probeResults.contains {
+                !$0.runningApplicationBundleIdentifiers.isEmpty || !$0.installedApplicationURLs.isEmpty
+            },
+            hasLiveAttention: !liveAttentionEvents.isEmpty,
+            justSaved: justSavedUntil != nil,
+            isWatchingOrArmed: captureState.phase == .watching || captureState.phase == .armed
+        ))
+    }
+
+    var cockpitSnapshot: CockpitSnapshot {
+        CockpitSnapshot(
+            state: liveProtectionState,
+            sourceDisplayName: liveSourceDisplayName,
+            attentionEvent: liveAttentionEvents.first,
+            inputLevel: captureState.inputLevel,
+            recordingStartedAt: recordingStartedAt,
+            armedSinceText: liveArmedSinceText,
+            lastProtectedFooterText: liveLastProtectedFooterText
+        )
+    }
+
+    var liveSourceDisplayName: String? {
+        if let app = captureState.selectedTargetApp?.software.displayName {
+            return app
+        }
+        if let device = captureState.selectedDevice?.name {
+            return device
+        }
+        if let running = probeResults.first(where: { !$0.runningApplicationBundleIdentifiers.isEmpty }) {
+            return running.software.displayName
+        }
+        return nil
+    }
+
+    var liveArmedSinceText: String? {
+        guard let armedSince else { return nil }
+        return Self.liveTimeFormatter.string(from: armedSince)
+    }
+
+    var liveLastProtectedFooterText: String? {
+        guard let summary = librarySummaries.max(by: { $0.archive.detectedAt < $1.archive.detectedAt }) else {
+            return nil
+        }
+        let date = Self.liveDateFooterFormatter.string(from: summary.archive.detectedAt)
+        let time = Self.liveTimeFormatter.string(from: summary.archive.detectedAt)
+        return "Last: \(date) · \(time)"
+    }
+
+    var liveProtectedToastText: String {
+        if let session = lastCaptureSession {
+            let name = session.originalFilename
+            let duration = session.durationSeconds.map { formattedDuration($0) } ?? "—"
+            return "Set protected — \(name) · \(duration)"
+        }
+        return "Set protected"
+    }
+
+    var liveProtectionReceipt: ProtectionReceipt? {
+        guard let session = lastCaptureSession else { return nil }
+        return ProtectionReceipt(
+            filename: session.originalFilename,
+            archivePath: session.archivePath,
+            durationText: session.durationSeconds.map { formattedDuration($0) } ?? "Duration unavailable",
+            sizeText: ByteCountFormatter.string(fromByteCount: session.fileSize, countStyle: .file)
+        )
+    }
+
+    /// Performs operational checks only on explicit refresh/state transitions, never meter ticks.
+    private func buildLiveAttentionEvents() -> [AttentionEvent] {
+        var events: [AttentionEvent] = []
+
+        if case .needsScreenRecordingPermission = captureState.phase {
+            events.append(.screenRecordingDenied())
+        }
+
+        for access in unreachableRecordingAccesses() {
+            let name = displayName(for: access.appID)
+            if let relocated = relocatedRecordingFolderURL(for: access) {
+                events.append(.folderMoved(
+                    appID: access.appID,
+                    fromPath: access.url.path,
+                    toPath: relocated.path
+                ))
+            } else {
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: access.url.path, isDirectory: &isDir) {
+                    events.append(.permissionDenied(appID: access.appID, path: access.url.path))
+                } else {
+                    events.append(.folderMissing(appID: access.appID, appName: name, path: access.url.path))
+                }
+            }
+        }
+
+        if let disk = diskFullAttentionEvent() {
+            events.append(disk)
+        }
+
+        if captureState.listeningState == .recoveryNeeded,
+           captureState.phase == .watching || captureState.phase == .recording {
+            let name = liveSourceDisplayName ?? "Capture source"
+            events.append(.sourceUnreadable(sourceName: name))
+        }
+
+        if case .failed(let reason) = captureState.phase {
+            let lower = reason.lowercased()
+            if lower.contains("not responding") || lower.contains("stream stopped") || lower.contains("disconnected") {
+                events.append(.sourceUnreadable(sourceName: liveSourceDisplayName ?? "Capture source"))
+            } else {
+                events.append(.saveFailed(
+                    reason: reason,
+                    temporaryRecordingRetained: recoverableStagingURL != nil
+                ))
+            }
+        }
+
+        return events.sorted { $0.kind.recoveryPriority < $1.kind.recoveryPriority }
+    }
+
+    var captureStagingSizeText: String? {
+        guard let bytes = captureStagingBytes, bytes > 0 else { return nil }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func diskFullAttentionEvent() -> AttentionEvent? {
+        let url = resolvedArchiveRoot()
+        guard let capacity = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            .volumeAvailableCapacityForImportantUsage
+        else { return nil }
+        let gib = Double(capacity) / 1_073_741_824
+        guard gib < 2 else { return nil }
+        return .diskFull(remainingGigabytes: max(0, gib))
+    }
+
+    /// When the configured folder is unreachable, prefer a probe-discovered recordings path
+    /// for the same app that still exists — treats that as a moved folder (dispatch-04).
+    private func relocatedRecordingFolderURL(for access: FolderAccess) -> URL? {
+        guard access.kind == .recordings else { return nil }
+        let configuredPath = access.url.standardizedFileURL.path
+        let candidates = probeResults
+            .first { $0.software.id == access.appID }?
+            .existingRecordingURLs ?? []
+        for candidate in candidates {
+            let path = candidate.standardizedFileURL.path
+            guard path != configuredPath else { continue }
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else {
+                continue
+            }
+            return candidate
+        }
+        return nil
+    }
+
+    /// Accept a probe-discovered relocated recordings folder (folderMoved primary action).
+    func acceptRelocatedRecordingFolder(appID: String, newURL: URL) {
+        do {
+            let bookmark = try folderAccessStore.makeBookmarkData(for: newURL)
+            let access = FolderAccess(appID: appID, kind: .recordings, url: newURL, bookmarkData: bookmark)
+            try folderAccessStore.save(access)
+            refresh()
+            statusMessage = "Recording folder updated for \(displayName(for: appID))"
+            appendActivity(
+                kind: .scan,
+                message: "Accepted relocated recordings folder",
+                detail: "\(appID) → \(newURL.path)"
+            )
+        } catch {
+            statusMessage = "Could not update folder: \(error.localizedDescription)"
+        }
+    }
+
+    func dismissProtectedToast() {
+        justSavedUntil = nil
+        savedFlashTask?.cancel()
+        savedFlashTask = nil
+    }
+
+    private func stagePendingCaptureRecovery(
+        _ result: CaptureResult,
+        sourceAppID: String,
+        route: CaptureArchiveRoute,
+        backend: CaptureArchiveBackend?,
+        transport: String?
+    ) {
+        pendingCaptureRecovery = PendingCaptureRecovery(
+            result: result,
+            sourceAppID: sourceAppID,
+            captureRoute: route,
+            captureBackend: backend,
+            captureDeviceTransport: transport
+        )
+        recoverableStagingURL = result.stagingURL
+    }
+
+    private func ingestPendingCaptureRecovery() throws -> RecordingSession {
+        guard let pending = pendingCaptureRecovery else {
+            throw CaptureServiceError.engineFailed("No temporary capture is available to recover.")
+        }
+        let result = pending.result
+        let session = try archiveService().ingestCapture(
+            stagingURL: result.stagingURL,
+            deviceID: result.deviceID,
+            deviceName: result.deviceName,
+            startedAt: result.startedAt,
+            endedAt: result.endedAt,
+            sourceAppID: pending.sourceAppID,
+            captureRoute: pending.captureRoute,
+            captureBackend: pending.captureBackend,
+            captureDeviceTransport: pending.captureDeviceTransport,
+            captureInterrupted: result.captureInterrupted,
+            captureInterruptionReason: result.captureInterruptionReason
+        )
+        pendingCaptureRecovery = nil
+        recoverableStagingURL = nil
+        return session
+    }
+
+    func retryPendingCaptureSave() {
+        guard pendingCaptureRecovery != nil else {
+            statusMessage = "No temporary recording is waiting to be saved"
+            return
+        }
+        do {
+            let session = try ingestPendingCaptureRecovery()
+            notifyForNewArchive(session)
+            refresh()
+            autopullTracklist(for: session)
+            lastCaptureOutcome = .success(sessionID: session.id)
+            statusMessage = "Temporary recording saved to the archive"
+        } catch {
+            lastCaptureOutcome = .failed(error.localizedDescription)
+            statusMessage = "Could not save temporary recording: \(error.localizedDescription)"
+            refreshOperationalAttention()
+        }
+    }
+
+    func savePendingCaptureElsewhere() {
+        guard let source = recoverableStagingURL else {
+            statusMessage = "No temporary recording is available"
+            return
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = source.lastPathComponent
+        panel.allowedContentTypes = [.wav]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                throw CocoaError(.fileWriteFileExists)
+            }
+            try FileManager.default.copyItem(at: source, to: destination)
+            NSWorkspace.shared.activateFileViewerSelecting([destination])
+            statusMessage = "Temporary recording copied to \(destination.lastPathComponent)"
+        } catch {
+            statusMessage = "Could not copy temporary recording: \(error.localizedDescription)"
+        }
+    }
+
+    func revealPendingCapture() {
+        guard let url = recoverableStagingURL else {
+            statusMessage = "No temporary recording is available"
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    func handleLiveRecoveryPrimary(_ event: AttentionEvent) {
+        switch event.kind {
+        case .folderMoved:
+            if let appID = event.relatedAppID, let path = event.relatedPath {
+                acceptRelocatedRecordingFolder(appID: appID, newURL: URL(fileURLWithPath: path, isDirectory: true))
+                openMainWindow()
+            } else if let appID = event.relatedAppID {
+                chooseFolder(appID: appID, kind: .recordings)
+            }
+        case .folderMissing, .permissionDenied:
+            if let appID = event.relatedAppID {
+                chooseFolder(appID: appID, kind: .recordings)
+            } else {
+                selectedRoute = .protection
+                openMainWindow()
+            }
+        case .screenRecording:
+            openScreenRecordingPrivacySettings()
+        case .diskFull:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") {
+                NSWorkspace.shared.open(url)
+            } else {
+                selectedRoute = .settings
+                openMainWindow()
+            }
+        case .saveFailed:
+            if recoverableStagingURL != nil {
+                retryPendingCaptureSave()
+            } else {
+                selectedRoute = .home
+                openMainWindow()
+            }
+        case .sourceUnreadable:
+            selectedRoute = .capture
+            openMainWindow()
+            if captureState.mode == .appAudio {
+                armAppAudioCapture()
+            } else {
+                armInputCaptureWatching()
+            }
+        }
+    }
+
+    func handleLiveRecoverySecondary(_ event: AttentionEvent, title: String) {
+        switch event.kind {
+        case .screenRecording where title == "Retry":
+            armAppAudioCapture()
+        case .saveFailed where title == "Save Elsewhere…":
+            savePendingCaptureElsewhere()
+        case .saveFailed where title == "Reveal Temporary Recording":
+            revealPendingCapture()
+        case .saveFailed where title == "Open Archive Folder":
+            openArchiveFolder()
+        case .diskFull where title == "Open Archive Folder":
+            openArchiveFolder()
+        case .sourceUnreadable where title == "Open Capture":
+            selectedRoute = .capture
+            openMainWindow()
+        case .permissionDenied where title == "Open System Settings":
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") {
+                NSWorkspace.shared.open(url)
+            }
+        case .folderMoved where title.hasPrefix("Choose"),
+             .permissionDenied where title.hasPrefix("Grant") || title.hasPrefix("Choose"):
+            if let appID = event.relatedAppID {
+                chooseFolder(appID: appID, kind: .recordings)
+            }
+        case .folderMoved, .folderMissing, .permissionDenied:
+            if let appID = event.relatedAppID {
+                selectedRoute = .recovery(appID)
+            }
+            openMainWindow()
+        default:
+            selectedRoute = .home
+            openMainWindow()
+        }
+    }
+
+    private static let liveTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .short
+        return f
+    }()
+
+    private static let liveDateFooterFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "M/d"
+        return f
+    }()
 
     var previousCaptureSummary: String? {
         guard let outcome = lastCaptureOutcome else { return nil }
@@ -357,8 +864,23 @@ final class AppModel: ObservableObject {
             recordingStartedAt = nil
         }
 
+        switch captureState.phase {
+        case .watching, .armed:
+            if oldValue.phase != .watching, oldValue.phase != .armed {
+                armedSince = Date()
+            }
+        default:
+            if oldValue.phase == .watching || oldValue.phase == .armed {
+                armedSince = nil
+            }
+        }
+
         if oldValue.phase != captureState.phase {
             captureIdleSleepGuard.sync(shouldHold: captureState.phase.shouldPreventIdleSleep)
+            if case .recording = captureState.phase {
+                // Spec: new capture during toast dismisses toast immediately.
+                dismissProtectedToast()
+            }
         }
 
         if case .failed(let reason) = captureState.phase, oldValue.phase != captureState.phase {
@@ -369,9 +891,47 @@ final class AppModel: ObservableObject {
             lastCaptureOutcome = .success(sessionID: newID)
             triggerSavedFlash()
         }
+
+        let attentionInputsChanged = oldValue.phase != captureState.phase
+            || oldValue.listeningState != captureState.listeningState
+            || oldValue.selectedDeviceID != captureState.selectedDeviceID
+            || oldValue.selectedTargetApp != captureState.selectedTargetApp
+        if attentionInputsChanged {
+            refreshOperationalAttention()
+        }
+        noteMenuBarPresentationChanged()
     }
 
     private func triggerSavedFlash() {
+        // Spec: if app is backgrounded, queue toast and show on return only if < 30s old.
+        if !NSApp.isActive {
+            queuedProtectedToastAt = Date()
+            justSavedUntil = nil
+        } else {
+            queuedProtectedToastAt = nil
+            justSavedUntil = Date().addingTimeInterval(Self.savedFlashDuration)
+        }
+        if settings.notifyAfterArchiving {
+            let name = lastCaptureSession?.originalFilename ?? "Set"
+            let duration = lastCaptureSession?.durationSeconds.map { formattedDuration($0) } ?? "—"
+            notificationService.notifySetProtected(setName: name, durationText: duration)
+        }
+        savedFlashTask?.cancel()
+        savedFlashTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.savedFlashDuration * 1_000_000_000))
+            await MainActor.run {
+                guard let self, let until = self.justSavedUntil, Date() >= until else { return }
+                self.justSavedUntil = nil
+            }
+        }
+    }
+
+    /// Flush a queued protected toast when the app returns to the foreground.
+    func handleAppBecameActive() {
+        guard let queued = queuedProtectedToastAt else { return }
+        queuedProtectedToastAt = nil
+        let age = Date().timeIntervalSince(queued)
+        guard age < Self.queuedToastMaxAge else { return }
         justSavedUntil = Date().addingTimeInterval(Self.savedFlashDuration)
         savedFlashTask?.cancel()
         savedFlashTask = Task { [weak self] in
@@ -381,6 +941,43 @@ final class AppModel: ObservableObject {
                 self.justSavedUntil = nil
             }
         }
+    }
+
+    func refreshCaptureStagingBytes() {
+        guard captureState.phase == .recording else {
+            if captureStagingBytes != nil { captureStagingBytes = nil }
+            return
+        }
+        let bytes: Int64?
+        if captureState.mode == .appAudio {
+            bytes = appAudioCaptureService.currentStagingByteCount()
+        } else {
+            bytes = captureService.currentStagingByteCount()
+        }
+        if bytes != captureStagingBytes {
+            captureStagingBytes = bytes
+        }
+    }
+
+    private func syncAttentionNotifications() {
+        let events = liveAttentionEvents
+        let activeIDs = Set(events.map(\.id))
+        for id in notifiedAttentionIDs.subtracting(activeIDs) {
+            notificationService.clearAttentionNotification(id: id)
+        }
+        for event in events where !notifiedAttentionIDs.contains(event.id) {
+            notificationService.notifyAttentionNeeded(event)
+        }
+        notifiedAttentionIDs = activeIDs
+        noteMenuBarPresentationChanged()
+    }
+
+    private func refreshOperationalAttention() {
+        let events = buildLiveAttentionEvents()
+        if events != liveAttentionEvents {
+            liveAttentionEvents = events
+        }
+        syncAttentionNotifications()
     }
 
     /// SwiftUI's `openWindow` action, registered from the WindowGroup's content on appear.
@@ -418,9 +1015,28 @@ final class AppModel: ObservableObject {
     }
 
     func updateMenuBarOnly(enabled: Bool) {
-        saveSettings(settings.updating(menuBarOnly: enabled))
-        if !enabled {
-            openMainWindow()
+        updateAppPresentationMode(enabled ? .menuBarOnly : .menuBarAndMainWindow)
+    }
+
+    func updateAppPresentationMode(_ mode: AppPresentationMode) {
+        let previous = settings.appPresentationMode
+        guard mode != previous else { return }
+        saveSettings(settings.updating(appPresentationMode: mode))
+        applyAppPresentationMode(mode)
+    }
+
+    /// Applies Dock / accessory policy and window visibility for the chosen presentation mode.
+    func applyAppPresentationMode(_ mode: AppPresentationMode) {
+        if mode.usesAccessoryActivationPolicy {
+            NSApp.setActivationPolicy(.accessory)
+            NSApp.windows
+                .filter { $0.canBecomeMain }
+                .forEach { $0.orderOut(nil) }
+        } else {
+            NSApp.setActivationPolicy(.regular)
+            if mode.opensMainWindowAtLaunch {
+                openMainWindow()
+            }
         }
     }
 
@@ -494,6 +1110,7 @@ final class AppModel: ObservableObject {
 
         restartFolderChangeMonitoring()
         restartHistoryMonitoring()
+        refreshOperationalAttention()
     }
 
     /// Configured (user-granted) recordings folders plus probe-discovered defaults for setup hints.
@@ -2063,7 +2680,7 @@ extension AppModel {
                     displayName: target.software.displayName,
                     // Buffer at least the start hold (plus margin) so takes begin at the true first
                     // signal, not after the silence session's start-hold delay.
-                    prerollSeconds: settings.silenceSessionConfig.startHoldSeconds + 0.5,
+                    prerollSeconds: settings.silenceSessionConfig.prerollSeconds,
                     softwareID: target.software.id,
                     inputDevices: inputDevices,
                     runningSoftwareIDs: runningIDs
@@ -2155,6 +2772,7 @@ extension AppModel {
                     let level = self.appAudioCaptureService.currentInputLevel()
                     let tick = self.captureSession.tick(level: level)
                     self.applyCaptureSessionTick(tick)
+                    self.refreshCaptureStagingBytes()
                 }
             }
         }
@@ -2197,7 +2815,7 @@ extension AppModel {
         }
     }
 
-    private func finalizeAppAudioSession(discard: Bool) {
+    private func finalizeAppAudioSession(discard: Bool, resumeWatching: Bool = true) {
         var saving = captureState
         saving.phase = .saving
         saving.statusMessage = discard ? "Discarding short take…" : "Saving app audio into your archive…"
@@ -2205,46 +2823,62 @@ extension AppModel {
         do {
             let result = try appAudioCaptureService.endRecordingFile(discard: discard)
             if let result, !discard {
-                let session = try archiveService().ingestCapture(
-                    stagingURL: result.stagingURL,
-                    deviceID: result.deviceID,
-                    deviceName: result.deviceName,
-                    startedAt: result.startedAt,
-                    endedAt: result.endedAt,
+                stagePendingCaptureRecovery(
+                    result,
                     sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID,
-                    captureRoute: result.captureRoute ?? .appAudio,
-                    captureBackend: result.captureBackend
-                        ?? appAudioCaptureService.activeBackendKind.archiveBackend,
-                    captureDeviceTransport: result.deviceTransport?.archiveLabel
-                        ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel,
-                    captureInterrupted: result.captureInterrupted,
-                    captureInterruptionReason: result.captureInterruptionReason
+                    route: result.captureRoute ?? .appAudio,
+                    backend: result.captureBackend ?? appAudioCaptureService.activeBackendKind.archiveBackend,
+                    transport: result.deviceTransport?.archiveLabel
+                        ?? appAudioCaptureService.activeVirtualDevice?.transportType.archiveLabel
                 )
+                let session = try ingestPendingCaptureRecovery()
                 notifyForNewArchive(session)
                 refresh()
                 autopullTracklist(for: session)
-                let tick = captureSession.resumeWatchingAfterSave(
-                    discarded: false,
-                    minDurationSeconds: TimeInterval(settings.appAudioMinDurationSeconds),
-                    level: appAudioCaptureService.currentInputLevel()
-                )
                 var done = captureState
-                done.phase = tick.phase
-                done.inputLevel = tick.inputLevel
                 done.lastArchivedSessionID = session.id
-                done.statusMessage = tick.statusMessage
+                if resumeWatching {
+                    let tick = captureSession.resumeWatchingAfterSave(
+                        discarded: false,
+                        minDurationSeconds: TimeInterval(settings.appAudioMinDurationSeconds),
+                        level: appAudioCaptureService.currentInputLevel()
+                    )
+                    done.phase = tick.phase
+                    done.inputLevel = tick.inputLevel
+                    done.statusMessage = tick.statusMessage
+                } else {
+                    appAudioPollTask?.cancel()
+                    appAudioPollTask = nil
+                    let tick = captureSession.disarm(hasTargets: !captureState.targetApps.isEmpty)
+                    done.phase = tick.phase
+                    done.inputLevel = 0
+                    done.statusMessage = tick.statusMessage
+                    userDisarmedAppAudio = true
+                    Task { await appAudioCaptureService.stopMonitoring() }
+                }
                 captureState = done
                 statusMessage = "App audio Capture saved"
             } else {
-                let tick = captureSession.resumeWatchingAfterSave(
-                    discarded: true,
-                    minDurationSeconds: TimeInterval(settings.appAudioMinDurationSeconds),
-                    level: appAudioCaptureService.currentInputLevel()
-                )
                 var done = captureState
-                done.phase = tick.phase
-                done.inputLevel = tick.inputLevel
-                done.statusMessage = tick.statusMessage
+                if resumeWatching {
+                    let tick = captureSession.resumeWatchingAfterSave(
+                        discarded: true,
+                        minDurationSeconds: TimeInterval(settings.appAudioMinDurationSeconds),
+                        level: appAudioCaptureService.currentInputLevel()
+                    )
+                    done.phase = tick.phase
+                    done.inputLevel = tick.inputLevel
+                    done.statusMessage = tick.statusMessage
+                } else {
+                    appAudioPollTask?.cancel()
+                    appAudioPollTask = nil
+                    let tick = captureSession.disarm(hasTargets: !captureState.targetApps.isEmpty)
+                    done.phase = tick.phase
+                    done.inputLevel = 0
+                    done.statusMessage = tick.statusMessage
+                    userDisarmedAppAudio = true
+                    Task { await appAudioCaptureService.stopMonitoring() }
+                }
                 captureState = done
             }
         } catch let error as AppAudioCaptureError {
@@ -2647,7 +3281,10 @@ extension AppModel {
             }
             do {
                 if !captureService.isMonitoring {
-                    try captureService.startMonitoring(device: device)
+                    try captureService.startMonitoring(
+                        device: device,
+                        prerollSeconds: settings.silenceSessionConfig.prerollSeconds
+                    )
                 }
                 let tick = captureSession.prepareWatching(
                     config: settings.silenceSessionConfig,
@@ -2697,6 +3334,12 @@ extension AppModel {
     /// action (never automatically; see `refreshAppAudioTargets`/`refreshAudioInputs`).
     func switchToPendingAlternateSource() {
         guard let pending = captureState.pendingAlternateSource else { return }
+        guard captureState.phase != .recording, captureState.phase != .saving else {
+            statusMessage = "Finish the current capture before switching to \(pending.displayName)"
+            return
+        }
+        let current = liveSourceDisplayName ?? "the current source"
+        guard CaptureConfirmationAlert.confirmSourceSwitch(from: current, to: pending.displayName) else { return }
         switch pending.kind {
         case .appAudio(let softwareID):
             haltAppAudioCapture(markUserDisarmed: false)
@@ -2764,6 +3407,7 @@ extension AppModel {
                     let level = self.captureService.currentInputLevel()
                     let tick = self.captureSession.tick(level: level)
                     self.applyInputCaptureSessionTick(tick)
+                    self.refreshCaptureStagingBytes()
                 }
             }
         }
@@ -2818,15 +3462,14 @@ extension AppModel {
         do {
             let result = try captureService.endRecordingFile(discard: discard)
             if let result, !discard {
-                let session = try archiveService().ingestCapture(
-                    stagingURL: result.stagingURL,
-                    deviceID: result.deviceID,
-                    deviceName: result.deviceName,
-                    startedAt: result.startedAt,
-                    endedAt: result.endedAt,
-                    captureRoute: result.captureRoute ?? .inputDevice,
-                    captureDeviceTransport: result.deviceTransport?.archiveLabel
+                stagePendingCaptureRecovery(
+                    result,
+                    sourceAppID: SupportedDJSoftware.captureAppID,
+                    route: result.captureRoute ?? .inputDevice,
+                    backend: result.captureBackend,
+                    transport: result.deviceTransport?.archiveLabel
                 )
+                let session = try ingestPendingCaptureRecovery()
                 notifyForNewArchive(session)
                 refresh()
                 autopullTracklist(for: session)
@@ -2843,9 +3486,11 @@ extension AppModel {
                     done.statusMessage = tick.statusMessage
                     startInputWatchPolling()
                 } else {
-                    done.phase = .armed
+                    haltInputCapture(markUserDisarmed: true)
+                    let tick = captureSession.disarm(hasTargets: !captureState.devices.isEmpty)
+                    done.phase = tick.phase
                     done.inputLevel = 0
-                    done.statusMessage = "Capture saved. Import a tracklist from Set Detail when you have an export."
+                    done.statusMessage = tick.statusMessage
                 }
                 captureState = done
                 statusMessage = "Capture saved"
@@ -2862,9 +3507,12 @@ extension AppModel {
                 captureState = done
                 startInputWatchPolling()
             } else {
+                haltInputCapture(markUserDisarmed: true)
+                let tick = captureSession.disarm(hasTargets: !captureState.devices.isEmpty)
                 var done = captureState
-                done.phase = .armed
+                done.phase = tick.phase
                 done.inputLevel = 0
+                done.statusMessage = tick.statusMessage
                 captureState = done
             }
         } catch let error as CaptureServiceError {
@@ -2948,7 +3596,68 @@ extension AppModel {
         }
     }
 
-    func stopCapture() {
+    func requestStopCapture() {
+        guard captureState.phase == .recording else {
+            stopCapture()
+            return
+        }
+        guard CaptureConfirmationAlert.confirmStopCapture() else { return }
+        stopCapture(resumeWatching: true)
+    }
+
+    func requestStopAndDisarmCapture() {
+        guard captureState.phase == .recording else {
+            disarmCapture()
+            return
+        }
+        guard CaptureConfirmationAlert.confirmStopAndDisarm() else { return }
+        stopCapture(resumeWatching: false)
+    }
+
+    func requestDisarmCapture() {
+        if captureState.phase == .recording {
+            requestStopAndDisarmCapture()
+            return
+        }
+        disarmCapture()
+    }
+
+    func startCaptureNow() {
+        guard captureState.phase == .watching else { return }
+        let level = currentCaptureInputLevel()
+        guard let tick = captureSession.requestManualStart(level: level) else { return }
+        if captureState.mode == .appAudio {
+            applyCaptureSessionTick(tick)
+        } else {
+            applyInputCaptureSessionTick(tick)
+        }
+    }
+
+    func toggleArmFromShortcut() {
+        switch captureState.phase {
+        case .recording:
+            requestStopAndDisarmCapture()
+        case .watching:
+            requestDisarmCapture()
+        case .armed, .idle:
+            if captureState.mode == .appAudio {
+                armAppAudioCapture()
+            } else if captureState.selectedDevice != nil {
+                armInputCaptureWatching()
+            }
+        default:
+            break
+        }
+    }
+
+    private func currentCaptureInputLevel() -> Float {
+        if captureState.mode == .appAudio {
+            return appAudioCaptureService.currentInputLevel()
+        }
+        return captureService.currentInputLevel()
+    }
+
+    func stopCapture(resumeWatching: Bool = true) {
         if captureState.mode == .appAudio {
             switch captureState.phase {
             case .saving:
@@ -2960,18 +3669,8 @@ extension AppModel {
                 saving.phase = tick.phase
                 saving.statusMessage = tick.statusMessage
                 captureState = saving
-                finalizeAppAudioSession(discard: false)
-                if appAudioCaptureService.isMonitoring {
-                    if case .failed = captureState.phase { return }
-                    if case .needsScreenRecordingPermission = captureState.phase { return }
-                    let resume = captureSession.resumeWatchingAfterManualSave(
-                        level: appAudioCaptureService.currentInputLevel()
-                    )
-                    var watching = captureState
-                    watching.phase = resume.phase
-                    watching.inputLevel = resume.inputLevel
-                    watching.statusMessage = resume.statusMessage
-                    captureState = watching
+                finalizeAppAudioSession(discard: false, resumeWatching: resumeWatching)
+                if resumeWatching, appAudioCaptureService.isMonitoring {
                     startAppAudioPolling()
                 }
             default:
@@ -2990,7 +3689,7 @@ extension AppModel {
             saving.phase = tick.phase
             saving.statusMessage = tick.statusMessage
             captureState = saving
-            finalizeInputCaptureSession(discard: false, resumeWatching: true)
+            finalizeInputCaptureSession(discard: false, resumeWatching: resumeWatching)
             return
         }
         var saving = captureState

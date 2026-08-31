@@ -1,11 +1,13 @@
 import AppKit
+import SetCatcherCore
 import SwiftUI
 
 /// Custom dropdown panel for the `MenuBarExtra` (`.window` style — see `SetCatcherApp.swift`).
-/// Matches the "SetCatcher Menu Bar" design handoff: an elevated dark panel with a capture-status
-/// half and an actions half, rather than a native `NSMenu`.
+/// Dispatch 03: 320pt panel, LiveProtectionState headlines, contextual capture actions.
 struct MenuBarStatusView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var statusDotPulse = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -15,9 +17,9 @@ struct MenuBarStatusView: View {
                 .fill(DJToken.hairline)
                 .frame(height: 1)
 
-            actionsSection
+            MenuBarActionList()
         }
-        .frame(width: 296, alignment: .leading)
+        .frame(width: 320, alignment: .leading)
         .background(DJToken.elevated)
         .overlay(
             RoundedRectangle(cornerRadius: DJToken.Radius.maximum)
@@ -34,21 +36,39 @@ struct MenuBarStatusView: View {
     @ViewBuilder
     private var captureStatusSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Capture Status")
-                .microLabelStyle()
-                .padding(.bottom, 8)
+            HStack {
+                Text("Protection Status")
+                    .microLabelStyle()
+                Spacer(minLength: 8)
+                if model.cockpitSnapshot.state.primaryDisplay == .attentionNeeded {
+                    Text("ATTENTION")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(DJToken.LiveState.attention)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(DJToken.LiveState.attention.opacity(0.15), in: Capsule())
+                        .accessibilityIdentifier("menuBar.attentionBadge")
+                }
+            }
+            .padding(.bottom, 8)
 
             HStack(spacing: 8) {
                 Circle()
-                    .fill(model.menuBarState.tint ?? DJToken.MenuBarStatus.watching)
+                    .fill(statusTint)
                     .frame(width: 7, height: 7)
+                    .opacity(statusDotOpacity)
+                    .animation(statusDotAnimation, value: statusDotPulse)
+                    .onAppear { statusDotPulse = isCapturing }
+                    .onChange(of: isCapturing) { _, capturing in
+                        statusDotPulse = capturing
+                    }
                 Text(stateHeadline)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(DJToken.foreground)
             }
             .padding(.bottom, showsAppLine ? 6 : 2)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Capture status, \(stateHeadline)")
+            .accessibilityLabel("Protection status, \(stateHeadline)")
             .accessibilityIdentifier("menuBar.captureState")
 
             if showsAppLine {
@@ -59,6 +79,17 @@ struct MenuBarStatusView: View {
                     .padding(.bottom, 6)
             }
 
+            if showsMeter {
+                CaptureLevelMeterView(
+                    level: model.cockpitSnapshot.inputLevel,
+                    accessibilityID: "menuBar.levelMeter",
+                    showsScaleMarks: false,
+                    compact: true
+                )
+                .padding(.top, 4)
+                .padding(.bottom, 6)
+            }
+
             if model.recordingStartedAt != nil {
                 HStack(alignment: .firstTextBaseline) {
                     Text("ELAPSED")
@@ -66,7 +97,7 @@ struct MenuBarStatusView: View {
                         .textCase(.uppercase)
                         .foregroundStyle(DJToken.mutedForeground)
                     Spacer(minLength: 8)
-                    Text(model.menuBarElapsedText ?? "0:00")
+                    Text(model.menuBarElapsedHMS ?? "00:00:00")
                         .font(.system(size: 15, design: .monospaced))
                         .foregroundStyle(DJToken.foreground)
                         .monospacedDigit()
@@ -103,34 +134,65 @@ struct MenuBarStatusView: View {
         .padding(EdgeInsets(top: 14, leading: 16, bottom: 12, trailing: 16))
     }
 
+    private var statusTint: Color {
+        DJToken.LiveState.accent(for: model.cockpitSnapshot.state)
+    }
+
     private var stateHeadline: String {
-        switch model.menuBarState {
-        case .launching: return "Starting up…"
-        case .ready: return "Watching for DJ apps"
-        case .armed: return "Ready to capture"
+        let cockpit = model.cockpitSnapshot
+        let app = cockpit.sourceDisplayName ?? "DJ app"
+        switch cockpit.state.primaryDisplay {
+        case .noSource: return "No protection source"
+        case .detected: return "\(app) detected"
+        case .ready: return "Ready — not armed"
+        case .armed, .setProtected: return "\(app) is Armed"
         case .capturing: return "Capturing…"
         case .saving: return "Saving…"
-        case .saved: return "Set saved"
-        case .failed(let reason): return "Error: \(reason)"
+        case .attentionNeeded: return "Attention needed"
         }
     }
 
     private var showsAppLine: Bool {
-        switch model.menuBarState {
-        case .armed, .capturing: return true
+        switch model.cockpitSnapshot.state.primaryDisplay {
+        case .armed, .capturing, .ready, .setProtected: return true
         default: return false
         }
     }
 
     private var appLineText: String {
-        switch model.menuBarState {
-        case .armed(let name):
-            return "\(name ?? "DJ app") is open and ready"
-        case .capturing(let name):
-            return "Capturing from \(name ?? "DJ app")"
+        let cockpit = model.cockpitSnapshot
+        let app = cockpit.sourceDisplayName ?? "DJ app"
+        switch cockpit.state.primaryDisplay {
+        case .armed, .setProtected:
+            return "\(app) — waiting for audio"
+        case .capturing:
+            return "Capturing from \(app)"
+        case .ready:
+            return "\(app) configured · arm to watch"
         default:
             return ""
         }
+    }
+
+    private var showsMeter: Bool {
+        switch model.cockpitSnapshot.state.primaryDisplay {
+        case .armed, .capturing, .setProtected: return true
+        default: return false
+        }
+    }
+
+    private var isCapturing: Bool {
+        model.cockpitSnapshot.state.primaryDisplay == .capturing
+    }
+
+    private var statusDotOpacity: Double {
+        if reduceMotion || !isCapturing { return 1 }
+        return statusDotPulse ? 0.45 : 1
+    }
+
+    private var statusDotAnimation: Animation? {
+        if reduceMotion || !isCapturing { return .default }
+        return .easeInOut(duration: 1.2).repeatForever(autoreverses: true)
     }
 
     private var lastCaptureLine: String {
@@ -163,91 +225,5 @@ struct MenuBarStatusView: View {
         }
         .font(.system(size: 11))
         .accessibilityIdentifier("menuBar.\(label.lowercased().replacingOccurrences(of: " ", with: ""))")
-    }
-
-    // MARK: Actions
-
-    private var actionsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if model.menuBarState.isPulsing {
-                actionRow("Stop Capture", systemImage: "stop.circle", tint: DJToken.danger) {
-                    model.stopCapture()
-                }
-                .accessibilityIdentifier("menuBar.stopCapture")
-            }
-
-            actionRow("Open Main Window", systemImage: "macwindow") {
-                model.openMainWindow()
-            }
-            .accessibilityIdentifier("menuBar.openMainWindow")
-
-            actionRow("View Last Capture in Main Window", systemImage: "play.rectangle") {
-                model.viewLastCaptureInMainWindow()
-            }
-            .disabled(model.lastCaptureSession == nil)
-            .accessibilityIdentifier("menuBar.viewLastCaptureInMainWindow")
-
-            actionRow("View Last Capture in Finder", systemImage: "folder") {
-                model.viewLastCaptureInFinder()
-            }
-            .disabled(model.lastCaptureSession == nil)
-            .accessibilityIdentifier("menuBar.viewLastCaptureInFinder")
-
-            actionRow("App Settings", systemImage: "gearshape") {
-                model.openMainWindow()
-                model.selectedRoute = .settings
-            }
-            .accessibilityIdentifier("menuBar.appSettings")
-
-            actionRow("Quit SetCatcher", systemImage: "power", tint: DJToken.danger) {
-                NSApp.terminate(nil)
-            }
-            .accessibilityIdentifier("menuBar.quit")
-
-            if let archivePath = model.settings.archiveRootPath {
-                Text(archivePath)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(DJToken.mutedForeground)
-                    .opacity(0.8)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(EdgeInsets(top: 2, leading: 34, bottom: 4, trailing: 10))
-            }
-        }
-        .padding(6)
-    }
-
-    private func actionRow(
-        _ label: String,
-        systemImage: String,
-        tint: Color = DJToken.foreground,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 13))
-                    .foregroundStyle(DJToken.mutedForeground)
-                    .frame(width: 14)
-                Text(label)
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(tint)
-                Spacer(minLength: 0)
-            }
-            .padding(EdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 10))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(MenuRowButtonStyle())
-    }
-}
-
-/// Hover/pressed background matching the design handoff's `background:var(--app-muted)` hover state.
-private struct MenuRowButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                configuration.isPressed ? DJToken.muted : Color.clear,
-                in: RoundedRectangle(cornerRadius: DJToken.Radius.control)
-            )
     }
 }

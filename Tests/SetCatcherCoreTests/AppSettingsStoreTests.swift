@@ -57,12 +57,15 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertTrue(settings.notifyAfterArchiving)
         XCTAssertFalse(settings.launchAtLogin)
         XCTAssertEqual(settings.captureMode, .appAudio)
-        XCTAssertEqual(settings.appAudioIdleSeconds, 90)
+        XCTAssertEqual(settings.appAudioIdleSeconds, 60)
         XCTAssertEqual(settings.appAudioMinDurationSeconds, 30)
-        XCTAssertEqual(settings.appAudioEnergyThreshold, 0.02, accuracy: 0.0001)
+        XCTAssertEqual(settings.appAudioStartHoldSeconds, 3)
+        XCTAssertEqual(settings.appAudioEnergyThreshold, CaptureLevelScale.dispatchStartEnergyThreshold, accuracy: 0.0001)
         XCTAssertTrue(settings.autoArmOnDJAppFound)
         XCTAssertEqual(settings.dualRoutePosture, .both)
         XCTAssertNil(settings.pinnedAnalogInputDeviceID)
+        XCTAssertEqual(settings.appPresentationMode, .menuBarAndMainWindow)
+        XCTAssertFalse(settings.menuBarOnly)
     }
 
     func testPinnedAnalogInputDeviceIDRoundTrips() throws {
@@ -70,5 +73,55 @@ final class AppSettingsStoreTests: XCTestCase {
         let settings = AppSettings(pinnedAnalogInputDeviceID: "USBAudioDevice:Test:RecOut")
         try store.save(settings)
         XCTAssertEqual(try store.load().pinnedAnalogInputDeviceID, "USBAudioDevice:Test:RecOut")
+    }
+
+    func testLegacyMenuBarOnlyMigratesToPresentationMode() throws {
+        let store = AppSettingsStore(storageURL: tempRoot.appendingPathComponent("settings.json"))
+        let json = """
+        {
+          "automaticScanningEnabled" : true,
+          "menuBarOnly" : true
+        }
+        """
+        try Data(json.utf8).write(to: store.storageURL)
+        let settings = try store.load()
+        XCTAssertEqual(settings.appPresentationMode, .menuBarOnly)
+        XCTAssertTrue(settings.menuBarOnly)
+    }
+
+    func testAppPresentationModeRoundTripsAndKeepsLegacyKey() throws {
+        let store = AppSettingsStore(storageURL: tempRoot.appendingPathComponent("settings.json"))
+        let settings = AppSettings(appPresentationMode: .mainWindowOnly)
+        try store.save(settings)
+        let loaded = try store.load()
+        XCTAssertEqual(loaded.appPresentationMode, .mainWindowOnly)
+        XCTAssertFalse(loaded.menuBarOnly)
+        let raw = try String(contentsOf: store.storageURL, encoding: .utf8)
+        XCTAssertTrue(raw.contains("\"appPresentationMode\""))
+        XCTAssertTrue(raw.contains("\"menuBarOnly\""))
+        XCTAssertTrue(raw.contains("false"))
+    }
+
+    func testLegacyCapturePolicyValuesMigrateToLockedContract() throws {
+        let store = AppSettingsStore(storageURL: tempRoot.appendingPathComponent("settings.json"))
+        let json = """
+        {
+          "appAudioIdleSeconds" : 5,
+          "appAudioMinDurationSeconds" : 2,
+          "appAudioStartHoldSeconds" : 1,
+          "appAudioEnergyThreshold" : 0.9
+        }
+        """
+        try Data(json.utf8).write(to: store.storageURL)
+
+        let settings = try store.load()
+
+        XCTAssertEqual(settings.appAudioIdleSeconds, 60)
+        XCTAssertEqual(settings.appAudioMinDurationSeconds, 30)
+        XCTAssertEqual(settings.appAudioStartHoldSeconds, 3)
+        XCTAssertEqual(settings.appAudioEnergyThreshold, CaptureLevelScale.dispatchStartEnergyThreshold, accuracy: 0.0001)
+        XCTAssertEqual(settings.silenceSessionConfig.idleEnergyThreshold, CaptureLevelScale.dispatchIdleEnergyThreshold, accuracy: 0.0001)
+        XCTAssertEqual(settings.silenceSessionConfig.prerollSeconds, 10)
+        XCTAssertEqual(settings.silenceSessionConfig.postRollSeconds, 5)
     }
 }

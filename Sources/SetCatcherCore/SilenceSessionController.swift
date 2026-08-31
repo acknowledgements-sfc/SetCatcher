@@ -1,21 +1,48 @@
 import Foundation
 
 public struct SilenceSessionConfig: Codable, Equatable, Sendable {
-    public var energyThreshold: Float
+    /// Level at or above which the armed phase accumulates start hold time.
+    public var startEnergyThreshold: Float
+    /// Level below which the recording phase accumulates idle stop time.
+    public var idleEnergyThreshold: Float
     public var startHoldSeconds: TimeInterval
     public var idleSeconds: TimeInterval
     public var minDurationSeconds: TimeInterval
+    public var prerollSeconds: TimeInterval
+    public var postRollSeconds: TimeInterval
 
     public init(
-        energyThreshold: Float = 0.02,
-        startHoldSeconds: TimeInterval = 0.5,
-        idleSeconds: TimeInterval = 90,
-        minDurationSeconds: TimeInterval = 30
+        startEnergyThreshold: Float = CaptureLevelScale.dispatchStartEnergyThreshold,
+        idleEnergyThreshold: Float = CaptureLevelScale.dispatchIdleEnergyThreshold,
+        startHoldSeconds: TimeInterval = CaptureLevelScale.dispatchStartHoldSeconds,
+        idleSeconds: TimeInterval = CaptureLevelScale.dispatchIdleSeconds,
+        minDurationSeconds: TimeInterval = CaptureLevelScale.dispatchMinimumDurationSeconds,
+        prerollSeconds: TimeInterval = CaptureLevelScale.dispatchPrerollSeconds,
+        postRollSeconds: TimeInterval = CaptureLevelScale.dispatchPostRollSeconds
     ) {
-        self.energyThreshold = energyThreshold
+        self.startEnergyThreshold = startEnergyThreshold
+        self.idleEnergyThreshold = idleEnergyThreshold
         self.startHoldSeconds = startHoldSeconds
         self.idleSeconds = idleSeconds
         self.minDurationSeconds = minDurationSeconds
+        self.prerollSeconds = prerollSeconds
+        self.postRollSeconds = postRollSeconds
+    }
+
+    /// Legacy alias for callers that only set one threshold (used in tests).
+    public init(
+        energyThreshold: Float,
+        startHoldSeconds: TimeInterval,
+        idleSeconds: TimeInterval,
+        minDurationSeconds: TimeInterval
+    ) {
+        self.init(
+            startEnergyThreshold: energyThreshold,
+            idleEnergyThreshold: energyThreshold * 0.5,
+            startHoldSeconds: startHoldSeconds,
+            idleSeconds: idleSeconds,
+            minDurationSeconds: minDurationSeconds
+        )
     }
 
     public static let `default` = SilenceSessionConfig()
@@ -40,6 +67,7 @@ public struct SilenceSessionController: Equatable, Sendable {
     private var aboveSince: Date?
     private var belowSince: Date?
     private var recordingStartedAt: Date?
+    private var postRollUntil: Date?
 
     public init(config: SilenceSessionConfig = .default, phase: SilenceSessionPhase = .armed) {
         self.config = config
@@ -47,6 +75,7 @@ public struct SilenceSessionController: Equatable, Sendable {
         self.aboveSince = nil
         self.belowSince = nil
         self.recordingStartedAt = nil
+        self.postRollUntil = nil
     }
 
     public mutating func resetToArmed() {
@@ -54,15 +83,27 @@ public struct SilenceSessionController: Equatable, Sendable {
         aboveSince = nil
         belowSince = nil
         recordingStartedAt = nil
+        postRollUntil = nil
+    }
+
+    /// Force recording without waiting for start hold (manual start — never confirms in UI).
+    public mutating func forceStartRecording(now: Date = Date()) {
+        phase = .recording
+        recordingStartedAt = now
+        aboveSince = nil
+        belowSince = nil
+        postRollUntil = nil
     }
 
     public mutating func process(level: Float, now: Date = Date()) -> SilenceSessionEvent? {
-        let isAbove = level >= config.energyThreshold
+        let isAboveStart = level >= config.startEnergyThreshold
+        let isBelowIdle = level < config.idleEnergyThreshold
 
         switch phase {
         case .armed:
             belowSince = nil
-            if isAbove {
+            postRollUntil = nil
+            if isAboveStart {
                 if aboveSince == nil { aboveSince = now }
                 if let aboveSince, now.timeIntervalSince(aboveSince) >= config.startHoldSeconds {
                     phase = .recording
@@ -77,12 +118,19 @@ public struct SilenceSessionController: Equatable, Sendable {
             return nil
 
         case .recording:
-            if isAbove {
+            if !isBelowIdle {
                 belowSince = nil
+                postRollUntil = nil
                 return nil
             }
             if belowSince == nil { belowSince = now }
             guard let belowSince, now.timeIntervalSince(belowSince) >= config.idleSeconds else {
+                return nil
+            }
+            if postRollUntil == nil {
+                postRollUntil = now.addingTimeInterval(config.postRollSeconds)
+            }
+            guard let postRollUntil, now >= postRollUntil else {
                 return nil
             }
             let started = recordingStartedAt ?? now
@@ -92,6 +140,7 @@ public struct SilenceSessionController: Equatable, Sendable {
             aboveSince = nil
             self.belowSince = nil
             recordingStartedAt = nil
+            self.postRollUntil = nil
             return .finalizeSession(duration: duration, discard: discard)
         }
     }

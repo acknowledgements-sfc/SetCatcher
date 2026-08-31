@@ -2,48 +2,43 @@ import SwiftUI
 import SetCatcherCore
 
 /// Visual state for the menu bar icon + adjacent label.
-/// Derived from AppModel.captureState — see AppModel.menuBarState.
+/// Derived from `LiveProtectionState` — see `AppModel.menuBarState`.
 enum MenuBarState: Equatable {
     case launching
-    case ready
+    case noSource
+    case detected(djAppName: String?)
+    case ready(djAppName: String?)
     case armed(djAppName: String?)
     case capturing(djAppName: String?)
     case saving
     case saved
+    case attentionNeeded
     case failed(String)
 
     static func derive(
         isLaunching: Bool,
-        justSaved: Bool,
-        phase: CapturePhase,
+        live: LiveProtectionState,
         djAppName: String?
     ) -> MenuBarState {
         if isLaunching { return .launching }
-        if justSaved { return .saved }
 
-        switch phase {
-        case .idle, .requestingPermission, .needsScreenRecordingPermission:
-            return .ready
-        case .armed, .watching:
-            return .armed(djAppName: djAppName)
-        case .recording:
+        switch live {
+        case .capturing:
             return .capturing(djAppName: djAppName)
+        case .setProtected:
+            return .saved
+        case .attentionNeeded:
+            return .attentionNeeded
         case .saving:
             return .saving
-        case .failed(let reason):
-            return .failed(reason)
-        }
-    }
-
-    var symbolName: String {
-        switch self {
-        case .launching: return "waveform"
-        case .ready: return "waveform"
-        case .armed: return "waveform.circle.fill"
-        case .capturing: return "waveform.circle.fill"
-        case .saving: return "arrow.down.circle.fill"
-        case .saved: return "checkmark.circle.fill"
-        case .failed: return "exclamationmark.triangle.fill"
+        case .armed:
+            return .armed(djAppName: djAppName)
+        case .ready:
+            return .ready(djAppName: djAppName)
+        case .detected:
+            return .detected(djAppName: djAppName)
+        case .noSource:
+            return .noSource
         }
     }
 
@@ -51,22 +46,30 @@ enum MenuBarState: Equatable {
     /// text label, not the icon artwork.
     var iconCacheKey: String {
         switch self {
-        case .launching, .ready: return "watching"
+        case .launching: return "launching"
+        case .noSource: return "noSource"
+        case .detected: return "detected"
+        case .ready: return "ready"
         case .armed: return "armed"
         case .capturing: return "capturing"
         case .saving: return "saving"
         case .saved: return "saved"
+        case .attentionNeeded: return "attention"
         case .failed: return "failed"
         }
     }
 
-    /// Icon/status-dot color per the menu bar design handoff.
+    /// Icon/status-dot color from the 8-state Live palette.
     var tint: Color? {
         switch self {
-        case .launching, .ready: return DJToken.MenuBarStatus.watching
-        case .armed: return DJToken.MenuBarStatus.armed
-        case .capturing: return DJToken.MenuBarStatus.capturing
-        case .saving, .saved: return DJToken.MenuBarStatus.saved
+        case .launching, .noSource: return DJToken.LiveState.dormant
+        case .detected: return DJToken.LiveState.detected
+        case .ready: return DJToken.LiveState.ready
+        case .armed: return DJToken.LiveState.armed
+        case .capturing: return DJToken.LiveState.capturing
+        case .saving: return DJToken.LiveState.saving
+        case .saved: return DJToken.LiveState.protected
+        case .attentionNeeded: return DJToken.LiveState.attention
         case .failed: return DJToken.danger
         }
     }
@@ -74,16 +77,23 @@ enum MenuBarState: Equatable {
     /// Text rendered next to the icon in the menu bar, if any.
     var label: String? {
         switch self {
-        case .launching, .ready, .saving, .failed: return nil
-        case .armed(let name): return name
-        case .capturing(let name): return name
-        case .saved: return "SAVED"
+        case .launching, .noSource, .failed:
+            return nil
+        case .detected(let name), .ready(let name), .armed(let name), .capturing(let name):
+            return name
+        case .saving:
+            return "Saving…"
+        case .saved:
+            return "Protected"
+        case .attentionNeeded:
+            return "Attention"
         }
     }
 
     var labelColor: Color {
         switch self {
         case .armed, .capturing: return .white
+        case .detected: return DJToken.mutedForeground
         default: return tint ?? .primary
         }
     }
@@ -97,11 +107,14 @@ enum MenuBarState: Equatable {
     var accessibilityDescription: String {
         switch self {
         case .launching: return "Starting up"
-        case .ready: return "Ready for capture"
+        case .noSource: return "No protection source"
+        case .detected(let name): return name.map { "\($0) detected" } ?? "Source detected"
+        case .ready(let name): return name.map { "\($0) ready, not armed" } ?? "Ready for capture"
         case .armed(let name): return name.map { "\($0) detected, armed" } ?? "Armed"
         case .capturing(let name): return name.map { "Capturing \($0)" } ?? "Capturing"
         case .saving: return "Saving capture"
-        case .saved: return "Set saved"
+        case .saved: return "Set protected"
+        case .attentionNeeded: return "Attention needed"
         case .failed(let reason): return "Capture error: \(reason)"
         }
     }

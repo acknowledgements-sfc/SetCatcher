@@ -1,4 +1,5 @@
 import AppKit
+import SetCatcherCore
 import SwiftUI
 
 /// Shared design tokens for SetCatcherApp (HANDOFF.md §2).
@@ -108,6 +109,30 @@ enum DJToken {
         static let armed = Color(srgbHex: 0xE8B800)
         static let capturing = danger
         static let saved = Color(srgbHex: 0x0A84FF)
+    }
+
+    /// Live protection card state accents (dispatch-01).
+    enum LiveState {
+        static let dormant = Color(srgbHex: 0x6B7280)
+        static let detected = Color(srgbHex: 0xE5E7EB)
+        static let ready = Color(srgbHex: 0x34D399)
+        static let armed = Color(srgbHex: 0xFBBF24)
+        static let capturing = Color(srgbHex: 0xEF4444)
+        static let saving = Color(srgbHex: 0x60A5FA)
+        static let protected = Color(srgbHex: 0x10B981)
+        static let attention = Color(srgbHex: 0xF97316)
+
+        static func accent(for state: LiveProtectionState) -> Color {
+            switch state.primaryDisplay {
+            case .noSource: return dormant
+            case .detected: return detected
+            case .ready: return ready
+            case .armed, .setProtected: return armed
+            case .capturing: return capturing
+            case .saving: return saving
+            case .attentionNeeded: return attention
+            }
+        }
     }
 }
 

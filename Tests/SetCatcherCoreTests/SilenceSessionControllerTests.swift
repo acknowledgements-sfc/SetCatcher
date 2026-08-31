@@ -3,10 +3,12 @@ import XCTest
 
 final class SilenceSessionControllerTests: XCTestCase {
     private let config = SilenceSessionConfig(
-        energyThreshold: 0.1,
+        startEnergyThreshold: 0.1,
+        idleEnergyThreshold: 0.05,
         startHoldSeconds: 0.5,
         idleSeconds: 2,
-        minDurationSeconds: 5
+        minDurationSeconds: 5,
+        postRollSeconds: 0
     )
 
     func testArmedIgnoresBriefNoiseThenStartsAfterHold() {
@@ -70,6 +72,26 @@ final class SilenceSessionControllerTests: XCTestCase {
         XCTAssertEqual(duration, 8.5, accuracy: 0.001)
         XCTAssertFalse(discard)
         XCTAssertEqual(controller.phase, .armed)
+    }
+
+    func testPostRollExtendsRecordingAfterIdleThreshold() {
+        let postRollConfig = SilenceSessionConfig(
+            startEnergyThreshold: 0.1,
+            idleEnergyThreshold: 0.05,
+            startHoldSeconds: 0.5,
+            idleSeconds: 2,
+            minDurationSeconds: 5,
+            postRollSeconds: 5
+        )
+        var controller = SilenceSessionController(config: postRollConfig)
+        let t0 = Date(timeIntervalSince1970: 7_000)
+        _ = controller.process(level: 0.2, now: t0)
+        _ = controller.process(level: 0.2, now: t0.addingTimeInterval(0.5))
+        _ = controller.process(level: 0.01, now: t0.addingTimeInterval(1.0))
+        XCTAssertNil(controller.process(level: 0.01, now: t0.addingTimeInterval(3.0)))
+        XCTAssertEqual(controller.phase, .recording)
+        let event = controller.process(level: 0.01, now: t0.addingTimeInterval(8.0))
+        XCTAssertNotNil(event)
     }
 
     func testResumeStartsNewSessionAfterFinalize() {

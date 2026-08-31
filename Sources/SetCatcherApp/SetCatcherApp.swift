@@ -6,6 +6,13 @@ import SetCatcherCore
 import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var presentationMode: AppPresentationMode {
+        if ProcessInfo.processInfo.environment["SETCATCHER_FORCE_MAIN_WINDOW"] == "1" {
+            return .mainWindowOnly
+        }
+        return (try? AppSettingsStore().load())?.appPresentationMode ?? .menuBarAndMainWindow
+    }
+
     func applicationWillFinishLaunching(_ notification: Notification) {
         applyActivationPolicyFromSettings()
     }
@@ -16,8 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         applyActivationPolicyFromSettings()
-        let menuBarOnly = (try? AppSettingsStore().load())?.menuBarOnly ?? false
-        if menuBarOnly {
+        let mode = presentationMode
+        if !mode.opensMainWindowAtLaunch {
             // orderOut hides the window without destroying it; close() would
             // remove it from NSApp.windows and openMainWindow() would find nothing.
             DispatchQueue.main.async {
@@ -32,6 +39,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         applyActivationPolicyFromSettings()
+        MainActor.assumeIsolated {
+            AppModel.lifecycleOwner?.handleAppBecameActive()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -43,8 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func applyActivationPolicyFromSettings() {
-        let menuBarOnly = (try? AppSettingsStore().load())?.menuBarOnly ?? false
-        if menuBarOnly {
+        let mode = presentationMode
+        if mode.usesAccessoryActivationPolicy {
             NSApp.setActivationPolicy(.accessory)
         } else {
             NSApp.setActivationPolicy(.regular)
@@ -88,6 +98,9 @@ struct SetCatcherApplication: App {
     private static let oauthCallbackURL = "\(appBundleID)://callback"
     private static let clerkPublishableKey = SetCatcherAccountConfiguration.clerkPublishableKey
     private static var isAccountAuthEnabled: Bool { clerkPublishableKey != nil }
+    private static var forceMainWindowForVerification: Bool {
+        ProcessInfo.processInfo.environment["SETCATCHER_FORCE_MAIN_WINDOW"] == "1"
+    }
 
     init() {
         // NOTE: Do NOT touch NSApp here. `App.init()` runs before SwiftUI creates the
@@ -116,22 +129,48 @@ struct SetCatcherApplication: App {
                 .frame(minWidth: 980, minHeight: 640)
                 .modifier(RegisterOpenMainWindow(model: model))
         }
-        .defaultLaunchBehavior(.presented)
+        .defaultLaunchBehavior(
+            (Self.forceMainWindowForVerification || model.settings.appPresentationMode.opensMainWindowAtLaunch)
+                ? .presented
+                : .automatic
+        )
         .commands {
             AppCommands(model: model)
         }
 
-        MenuBarExtra {
+        MenuBarExtra(isInserted: menuBarExtraInserted) {
             menuBarView
         } label: {
-            MenuBarIconView(state: model.menuBarState)
+            MenuBarIconView(
+                state: model.menuBarState,
+                iconOpacity: model.menuBarIconOpacity,
+                labelSlideProgress: model.menuBarLabelSlideProgress
+            )
                 .equatable()
+                .onChange(of: model.menuBarState) { _, _ in
+                    model.noteMenuBarPresentationChanged()
+                }
                 .modifier(LaunchMainWindowOnce(model: model))
         }
         // `.window` renders the dropdown as an arbitrary SwiftUI view instead of converting
         // it to an NSMenu — required for the design handoff's custom panel chrome
         // (rounded corners, elevated background, hover rows) rather than native menu items.
         .menuBarExtraStyle(.window)
+    }
+
+    /// Drives menu bar visibility for `.mainWindowOnly` without rebuilding the Scene graph.
+    private var menuBarExtraInserted: Binding<Bool> {
+        Binding(
+            get: { model.settings.appPresentationMode.showsMenuBarExtra },
+            set: { show in
+                // Control-click Remove keeps Settings as the source of truth for “main window only”.
+                if !show, model.settings.appPresentationMode.showsMenuBarExtra {
+                    model.updateAppPresentationMode(.mainWindowOnly)
+                } else if show, model.settings.appPresentationMode == .mainWindowOnly {
+                    model.updateAppPresentationMode(.menuBarAndMainWindow)
+                }
+            }
+        )
     }
 
     @ViewBuilder
@@ -163,7 +202,7 @@ struct SetCatcherApplication: App {
 
 /// Captures SwiftUI's `openWindow` action from inside the WindowGroup and hands it to
 /// `AppModel`, so non-View code can surface the main window on demand (menu bar actions,
-/// the menuBarOnly toggle). Registered from the window content's `.onAppear`.
+/// presentation-mode changes). Registered from the window content's `.onAppear`.
 private struct RegisterOpenMainWindow: ViewModifier {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
@@ -175,9 +214,8 @@ private struct RegisterOpenMainWindow: ViewModifier {
     }
 }
 
-/// Registers `openWindow` from the menu-bar extra (always instantiated at launch) and presents
-/// the main window if `.defaultLaunchBehavior(.presented)` still left it closed (window restoration
-/// or a race with scene setup). No-ops when `menuBarOnly` is on.
+/// Registers `openWindow` from the menu-bar extra (when present) and presents
+/// the main window if launch behavior still left it closed. No-ops for menu-bar-only.
 private struct LaunchMainWindowOnce: ViewModifier {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
@@ -191,9 +229,13 @@ private struct LaunchMainWindowOnce: ViewModifier {
             guard !didRun else { return }
             didRun = true
 
-            // Read menuBarOnly from disk (authoritative at launch; model state may not be loaded).
-            let menuBarOnly = (try? AppSettingsStore().load())?.menuBarOnly ?? false
-            guard !menuBarOnly else { return }
+            let mode: AppPresentationMode
+            if ProcessInfo.processInfo.environment["SETCATCHER_FORCE_MAIN_WINDOW"] == "1" {
+                mode = .mainWindowOnly
+            } else {
+                mode = (try? AppSettingsStore().load())?.appPresentationMode ?? .menuBarAndMainWindow
+            }
+            guard mode.opensMainWindowAtLaunch else { return }
 
             // If the WindowGroup already came up via defaultLaunchBehavior, leave it.
             DispatchQueue.main.async {

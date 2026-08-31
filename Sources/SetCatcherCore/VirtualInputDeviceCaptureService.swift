@@ -97,6 +97,10 @@ public final class VirtualInputDeviceCaptureService: @unchecked Sendable, Virtua
         capture.currentInputLevel()
     }
 
+    public func currentStagingByteCount() -> Int64? {
+        capture.currentStagingByteCount()
+    }
+
     private func unavailableDeviceError(_ name: String) -> AppAudioCaptureError {
         .engineFailed(
             "\(name) is not available as an input. Open the DJ app, then Arm again, or use Process Audio Tap / folder Protection."

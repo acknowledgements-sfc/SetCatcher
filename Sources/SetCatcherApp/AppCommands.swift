@@ -23,12 +23,7 @@ struct AppCommands: Commands {
             Button("Refresh") {
                 model.refresh()
             }
-            .keyboardShortcut("r", modifiers: [.command, .shift])
-
-            Button("Open Archive Folder") {
-                model.openArchiveFolder()
-            }
-            .keyboardShortcut("o", modifiers: [.command, .shift])
+            .keyboardShortcut("r", modifiers: [.command, .option])
         }
 
         CommandGroup(after: .sidebar) {
@@ -46,7 +41,7 @@ struct AppCommands: Commands {
 
             Divider()
 
-            Button("Home") {
+            Button("Live") {
                 model.selectedRoute = .home
             }
             .keyboardShortcut("1", modifiers: .command)
@@ -75,6 +70,30 @@ struct AppCommands: Commands {
                 model.selectedRoute = .settings
             }
             .keyboardShortcut("6", modifiers: .command)
+        }
+
+        CommandGroup(after: .toolbar) {
+            Button("Stop Capture") {
+                model.requestStopCapture()
+            }
+            .keyboardShortcut(".", modifiers: .command)
+            .disabled(model.captureState.phase != .recording)
+
+            Button("Start Capture Now") {
+                model.startCaptureNow()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(model.captureState.phase != .watching)
+
+            Button("Toggle Arm") {
+                model.toggleArmFromShortcut()
+            }
+            .keyboardShortcut("a", modifiers: [.command, .shift])
+
+            Button("Open Archive Folder") {
+                model.openArchiveFolder()
+            }
+            .keyboardShortcut("o", modifiers: [.command, .shift])
         }
     }
 }

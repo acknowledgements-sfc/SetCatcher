@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import SetCatcherCore
 
 struct LocalNotificationService {
     /// UserNotifications requires a real `.app` bundle. SPM/Xcode package runs
@@ -7,6 +8,10 @@ struct LocalNotificationService {
     static var canUseUserNotifications: Bool {
         Bundle.main.bundleURL.pathExtension.lowercased() == "app"
     }
+
+    static let quietCategoryID = "setcatcher.quiet"
+    static let urgentCategoryID = "setcatcher.urgent"
+    static let openAppActionID = "setcatcher.open"
 
     private let center: UNUserNotificationCenter?
 
@@ -22,42 +27,48 @@ struct LocalNotificationService {
 
     func requestAuthorization() {
         center?.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        registerCategories()
+    }
+
+    private func registerCategories() {
+        guard let center else { return }
+        let open = UNNotificationAction(
+            identifier: Self.openAppActionID,
+            title: "Open SetCatcher",
+            options: [.foreground]
+        )
+        let quiet = UNNotificationCategory(
+            identifier: Self.quietCategoryID,
+            actions: [],
+            intentIdentifiers: []
+        )
+        let urgent = UNNotificationCategory(
+            identifier: Self.urgentCategoryID,
+            actions: [open],
+            intentIdentifiers: []
+        )
+        center.setNotificationCategories([quiet, urgent])
     }
 
     func notifyPerformanceAttachment(_ body: String) {
-        guard let center else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = "Set saved"
-        content.body = body
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: "archive-attached-\(UUID().uuidString)",
-            content: content,
-            trigger: nil
-        )
-
-        center.add(request)
+        postQuiet(title: "SetCatcher", body: body, idPrefix: "archive-attached")
     }
 
     func notifyArchiveSaved(count: Int) {
-        guard let center, count > 0 else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = "Set saved"
-        content.body = count == 1
+        guard count > 0 else { return }
+        let body = count == 1
             ? "SetCatcher archived a completed recording."
             : "SetCatcher archived \(count) completed recordings."
-        content.sound = .default
+        postQuiet(title: "SetCatcher", body: body, idPrefix: "archive-saved")
+    }
 
-        let request = UNNotificationRequest(
-            identifier: "archive-saved-\(UUID().uuidString)",
-            content: content,
-            trigger: nil
+    /// Quiet tier: set protected toast companion.
+    func notifySetProtected(setName: String, durationText: String) {
+        postQuiet(
+            title: "SetCatcher",
+            body: "Set protected — \(setName) · \(durationText)",
+            idPrefix: "set-protected"
         )
-
-        center.add(request)
     }
 
     static func captureStartedBody(displayName _: String, at date: Date = Date(), calendar: Calendar = .current) -> String {
@@ -68,39 +79,82 @@ struct LocalNotificationService {
     }
 
     /// A different DJ app or input device was detected while one is already armed/watching.
-    /// SetCatcher never auto-switches an active session — this tells the user another source
-    /// is available so they can switch from the app if they want to.
     func notifyAlternateSourceDetected(displayName: String) {
+        postQuiet(
+            title: "Another source detected",
+            body: "\(displayName) is also running. Open SetCatcher to switch, or keep watching the current source.",
+            idPrefix: "alternate-source"
+        )
+    }
+
+    /// Quiet tier: capture started (no sound — don't interrupt the DJ).
+    func notifyCaptureStarted(displayName: String, at date: Date = Date()) {
+        postQuiet(
+            title: "SetCatcher",
+            body: "Capturing — \(displayName) detected",
+            idPrefix: "capture-started",
+            sound: false
+        )
+    }
+
+    /// Urgent tier: attention needed — persists in Notification Center until dismissed.
+    func notifyAttentionNeeded(_ event: AttentionEvent) {
+        let body = Self.urgentBody(for: event)
+        postUrgent(title: "SetCatcher", body: body, identifier: "attention-\(event.id)")
+    }
+
+    func clearAttentionNotification(id: String) {
+        center?.removeDeliveredNotifications(withIdentifiers: ["attention-\(id)"])
+        center?.removePendingNotificationRequests(withIdentifiers: ["attention-\(id)"])
+    }
+
+    static func urgentBody(for event: AttentionEvent) -> String {
+        switch event.kind {
+        case .folderMoved:
+            return "Recording folder was moved — sets may not be protected"
+        case .folderMissing:
+            return "Recording folder not found — sets may not be protected"
+        case .permissionDenied:
+            return "Can't access recording folder — sets may not be protected"
+        case .diskFull:
+            return event.warning ?? "Low disk space — capture may stop"
+        case .saveFailed:
+            return "Failed to save set — recording is safe in temp file"
+        case .screenRecording:
+            return "Screen Recording permission required — App audio Capture can't arm"
+        case .sourceUnreadable:
+            return event.body + " — capture may be incomplete"
+        }
+    }
+
+    private func postQuiet(title: String, body: String, idPrefix: String, sound: Bool = true) {
         guard let center else { return }
-
         let content = UNMutableNotificationContent()
-        content.title = "Another source detected"
-        content.body = "\(displayName) is also running. Open SetCatcher to switch, or keep watching the current source."
-        content.sound = .default
-
+        content.title = title
+        content.body = body
+        content.categoryIdentifier = Self.quietCategoryID
+        if sound { content.sound = .default }
         let request = UNNotificationRequest(
-            identifier: "alternate-source-\(UUID().uuidString)",
+            identifier: "\(idPrefix)-\(UUID().uuidString)",
             content: content,
             trigger: nil
         )
-
         center.add(request)
     }
 
-    func notifyCaptureStarted(displayName: String, at date: Date = Date()) {
+    private func postUrgent(title: String, body: String, identifier: String) {
         guard let center else { return }
-
         let content = UNMutableNotificationContent()
-        content.title = "Recording started"
-        content.body = Self.captureStartedBody(displayName: displayName, at: date)
+        content.title = title
+        content.body = body
         content.sound = .default
-
+        content.categoryIdentifier = Self.urgentCategoryID
+        // Replacing same identifier keeps one persistent alert per attention event.
         let request = UNNotificationRequest(
-            identifier: "capture-started-\(UUID().uuidString)",
+            identifier: identifier,
             content: content,
             trigger: nil
         )
-
         center.add(request)
     }
 }

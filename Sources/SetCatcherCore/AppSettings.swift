@@ -17,15 +17,19 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public let lastCaptureTargetAppID: String?
     public let appAudioIdleSeconds: Int
     public let appAudioMinDurationSeconds: Int
+    public let appAudioStartHoldSeconds: Int
     public let appAudioEnergyThreshold: Float
     public let cloudSyncEnabled: Bool
     public let cloudArchiveBackupEnabled: Bool
     public let autoArmOnDJAppFound: Bool
-    public let menuBarOnly: Bool
+    public let appPresentationMode: AppPresentationMode
     public let showFolderScanDetailsInMenuBar: Bool
     public let dualRoutePosture: DualRoutePosture
     /// Pinned Core Audio UID for Analog Mixer rec-out. Nil until the DJ Choose-rec-out once.
     public let pinnedAnalogInputDeviceID: String?
+
+    /// Legacy alias — true only for `.menuBarOnly`. Prefer `appPresentationMode`.
+    public var menuBarOnly: Bool { appPresentationMode == .menuBarOnly }
 
     public init(
         automaticScanningEnabled: Bool = true,
@@ -40,13 +44,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
         lastCaptureDeviceID: String? = nil,
         captureMode: CaptureMode = .appAudio,
         lastCaptureTargetAppID: String? = nil,
-        appAudioIdleSeconds: Int = 90,
+        appAudioIdleSeconds: Int = 60,
         appAudioMinDurationSeconds: Int = 30,
-        appAudioEnergyThreshold: Float = 0.02,
+        appAudioStartHoldSeconds: Int = 3,
+        appAudioEnergyThreshold: Float = CaptureLevelScale.dispatchStartEnergyThreshold,
         cloudSyncEnabled: Bool = false,
         cloudArchiveBackupEnabled: Bool = false,
         autoArmOnDJAppFound: Bool = true,
-        menuBarOnly: Bool = false,
+        appPresentationMode: AppPresentationMode = .menuBarAndMainWindow,
+        menuBarOnly: Bool? = nil,
         showFolderScanDetailsInMenuBar: Bool = false,
         dualRoutePosture: DualRoutePosture = .both,
         pinnedAnalogInputDeviceID: String? = nil
@@ -63,13 +69,20 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.lastCaptureDeviceID = lastCaptureDeviceID
         self.captureMode = captureMode
         self.lastCaptureTargetAppID = lastCaptureTargetAppID
-        self.appAudioIdleSeconds = appAudioIdleSeconds
-        self.appAudioMinDurationSeconds = appAudioMinDurationSeconds
-        self.appAudioEnergyThreshold = appAudioEnergyThreshold
+        // Protection timing is a product safety contract, not a user preference. Keep the
+        // legacy fields for backwards-compatible JSON while normalizing every construction.
+        self.appAudioIdleSeconds = Int(CaptureLevelScale.dispatchIdleSeconds)
+        self.appAudioMinDurationSeconds = Int(CaptureLevelScale.dispatchMinimumDurationSeconds)
+        self.appAudioStartHoldSeconds = Int(CaptureLevelScale.dispatchStartHoldSeconds)
+        self.appAudioEnergyThreshold = CaptureLevelScale.dispatchStartEnergyThreshold
         self.cloudSyncEnabled = cloudSyncEnabled
         self.cloudArchiveBackupEnabled = cloudArchiveBackupEnabled
         self.autoArmOnDJAppFound = autoArmOnDJAppFound
-        self.menuBarOnly = menuBarOnly
+        if let menuBarOnly {
+            self.appPresentationMode = menuBarOnly ? .menuBarOnly : appPresentationMode
+        } else {
+            self.appPresentationMode = appPresentationMode
+        }
         self.showFolderScanDetailsInMenuBar = showFolderScanDetailsInMenuBar
         self.dualRoutePosture = dualRoutePosture
         self.pinnedAnalogInputDeviceID = pinnedAnalogInputDeviceID
@@ -79,10 +92,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     public var silenceSessionConfig: SilenceSessionConfig {
         SilenceSessionConfig(
-            energyThreshold: appAudioEnergyThreshold,
-            startHoldSeconds: 0.5,
-            idleSeconds: TimeInterval(appAudioIdleSeconds),
-            minDurationSeconds: TimeInterval(appAudioMinDurationSeconds)
+            startEnergyThreshold: CaptureLevelScale.dispatchStartEnergyThreshold,
+            idleEnergyThreshold: CaptureLevelScale.dispatchIdleEnergyThreshold,
+            startHoldSeconds: CaptureLevelScale.dispatchStartHoldSeconds,
+            idleSeconds: CaptureLevelScale.dispatchIdleSeconds,
+            minDurationSeconds: CaptureLevelScale.dispatchMinimumDurationSeconds,
+            prerollSeconds: CaptureLevelScale.dispatchPrerollSeconds,
+            postRollSeconds: CaptureLevelScale.dispatchPostRollSeconds
         )
     }
 
@@ -91,9 +107,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case archiveRootPath, archiveRootBookmarkData, hasCompletedOnboarding
         case verifyCopies, notifyAfterArchiving, launchAtLogin
         case lastCaptureDeviceID, captureMode, lastCaptureTargetAppID
-        case appAudioIdleSeconds, appAudioMinDurationSeconds, appAudioEnergyThreshold
+        case appAudioIdleSeconds, appAudioMinDurationSeconds, appAudioStartHoldSeconds, appAudioEnergyThreshold
         case cloudSyncEnabled, cloudArchiveBackupEnabled, autoArmOnDJAppFound
-        case menuBarOnly, showFolderScanDetailsInMenuBar, dualRoutePosture
+        case appPresentationMode, menuBarOnly, showFolderScanDetailsInMenuBar, dualRoutePosture
         case pinnedAnalogInputDeviceID
     }
 
@@ -111,16 +127,58 @@ public struct AppSettings: Codable, Equatable, Sendable {
         lastCaptureDeviceID = try c.decodeIfPresent(String.self, forKey: .lastCaptureDeviceID)
         captureMode = try c.decodeIfPresent(CaptureMode.self, forKey: .captureMode) ?? .appAudio
         lastCaptureTargetAppID = try c.decodeIfPresent(String.self, forKey: .lastCaptureTargetAppID)
-        appAudioIdleSeconds = try c.decodeIfPresent(Int.self, forKey: .appAudioIdleSeconds) ?? 90
-        appAudioMinDurationSeconds = try c.decodeIfPresent(Int.self, forKey: .appAudioMinDurationSeconds) ?? 30
-        appAudioEnergyThreshold = try c.decodeIfPresent(Float.self, forKey: .appAudioEnergyThreshold) ?? 0.02
+        // Read legacy keys for schema compatibility, but migrate their behavior to the locked
+        // protection policy. Encoding writes these canonical values back on the next save.
+        _ = try c.decodeIfPresent(Int.self, forKey: .appAudioIdleSeconds)
+        _ = try c.decodeIfPresent(Int.self, forKey: .appAudioMinDurationSeconds)
+        _ = try c.decodeIfPresent(Int.self, forKey: .appAudioStartHoldSeconds)
+        _ = try c.decodeIfPresent(Float.self, forKey: .appAudioEnergyThreshold)
+        appAudioIdleSeconds = Int(CaptureLevelScale.dispatchIdleSeconds)
+        appAudioMinDurationSeconds = Int(CaptureLevelScale.dispatchMinimumDurationSeconds)
+        appAudioStartHoldSeconds = Int(CaptureLevelScale.dispatchStartHoldSeconds)
+        appAudioEnergyThreshold = CaptureLevelScale.dispatchStartEnergyThreshold
         cloudSyncEnabled = try c.decodeIfPresent(Bool.self, forKey: .cloudSyncEnabled) ?? false
         cloudArchiveBackupEnabled = try c.decodeIfPresent(Bool.self, forKey: .cloudArchiveBackupEnabled) ?? false
         autoArmOnDJAppFound = try c.decodeIfPresent(Bool.self, forKey: .autoArmOnDJAppFound) ?? true
-        menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? false
+        if let mode = try c.decodeIfPresent(AppPresentationMode.self, forKey: .appPresentationMode) {
+            appPresentationMode = mode
+        } else if let legacyMenuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly), legacyMenuBarOnly {
+            appPresentationMode = .menuBarOnly
+        } else {
+            appPresentationMode = .menuBarAndMainWindow
+        }
         showFolderScanDetailsInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showFolderScanDetailsInMenuBar) ?? false
         dualRoutePosture = try c.decodeIfPresent(DualRoutePosture.self, forKey: .dualRoutePosture) ?? .both
         pinnedAnalogInputDeviceID = try c.decodeIfPresent(String.self, forKey: .pinnedAnalogInputDeviceID)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(automaticScanningEnabled, forKey: .automaticScanningEnabled)
+        try c.encode(scanIntervalSeconds, forKey: .scanIntervalSeconds)
+        try c.encode(archiveNamingTemplate, forKey: .archiveNamingTemplate)
+        try c.encodeIfPresent(archiveRootPath, forKey: .archiveRootPath)
+        try c.encodeIfPresent(archiveRootBookmarkData, forKey: .archiveRootBookmarkData)
+        try c.encode(hasCompletedOnboarding, forKey: .hasCompletedOnboarding)
+        try c.encode(verifyCopies, forKey: .verifyCopies)
+        try c.encode(notifyAfterArchiving, forKey: .notifyAfterArchiving)
+        try c.encode(launchAtLogin, forKey: .launchAtLogin)
+        try c.encodeIfPresent(lastCaptureDeviceID, forKey: .lastCaptureDeviceID)
+        try c.encode(captureMode, forKey: .captureMode)
+        try c.encodeIfPresent(lastCaptureTargetAppID, forKey: .lastCaptureTargetAppID)
+        try c.encode(appAudioIdleSeconds, forKey: .appAudioIdleSeconds)
+        try c.encode(appAudioMinDurationSeconds, forKey: .appAudioMinDurationSeconds)
+        try c.encode(appAudioStartHoldSeconds, forKey: .appAudioStartHoldSeconds)
+        try c.encode(appAudioEnergyThreshold, forKey: .appAudioEnergyThreshold)
+        try c.encode(cloudSyncEnabled, forKey: .cloudSyncEnabled)
+        try c.encode(cloudArchiveBackupEnabled, forKey: .cloudArchiveBackupEnabled)
+        try c.encode(autoArmOnDJAppFound, forKey: .autoArmOnDJAppFound)
+        try c.encode(appPresentationMode, forKey: .appPresentationMode)
+        // Keep legacy key in sync for older builds / tooling.
+        try c.encode(menuBarOnly, forKey: .menuBarOnly)
+        try c.encode(showFolderScanDetailsInMenuBar, forKey: .showFolderScanDetailsInMenuBar)
+        try c.encode(dualRoutePosture, forKey: .dualRoutePosture)
+        try c.encodeIfPresent(pinnedAnalogInputDeviceID, forKey: .pinnedAnalogInputDeviceID)
     }
 
     public func updating(
@@ -138,16 +196,26 @@ public struct AppSettings: Codable, Equatable, Sendable {
         lastCaptureTargetAppID: String?? = nil,
         appAudioIdleSeconds: Int? = nil,
         appAudioMinDurationSeconds: Int? = nil,
+        appAudioStartHoldSeconds: Int? = nil,
         appAudioEnergyThreshold: Float? = nil,
         cloudSyncEnabled: Bool? = nil,
         cloudArchiveBackupEnabled: Bool? = nil,
         autoArmOnDJAppFound: Bool? = nil,
+        appPresentationMode: AppPresentationMode? = nil,
         menuBarOnly: Bool? = nil,
         showFolderScanDetailsInMenuBar: Bool? = nil,
         dualRoutePosture: DualRoutePosture? = nil,
         pinnedAnalogInputDeviceID: String?? = nil
     ) -> AppSettings {
-        AppSettings(
+        let resolvedMode: AppPresentationMode
+        if let appPresentationMode {
+            resolvedMode = appPresentationMode
+        } else if let menuBarOnly {
+            resolvedMode = menuBarOnly ? .menuBarOnly : .menuBarAndMainWindow
+        } else {
+            resolvedMode = self.appPresentationMode
+        }
+        return AppSettings(
             automaticScanningEnabled: automaticScanningEnabled ?? self.automaticScanningEnabled,
             scanIntervalSeconds: scanIntervalSeconds ?? self.scanIntervalSeconds,
             archiveNamingTemplate: archiveNamingTemplate ?? self.archiveNamingTemplate,
@@ -162,11 +230,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
             lastCaptureTargetAppID: lastCaptureTargetAppID ?? self.lastCaptureTargetAppID,
             appAudioIdleSeconds: appAudioIdleSeconds ?? self.appAudioIdleSeconds,
             appAudioMinDurationSeconds: appAudioMinDurationSeconds ?? self.appAudioMinDurationSeconds,
+            appAudioStartHoldSeconds: appAudioStartHoldSeconds ?? self.appAudioStartHoldSeconds,
             appAudioEnergyThreshold: appAudioEnergyThreshold ?? self.appAudioEnergyThreshold,
             cloudSyncEnabled: cloudSyncEnabled ?? self.cloudSyncEnabled,
             cloudArchiveBackupEnabled: cloudArchiveBackupEnabled ?? self.cloudArchiveBackupEnabled,
             autoArmOnDJAppFound: autoArmOnDJAppFound ?? self.autoArmOnDJAppFound,
-            menuBarOnly: menuBarOnly ?? self.menuBarOnly,
+            appPresentationMode: resolvedMode,
             showFolderScanDetailsInMenuBar: showFolderScanDetailsInMenuBar ?? self.showFolderScanDetailsInMenuBar,
             dualRoutePosture: dualRoutePosture ?? self.dualRoutePosture,
             pinnedAnalogInputDeviceID: pinnedAnalogInputDeviceID ?? self.pinnedAnalogInputDeviceID

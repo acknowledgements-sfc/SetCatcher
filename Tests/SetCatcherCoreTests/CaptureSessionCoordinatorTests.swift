@@ -3,10 +3,12 @@ import XCTest
 
 final class CaptureSessionCoordinatorTests: XCTestCase {
     private let config = SilenceSessionConfig(
-        energyThreshold: 0.1,
+        startEnergyThreshold: 0.1,
+        idleEnergyThreshold: 0.05,
         startHoldSeconds: 0.5,
         idleSeconds: 2,
-        minDurationSeconds: 5
+        minDurationSeconds: 5,
+        postRollSeconds: 0
     )
 
     func testPrepareWatchingThenStartHoldBeginsRecording() {
@@ -81,5 +83,13 @@ final class CaptureSessionCoordinatorTests: XCTestCase {
         XCTAssertTrue(watching.statusMessage.contains("Watching the XDJ-XZ input."))
         XCTAssertTrue(watching.statusMessage.contains("Folder Protection still watches recording folders."))
         XCTAssertFalse(watching.statusMessage.contains("app audio"))
+    }
+
+    func testManualStartWhileWatching() {
+        var coordinator = CaptureSessionCoordinator(config: config)
+        _ = coordinator.prepareWatching(config: config, targetDisplayName: "Serato DJ Pro")
+        let started = coordinator.requestManualStart(level: 0.05)
+        XCTAssertEqual(started?.phase, .recording)
+        XCTAssertEqual(started?.engineAction, .beginRecordingFile)
     }
 }

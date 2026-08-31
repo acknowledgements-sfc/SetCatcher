@@ -387,6 +387,10 @@ private class MockAppAudioBackend: @unchecked Sendable, AppAudioCaptureBackend {
     func currentInputLevel() -> Float {
         0
     }
+
+    func currentStagingByteCount() -> Int64? {
+        isWriting ? 1_024 : nil
+    }
 }
 
 private final class MockVirtualAppAudioBackend: MockAppAudioBackend, @unchecked Sendable, VirtualInputAppAudioCaptureBackend {

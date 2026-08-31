@@ -278,6 +278,11 @@ final class CoreAudioIOProcCapture: @unchecked Sendable {
         return inputLevel
     }
 
+    func currentStagingByteCount() -> Int64? {
+        guard isWriting, let stagingURL else { return nil }
+        return (try? stagingURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
+    }
+
     private func handleAudioBufferList(_ audioBufferList: UnsafePointer<AudioBufferList>) {
         guard let sourceASBD, let sourceFormat, let writeFormat, let converter else { return }
         let list = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: audioBufferList))

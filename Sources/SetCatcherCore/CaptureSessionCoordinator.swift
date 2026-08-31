@@ -102,6 +102,19 @@ public struct CaptureSessionCoordinator: Equatable, Sendable {
         }
     }
 
+    /// Manual start while watching — no confirmation in UI.
+    public mutating func requestManualStart(level: Float) -> CaptureSessionTick? {
+        guard phase == .watching else { return nil }
+        silence.forceStartRecording()
+        phase = .recording
+        return CaptureSessionTick(
+            phase: .recording,
+            inputLevel: level,
+            statusMessage: recordingMessage,
+            engineAction: .beginRecordingFile
+        )
+    }
+
     /// Manual Stop while recording: finalize without discard (host still performs endRecordingFile).
     public mutating func requestManualSave() -> CaptureSessionTick {
         silence.resetToArmed()

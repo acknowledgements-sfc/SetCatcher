@@ -75,9 +75,13 @@ public final class CaptureService: @unchecked Sendable {
     private var deviceName = ""
     private var boundTransport: AudioDeviceTransport?
     private let levelLock = NSLock()
+    private let sampleHandlerQueue = DispatchQueue(label: "app.setcatcher.InputCapture.sample")
     private var writeFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
     private var lastWriteErrorDetail: String?
+    private var prerollBuffers: [AVAudioPCMBuffer] = []
+    private var prerollFrames: AVAudioFrameCount = 0
+    private var prerollFrameBudget: AVAudioFrameCount = 0
     /// Validated REC OUT stereo indexes when the device matches `PioneerRecOutChannelMatrix`.
     private var recOutPair: HardwareStereoChannelPair?
 
@@ -110,7 +114,7 @@ public final class CaptureService: @unchecked Sendable {
         try beginRecordingFile()
     }
 
-    public func startMonitoring(device: AudioInputDevice) throws {
+    public func startMonitoring(device: AudioInputDevice, prerollSeconds: TimeInterval = 10) throws {
         guard !isMonitoring else { throw CaptureServiceError.alreadyRecording }
         let status = AVCaptureDevice.authorizationStatus(for: .audio)
         if status != .authorized { throw CaptureServiceError.permissionDenied }
@@ -135,27 +139,46 @@ public final class CaptureService: @unchecked Sendable {
             throw CaptureServiceError.engineFailed(error.message)
         }
 
+        let converterSourceFormat: AVAudioFormat
+        if recOutPair != nil {
+            guard let stereoSource = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: inputFormat.sampleRate,
+                channels: 2,
+                interleaved: false
+            ) else {
+                throw CaptureServiceError.engineFailed("Could not build a stereo processing format for REC OUT channel extract.")
+            }
+            converterSourceFormat = stereoSource
+        } else {
+            converterSourceFormat = inputFormat
+        }
+        guard let processingFormat = CaptureAudioFormat.processingFormat(),
+              let audioConverter = CaptureAudioFormat.makeConverter(from: converterSourceFormat, to: processingFormat)
+        else {
+            throw CaptureServiceError.engineFailed(
+                "Could not convert \(Int(inputFormat.sampleRate)) Hz input to 16-bit / 48 kHz. Choose another device, or use App audio Capture / folder Protection."
+            )
+        }
+
         deviceID = device.id
         deviceName = device.name
         boundTransport = device.transportType
         inputLevel = 0
-        lastWriteErrorDetail = nil
+        sampleHandlerQueue.sync {
+            writeFormat = processingFormat
+            converter = audioConverter
+            lastWriteErrorDetail = nil
+            prerollBuffers.removeAll()
+            prerollFrames = 0
+            prerollFrameBudget = AVAudioFrameCount(max(0, prerollSeconds) * CaptureAudioFormat.sampleRate)
+        }
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             guard let self else { return }
-            self.writeConverted(buffer)
-            let level: Float
-            if let pair = self.recOutPair,
-               let stereo = CaptureChannelPairExtractor.extractStereo(from: buffer, pair: pair) {
-                level = CaptureChannelPairExtractor.peakLevel(of: stereo)
-            } else if let channelData = buffer.floatChannelData?[0] {
-                let frameLength = Int(buffer.frameLength)
-                guard frameLength > 0 else { return }
-                level = CaptureDSP.inputLevel(samples: channelData, count: frameLength) ?? 0
-            } else {
-                return
+            self.sampleHandlerQueue.sync {
+                self.processInputBuffer(buffer)
             }
-            self.levelLock.lock(); self.inputLevel = level; self.levelLock.unlock()
         }
 
         do {
@@ -173,8 +196,6 @@ public final class CaptureService: @unchecked Sendable {
         guard !isRecording else { throw CaptureServiceError.alreadyRecording }
 
         let url = stagingDirectory.appendingPathComponent("capture-\(UUID().uuidString).wav")
-        let inputNode = engine.inputNode
-        let inputFormat = inputNode.inputFormat(forBus: 0)
         let newAudioFile: AVAudioFile
         do {
             newAudioFile = try AVAudioFile(forWriting: url, settings: CaptureAudioFormat.writeSettings)
@@ -184,59 +205,50 @@ public final class CaptureService: @unchecked Sendable {
             }
             throw CaptureServiceError.engineFailed(error.localizedDescription)
         }
-        let destinationFormat = newAudioFile.processingFormat
-        let converterSourceFormat: AVAudioFormat
-        if recOutPair != nil {
-            guard let stereoSource = AVAudioFormat(
-                commonFormat: .pcmFormatFloat32,
-                sampleRate: inputFormat.sampleRate,
-                channels: 2,
-                interleaved: false
-            ) else {
-                throw CaptureServiceError.engineFailed(
-                    "Could not build a stereo processing format for REC OUT channel extract."
-                )
+        var flushedFrames: AVAudioFrameCount = 0
+        sampleHandlerQueue.sync {
+            if let writeFormat, newAudioFile.processingFormat.isEqual(writeFormat) {
+                for buffer in prerollBuffers {
+                    if CapturePCMWriter.write(buffer: buffer, to: newAudioFile) == nil {
+                        flushedFrames += buffer.frameLength
+                    }
+                }
             }
-            converterSourceFormat = stereoSource
-        } else {
-            converterSourceFormat = inputFormat
+            prerollBuffers.removeAll()
+            prerollFrames = 0
+            audioFile = newAudioFile
+            stagingURL = url
+            lastWriteErrorDetail = nil
+            startedAt = Date().addingTimeInterval(-Double(flushedFrames) / CaptureAudioFormat.sampleRate)
+            isRecording = true
         }
-        guard let audioConverter = CaptureAudioFormat.makeConverter(
-            from: converterSourceFormat,
-            to: destinationFormat
-        ) else {
-            throw CaptureServiceError.engineFailed(
-                "Could not convert \(Int(inputFormat.sampleRate)) Hz input to 16-bit / 48 kHz. Choose another device, or use App audio Capture / folder Protection."
-            )
-        }
-
-        audioFile = newAudioFile
-        stagingURL = url
-        writeFormat = destinationFormat
-        converter = audioConverter
-        lastWriteErrorDetail = nil
-        startedAt = Date()
-        isRecording = true
     }
 
     public func endRecordingFile(discard: Bool) throws -> CaptureResult? {
-        guard isRecording else { throw CaptureServiceError.notRecording }
-        audioFile = nil
-        converter = nil
-        writeFormat = nil
-        isRecording = false
+        var wasRecording = false
+        var finalizedURL: URL?
+        var writeError: String?
+        var recordingStart: Date?
+        sampleHandlerQueue.sync {
+            wasRecording = isRecording
+            audioFile = nil
+            isRecording = false
+            finalizedURL = stagingURL
+            writeError = lastWriteErrorDetail
+            recordingStart = startedAt
+            stagingURL = nil
+            startedAt = nil
+        }
+        guard wasRecording else { throw CaptureServiceError.notRecording }
         let endedAt = Date()
-        let started = startedAt ?? endedAt
-        startedAt = nil
-        guard let stagingURL else { throw CaptureServiceError.engineFailed("Capture staging file is missing.") }
-        if let detail = lastWriteErrorDetail {
+        let started = recordingStart ?? endedAt
+        guard let stagingURL = finalizedURL else { throw CaptureServiceError.engineFailed("Capture staging file is missing.") }
+        if let detail = writeError {
             try? fileManager.removeItem(at: stagingURL)
-            self.stagingURL = nil
             throw CaptureServiceError.engineFailed(detail)
         }
         if discard {
             try? fileManager.removeItem(at: stagingURL)
-            self.stagingURL = nil
             return nil
         }
         var isDirectory: ObjCBool = false
@@ -253,7 +265,6 @@ public final class CaptureService: @unchecked Sendable {
             captureBackend: nil,
             deviceTransport: boundTransport
         )
-        self.stagingURL = nil
         return result
     }
 
@@ -264,17 +275,21 @@ public final class CaptureService: @unchecked Sendable {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
         }
-        if isRecording {
+        var abandonedURL: URL?
+        sampleHandlerQueue.sync {
+            if isRecording { abandonedURL = stagingURL }
             audioFile = nil
             converter = nil
             writeFormat = nil
             isRecording = false
-            if let stagingURL {
-                try? fileManager.removeItem(at: stagingURL)
-            }
-            self.stagingURL = nil
+            stagingURL = nil
             startedAt = nil
+            lastWriteErrorDetail = nil
+            prerollBuffers.removeAll()
+            prerollFrames = 0
+            prerollFrameBudget = 0
         }
+        if let abandonedURL { try? fileManager.removeItem(at: abandonedURL) }
         isMonitoring = false
         inputLevel = 0
         recOutPair = nil
@@ -290,6 +305,11 @@ public final class CaptureService: @unchecked Sendable {
     public func currentInputLevel() -> Float {
         levelLock.lock(); defer { levelLock.unlock() }
         return inputLevel
+    }
+
+    public func currentStagingByteCount() -> Int64? {
+        guard let stagingURL = sampleHandlerQueue.sync(execute: { stagingURL }) else { return nil }
+        return (try? stagingURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
     }
 
     /// AVAudioEngine's input node follows the system default unless we pin the device.
@@ -322,8 +342,8 @@ public final class CaptureService: @unchecked Sendable {
         return false
     }
 
-    private func writeConverted(_ buffer: AVAudioPCMBuffer) {
-        guard let audioFile, let converter, let writeFormat else { return }
+    private func processInputBuffer(_ buffer: AVAudioPCMBuffer) {
+        guard let converter, let writeFormat else { return }
         let sourceBuffer: AVAudioPCMBuffer
         if let pair = recOutPair {
             guard let stereo = CaptureChannelPairExtractor.extractStereo(from: buffer, pair: pair) else {
@@ -334,16 +354,41 @@ public final class CaptureService: @unchecked Sendable {
         } else {
             sourceBuffer = buffer
         }
-        if let detail = CapturePCMWriter.convertAndWrite(
+        if let channelData = sourceBuffer.floatChannelData {
+            var meter = CaptureDSP.MeanSquareAccumulator()
+            for channel in 0..<Int(sourceBuffer.format.channelCount) {
+                meter.add(samples: channelData[channel], count: Int(sourceBuffer.frameLength))
+            }
+            if let level = meter.inputLevel {
+                levelLock.lock(); inputLevel = level; levelLock.unlock()
+            }
+        }
+        let conversion = CapturePCMWriter.convert(
             buffer: sourceBuffer,
             converter: converter,
-            writeFormat: writeFormat,
-            audioFile: audioFile
-        ) {
+            writeFormat: writeFormat
+        )
+        if let detail = conversion.error {
             lastWriteErrorDetail = "Capture \(detail)"
+        } else if let converted = conversion.buffer {
+            if isRecording, let audioFile {
+                lastWriteErrorDetail = CapturePCMWriter.write(buffer: converted, to: audioFile).map { "Capture \($0)" }
+            } else {
+                appendPreroll(converted)
+                lastWriteErrorDetail = nil
+            }
         } else {
-            lastWriteErrorDetail = nil
+            lastWriteErrorDetail = "Capture could not convert to the capture format."
+        }
+    }
+
+    private func appendPreroll(_ buffer: AVAudioPCMBuffer) {
+        guard prerollFrameBudget > 0 else { return }
+        prerollBuffers.append(buffer)
+        prerollFrames += buffer.frameLength
+        while prerollFrames > prerollFrameBudget, prerollBuffers.count > 1 {
+            let removed = prerollBuffers.removeFirst()
+            prerollFrames -= min(prerollFrames, removed.frameLength)
         }
     }
 }
-
