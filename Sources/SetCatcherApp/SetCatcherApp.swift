@@ -6,17 +6,18 @@ import SetCatcherCore
 import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        applyActivationPolicyFromSettings()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         if LocalNotificationService.canUseUserNotifications {
             UNUserNotificationCenter.current().delegate = self
         }
 
+        applyActivationPolicyFromSettings()
         let menuBarOnly = (try? AppSettingsStore().load())?.menuBarOnly ?? false
-
         if menuBarOnly {
-            // Hide dock icon and suppress the WindowGroup window —
-            // user reaches the app exclusively through the menu bar icon.
-            NSApp.setActivationPolicy(.accessory)
             // orderOut hides the window without destroying it; close() would
             // remove it from NSApp.windows and openMainWindow() would find nothing.
             DispatchQueue.main.async {
@@ -25,10 +26,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     .forEach { $0.orderOut(nil) }
             }
         } else {
-            // SPM executables don't get .regular activation policy automatically —
-            // set it explicitly so the window and dock icon appear.
-            NSApp.setActivationPolicy(.regular)
             AppModel.activateApp()
+        }
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        applyActivationPolicyFromSettings()
+    }
+
+    private func applyActivationPolicyFromSettings() {
+        let menuBarOnly = (try? AppSettingsStore().load())?.menuBarOnly ?? false
+        if menuBarOnly {
+            NSApp.setActivationPolicy(.accessory)
+        } else {
+            NSApp.setActivationPolicy(.regular)
         }
     }
 }

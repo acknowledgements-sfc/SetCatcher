@@ -213,13 +213,16 @@ final class AppModel: ObservableObject {
         // Launch catch-up: heal any set whose history export landed while the
         // app was closed, before the user ever looks at the library.
         ingestHistoryNow()
-        // Defer audio-device enumeration until after the first frame. `refreshAudioInputs()`
-        // can still touch Core Audio via dual-route policy; this init runs during SwiftUI
-        // scene instantiation, so a HAL stall here would prevent the window from appearing.
+        // Defer audio-device enumeration and the first auto-arm pass until after the
+        // first frame. Both can touch Core Audio; this init runs during SwiftUI scene
+        // instantiation, so a HAL stall here would prevent the window from appearing.
+        // Do NOT wait for the 15s idle poll — rekordbox already running at launch
+        // would otherwise sit unarmed until that timer fires.
         Task { @MainActor [weak self] in
             await Task.yield()
             try? await Task.sleep(nanoseconds: 500_000_000)
             self?.refreshAudioInputs()
+            await self?.refreshAppAudioTargets(attemptAutoArm: true)
         }
 
         Task { [weak self] in
@@ -1770,14 +1773,18 @@ final class AppModel: ObservableObject {
         captureTargetPollTask?.cancel()
         captureInputPollTask?.cancel()
         captureTargetPollTask = Task { [weak self] in
+            var isFirst = true
             while !Task.isCancelled {
                 guard let self else { return }
-                let interval = await MainActor.run {
-                    self.captureState.isWatchingOrRecording
-                        ? Self.capturePollIntervalEngaged
-                        : Self.capturePollIntervalIdle
+                if !isFirst {
+                    let interval = await MainActor.run {
+                        self.captureState.isWatchingOrRecording
+                            ? Self.capturePollIntervalEngaged
+                            : Self.capturePollIntervalIdle
+                    }
+                    try? await Task.sleep(nanoseconds: interval)
                 }
-                try? await Task.sleep(nanoseconds: interval)
+                isFirst = false
                 await MainActor.run {
                     guard self.captureState.mode == .appAudio else { return }
                     switch self.captureState.phase {

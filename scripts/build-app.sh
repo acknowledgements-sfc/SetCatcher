@@ -9,7 +9,7 @@ BUNDLE_DIR="$ROOT_DIR/.build/$APP_NAME.app"
 CONTENTS_DIR="$BUNDLE_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
-ICON_SOURCE="$ROOT_DIR/packaging/assets/SetCatcher-Beta-Intrnl-v1.svg"
+ICON_COMPOSER_SOURCE="$ROOT_DIR/packaging/assets/SetCatcher.icon"
 ICON_PATH="$RESOURCES_DIR/SetCatcher.icns"
 EXECUTABLE_PATH="$ROOT_DIR/.build/$CONFIGURATION/SetCatcherApp"
 ENTITLEMENTS_PATH="$ROOT_DIR/packaging/SetCatcher.entitlements"
@@ -48,19 +48,44 @@ rm -rf "$BUNDLE_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$EXECUTABLE_PATH" "$MACOS_DIR/$APP_NAME"
 
-if [[ -f "$ICON_SOURCE" ]]; then
-  ICON_WORK_DIR="$(mktemp -d)"
-  trap 'rm -rf "$ICON_WORK_DIR"' EXIT
-  qlmanage -t -s 1024 -o "$ICON_WORK_DIR" "$ICON_SOURCE" >/dev/null 2>&1
-  ICON_PNG="$ICON_WORK_DIR/SetCatcher-Beta-Intrnl-v1.svg.png"
-  ICONSET_DIR="$ICON_WORK_DIR/SetCatcher.iconset"
-  mkdir -p "$ICONSET_DIR"
-  for size in 16 32 128 256 512; do
-    sips -z "$size" "$size" "$ICON_PNG" --out "$ICONSET_DIR/icon_${size}x${size}.png" >/dev/null
-    doubled="$((size * 2))"
-    sips -z "$doubled" "$doubled" "$ICON_PNG" --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" >/dev/null
-  done
-  iconutil -c icns "$ICONSET_DIR" -o "$ICON_PATH"
+if [[ ! -d "$ICON_COMPOSER_SOURCE" ]]; then
+  echo "error: Icon Composer file missing: $ICON_COMPOSER_SOURCE" >&2
+  exit 1
+fi
+
+ICON_WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$ICON_WORK_DIR"' EXIT
+mkdir -p "$ICON_WORK_DIR/out"
+# Compile the Icon Composer document: Assets.car (layered / glass) + .icns fallback.
+xcrun actool "$ICON_COMPOSER_SOURCE" \
+  --compile "$ICON_WORK_DIR/out" \
+  --platform macosx \
+  --minimum-deployment-target 15.0 \
+  --target-device mac \
+  --app-icon SetCatcher \
+  --output-partial-info-plist "$ICON_WORK_DIR/out/icon-partial.plist" \
+  --output-format human-readable-text \
+  --notices --warnings
+if [[ ! -f "$ICON_WORK_DIR/out/Assets.car" ]]; then
+  echo "error: actool did not produce Assets.car from $ICON_COMPOSER_SOURCE" >&2
+  exit 1
+fi
+cp "$ICON_WORK_DIR/out/Assets.car" "$RESOURCES_DIR/Assets.car"
+# actool names the icns after the .icon document.
+if [[ -f "$ICON_WORK_DIR/out/SetCatcher.icns" ]]; then
+  cp "$ICON_WORK_DIR/out/SetCatcher.icns" "$ICON_PATH"
+elif [[ -f "$ICON_WORK_DIR/out/SetCatcher-Beta-Intrnl-v1.icns" ]]; then
+  cp "$ICON_WORK_DIR/out/SetCatcher-Beta-Intrnl-v1.icns" "$ICON_PATH"
+else
+  echo "error: actool did not produce an icns fallback" >&2
+  exit 1
+fi
+# Keep the composer document in the bundle so Dock/Finder on macOS 26 can use glass layers.
+cp -R "$ICON_COMPOSER_SOURCE" "$RESOURCES_DIR/SetCatcher.icon"
+
+if [[ ! -f "$ICON_PATH" ]]; then
+  echo "error: $ICON_PATH was not produced" >&2
+  exit 1
 fi
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
@@ -77,7 +102,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 	<key>CFBundleIdentifier</key>
 	<string>$BUNDLE_ID</string>
 	<key>CFBundleIconFile</key>
-	<string>SetCatcher.icns</string>
+	<string>SetCatcher</string>
+	<key>CFBundleIconName</key>
+	<string>SetCatcher</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -148,5 +175,6 @@ if [[ -n "$ADHOC_ENTITLEMENTS" ]]; then
 fi
 
 codesign --verify --deep --strict "$BUNDLE_DIR"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$BUNDLE_DIR" >/dev/null 2>&1 || true
 
 echo "$BUNDLE_DIR"
