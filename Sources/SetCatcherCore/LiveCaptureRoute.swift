@@ -39,7 +39,7 @@ public enum LiveCaptureFeedGrade: String, Codable, Equatable, Sendable {
 }
 
 /// Whether the existing app-audio path could actually capture right now.
-/// A running DJ process is not capability — Screen Recording permission is.
+/// Process Audio Tap does not require ScreenCaptureKit permission; only the SCK fallback does.
 public enum LiveCaptureAppAudioCapability: Equatable, Sendable {
     case available
     case permissionDenied
@@ -277,7 +277,8 @@ public struct LiveCaptureRouteFacts: Equatable, Sendable {
     }
 
     public var appAudioUsable: Bool {
-        appAudioCapability == .available && hasRunningDJApp
+        guard hasRunningDJApp else { return false }
+        return appAudioCapability == .available || appAudio.isMonitoring
     }
 
     /// Observed app audio — monitoring plus a heard signal, never `isWriting` alone.

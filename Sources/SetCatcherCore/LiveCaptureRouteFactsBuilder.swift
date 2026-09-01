@@ -136,12 +136,15 @@ public enum LiveCaptureRouteFactsBuilder {
 
     public static func appAudioCapability(
         runningDJSoftwareIDs: Set<String>,
-        screenCapturePermissionGranted: Bool
+        screenCapturePermissionGranted: Bool,
+        processTapSupported: Bool = true,
+        isMonitoring: Bool = false
     ) -> LiveCaptureAppAudioCapability {
         if runningDJSoftwareIDs.isEmpty {
             return .unavailable
         }
-        if screenCapturePermissionGranted {
+        // A live monitor proves the chosen backend already armed; never claim permissionDenied.
+        if isMonitoring || processTapSupported || screenCapturePermissionGranted {
             return .available
         }
         return .permissionDenied
@@ -155,12 +158,15 @@ public enum LiveCaptureRouteFactsBuilder {
         peakLevel: Float,
         applePathExhausted: Bool,
         screenCapturePermissionGranted: Bool,
+        processTapSupported: Bool = true,
         detection: LiveCaptureDetectionConfig = .default
     ) -> AppAudioObservation {
         AppAudioObservation(
             capability: appAudioCapability(
                 runningDJSoftwareIDs: runningDJSoftwareIDs,
-                screenCapturePermissionGranted: screenCapturePermissionGranted
+                screenCapturePermissionGranted: screenCapturePermissionGranted,
+                processTapSupported: processTapSupported,
+                isMonitoring: isMonitoring
             ),
             isMonitoring: isMonitoring,
             archiveBackend: isMonitoring ? activeBackend.archiveBackend : nil,

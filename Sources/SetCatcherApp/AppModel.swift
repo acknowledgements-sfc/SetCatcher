@@ -591,7 +591,9 @@ final class AppModel: ObservableObject {
     private func buildLiveAttentionEvents() -> [AttentionEvent] {
         var events: [AttentionEvent] = []
 
-        if case .needsScreenRecordingPermission = captureState.phase {
+        let appAudioMonitoring = captureState.mode == .appAudio && appAudioCaptureService.isMonitoring
+        if case .needsScreenRecordingPermission = captureState.phase,
+           !appAudioMonitoring {
             events.append(.screenRecordingDenied())
         }
 
@@ -618,7 +620,8 @@ final class AppModel: ObservableObject {
         }
 
         if captureState.listeningState == .recoveryNeeded,
-           captureState.phase == .watching || captureState.phase == .recording {
+           captureState.phase == .watching || captureState.phase == .recording,
+           !appAudioMonitoring {
             let name = liveSourceDisplayName ?? "Capture source"
             events.append(.sourceUnreadable(sourceName: name))
         }
@@ -3324,7 +3327,8 @@ extension AppModel {
             sourceDeviceUID: appAudioCaptureService.activeSourceDeviceUID,
             peakLevel: appAudioCaptureService.currentInputLevel(),
             applePathExhausted: appAudioCaptureService.appleAppAudioPathExhausted,
-            screenCapturePermissionGranted: AppAudioCaptureService.screenCapturePermissionGranted()
+            screenCapturePermissionGranted: AppAudioCaptureService.screenCapturePermissionGranted(),
+            processTapSupported: AppAudioCaptureService.preferredBackendKind() == .processAudioTap
         )
         let hardware = liveCaptureObservations(devices: devices, hardwareMonitor: hardwareMonitor)
         let currentFeedIsProducingSignal = LiveCaptureRouteFactsBuilder.hardwareFeedIsProducingSignal(

@@ -93,9 +93,18 @@ final class LiveCaptureRouteFactsBuilderTests: XCTestCase {
             sourceDeviceUID: "tap",
             peakLevel: 0.5,
             applePathExhausted: false,
-            screenCapturePermissionGranted: false
+            screenCapturePermissionGranted: false,
+            processTapSupported: true
         )
-        XCTAssertEqual(denied.capability, .permissionDenied)
+        XCTAssertEqual(denied.capability, .available)
+
+        let sckOnlyDenied = LiveCaptureRouteFactsBuilder.appAudioCapability(
+            runningDJSoftwareIDs: ["serato"],
+            screenCapturePermissionGranted: false,
+            processTapSupported: false,
+            isMonitoring: false
+        )
+        XCTAssertEqual(sckOnlyDenied, .permissionDenied)
 
         let producing = LiveCaptureRouteFactsBuilder.appAudioObservation(
             runningDJSoftwareIDs: ["serato"],

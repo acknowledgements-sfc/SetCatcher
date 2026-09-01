@@ -112,6 +112,41 @@ final class LiveCaptureRouteResolverTests: XCTestCase {
         XCTAssertEqual(decision.resolution.backend, .none)
     }
 
+    func testDJAppRunningWithProcessTapDoesNotRequireScreenRecordingPreflight() {
+        let facts = LiveCaptureRouteFacts(
+            hardware: [],
+            driverAvailability: .missing,
+            runningDJSoftwareIDs: ["serato"],
+            appAudioCapability: .available,
+            appAudio: Self.silentAppAudio
+        )
+        let decision = LiveCaptureRouteResolver.resolve(facts)
+        XCTAssertEqual(decision.resolution.kind, .existingAppAudio)
+        XCTAssertEqual(decision.resolution.listeningState, .detecting)
+        XCTAssertEqual(decision.resolution.listeningSummary, LiveCaptureCopy.waitingForAudio)
+        XCTAssertNotEqual(decision.resolution.listeningState, .recoveryNeeded)
+    }
+
+    func testMonitoringAppAudioIgnoresStalePermissionDeniedCapability() {
+        let facts = LiveCaptureRouteFacts(
+            hardware: [],
+            driverAvailability: .missing,
+            runningDJSoftwareIDs: ["serato"],
+            appAudioCapability: .permissionDenied,
+            appAudio: AppAudioObservation(
+                capability: .permissionDenied,
+                isMonitoring: true,
+                archiveBackend: .processAudioTap,
+                observedSignal: false
+            )
+        )
+        let decision = LiveCaptureRouteResolver.resolve(facts)
+        XCTAssertEqual(decision.resolution.kind, .existingAppAudio)
+        XCTAssertEqual(decision.resolution.listeningState, .detecting)
+        XCTAssertEqual(decision.resolution.listeningSummary, LiveCaptureCopy.waitingForAudio)
+        XCTAssertNotEqual(decision.resolution.listeningState, .recoveryNeeded)
+    }
+
     func testLaptopOnlyDJAppPathIgnoresDriverAvailability() {
         let facts = LiveCaptureRouteFacts(
             hardware: [],
