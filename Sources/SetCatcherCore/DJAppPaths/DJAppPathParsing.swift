@@ -3,13 +3,43 @@ import Foundation
 enum DJAppPathParsing {
     static func expandedPath(_ raw: String, homeDirectory: URL) -> URL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("~") {
-            return URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath, isDirectory: true)
+        if trimmed == "~" {
+            return homeDirectory
+        }
+        if trimmed.hasPrefix("~/") {
+            return homeDirectory.appendingPathComponent(String(trimmed.dropFirst(2)), isDirectory: true)
         }
         if trimmed.hasPrefix("/") {
             return URL(fileURLWithPath: trimmed, isDirectory: true)
         }
         return homeDirectory.appendingPathComponent(trimmed, isDirectory: true)
+    }
+
+    /// Resolves catalog paths against `homeDirectory`, including a single `*` path component.
+    static func existingDirectories(
+        matching pathPattern: String,
+        homeDirectory: URL,
+        fileManager: FileManager
+    ) -> [URL] {
+        let trimmed = pathPattern.trimmingCharacters(in: .whitespacesAndNewlines)
+        let root: URL
+        let relative: String
+        if trimmed == "~" {
+            return fileManager.fileExists(atPath: homeDirectory.path) ? [homeDirectory] : []
+        }
+        if trimmed.hasPrefix("~/") {
+            root = homeDirectory
+            relative = String(trimmed.dropFirst(2))
+        } else if trimmed.hasPrefix("/") {
+            root = URL(fileURLWithPath: "/", isDirectory: true)
+            relative = String(trimmed.dropFirst())
+        } else {
+            root = homeDirectory
+            relative = trimmed
+        }
+
+        let components = relative.split(separator: "/").map(String.init).filter { !$0.isEmpty }
+        return existingDirectories(components: components, roots: [root], fileManager: fileManager)
     }
 
     static func firstMatch(in text: String, patterns: [String]) -> String? {
@@ -26,6 +56,44 @@ enum DJAppPathParsing {
             }
         }
         return nil
+    }
+
+    private static func existingDirectories(
+        components: [String],
+        roots: [URL],
+        fileManager: FileManager
+    ) -> [URL] {
+        guard let component = components.first else {
+            return roots.filter { url in
+                var isDirectory: ObjCBool = false
+                return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+            }
+        }
+
+        let remaining = Array(components.dropFirst())
+        if component.contains("*") {
+            let pattern = "^" + NSRegularExpression.escapedPattern(for: component)
+                .replacingOccurrences(of: "\\*", with: ".*") + "$"
+            let matches = roots.flatMap { root -> [URL] in
+                guard let children = try? fileManager.contentsOfDirectory(
+                    at: root,
+                    includingPropertiesForKeys: [.isDirectoryKey],
+                    options: [.skipsHiddenFiles]
+                ) else {
+                    return []
+                }
+                return children.filter { child in
+                    child.lastPathComponent.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+                }
+            }
+            return existingDirectories(components: remaining, roots: matches, fileManager: fileManager)
+        }
+
+        return existingDirectories(
+            components: remaining,
+            roots: roots.map { $0.appendingPathComponent(component, isDirectory: true) },
+            fileManager: fileManager
+        )
     }
 
     static func readTextFiles(

@@ -11,7 +11,7 @@ struct DjayPathReader: DJAppPathReading {
 
         let containerRoot = homeDirectory
             .appendingPathComponent("Library/Containers", isDirectory: true)
-        if let entries = try? FileManager.default.contentsOfDirectory(
+        if let entries = try? fileManager.contentsOfDirectory(
             at: containerRoot,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]

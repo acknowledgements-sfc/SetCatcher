@@ -1,12 +1,6 @@
 import Foundation
 
 struct TraktorPathReader: DJAppPathReading {
-    private let resolver: PathResolver
-
-    init(resolver: PathResolver = PathResolver()) {
-        self.resolver = resolver
-    }
-
     func readPaths(
         installation: DJSoftwareInstallation,
         software: DJSoftware,
@@ -16,14 +10,23 @@ struct TraktorPathReader: DJAppPathReading {
         var paths: [DiscoveredDJPath] = []
 
         for path in software.defaultRecordingPaths {
-            let url = DJAppPathParsing.expandedPath(path, homeDirectory: homeDirectory)
-            if fileManager.fileExists(atPath: url.path) {
+            for url in DJAppPathParsing.existingDirectories(
+                matching: path,
+                homeDirectory: homeDirectory,
+                fileManager: fileManager
+            ) {
                 paths.append(DiscoveredDJPath(kind: .recordings, url: url, source: .catalogDefault))
             }
         }
 
-        for url in resolver.existingURLs(from: software.defaultHistoryPaths) {
-            paths.append(DiscoveredDJPath(kind: .history, url: url, source: .catalogDefault))
+        for path in software.defaultHistoryPaths {
+            for url in DJAppPathParsing.existingDirectories(
+                matching: path,
+                homeDirectory: homeDirectory,
+                fileManager: fileManager
+            ) {
+                paths.append(DiscoveredDJPath(kind: .history, url: url, source: .catalogDefault))
+            }
         }
 
         let settingsRoot = homeDirectory.appendingPathComponent("Documents/Native Instruments", isDirectory: true)

@@ -200,4 +200,67 @@ final class DJAppPathDiscoveryTests: XCTestCase {
         XCTAssertTrue(result.isInstalled)
         XCTAssertTrue(result.isRunning)
     }
+
+    func testCatalogDefaultTildeExpandsAgainstInjectedHome() throws {
+        let home = try XCTUnwrap(tempRoot)
+        let recordings = home.appendingPathComponent("Music/Engine DJ/Recordings", isDirectory: true)
+        try fileManager.createDirectory(at: recordings, withIntermediateDirectories: true)
+
+        let software = try XCTUnwrap(SupportedDJSoftware.all.first { $0.id == "denon-engine" })
+        let paths = CatalogDefaultPathReader().readPaths(
+            installation: DJSoftwareInstallation(
+                familyID: "denon-engine",
+                variantLabel: "Engine DJ",
+                bundleIdentifier: "com.denondj.engine",
+                bundleVersion: nil,
+                appURL: URL(fileURLWithPath: "/Applications/Engine DJ.app"),
+                isRunning: false,
+                discoveredPaths: []
+            ),
+            software: software,
+            homeDirectory: home,
+            fileManager: fileManager
+        )
+
+        XCTAssertTrue(
+            paths.contains(where: {
+                $0.kind == .recordings
+                    && $0.source == .catalogDefault
+                    && $0.url.standardizedFileURL.path == recordings.standardizedFileURL.path
+            })
+        )
+    }
+
+    func testTraktorHistoryWildcardResolvesUnderInjectedHome() throws {
+        let home = try XCTUnwrap(tempRoot)
+        let history = home.appendingPathComponent(
+            "Documents/Native Instruments/Traktor 3.11.1/History",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: history, withIntermediateDirectories: true)
+
+        let software = try XCTUnwrap(SupportedDJSoftware.all.first { $0.id == "traktor" })
+        let paths = TraktorPathReader().readPaths(
+            installation: DJSoftwareInstallation(
+                familyID: "traktor",
+                variantLabel: "Traktor Pro 3.11.1",
+                bundleIdentifier: "com.native-instruments.Traktor",
+                bundleVersion: "3.11.1",
+                appURL: URL(fileURLWithPath: "/Applications/Traktor.app"),
+                isRunning: false,
+                discoveredPaths: []
+            ),
+            software: software,
+            homeDirectory: home,
+            fileManager: fileManager
+        )
+
+        XCTAssertTrue(
+            paths.contains(where: {
+                $0.kind == .history
+                    && $0.source == .catalogDefault
+                    && $0.url.standardizedFileURL.path == history.standardizedFileURL.path
+            })
+        )
+    }
 }

@@ -51,12 +51,8 @@ private func runProbe() {
                 print("  app: \(url.path)")
             }
 
-            for url in result.existingRecordingURLs {
-                print("  recordings: \(url.path)")
-            }
-
-            for url in result.existingHistoryURLs {
-                print("  history: \(url.path)")
+            for path in result.familyDiscoveredPaths {
+                print("  \(path.kind.rawValue): \(path.url.path) [\(path.source.rawValue)]")
             }
             continue
         }
