@@ -199,4 +199,9 @@ public enum SupportedDJSoftware {
         denonHardwareAppID,
         raneHardwareAppID
     ]
+
+    /// Software DJ apps shown in first-run onboarding (not Capture, not hardware adapters).
+    public static func isOnboardingSoftwareSource(id: String) -> Bool {
+        id != captureAppID && !hardwareAdapterAppIDs.contains(id)
+    }
 }

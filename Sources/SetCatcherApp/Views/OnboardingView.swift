@@ -7,12 +7,7 @@ struct OnboardingView: View {
     @EnvironmentObject private var model: AppModel
     @State private var step: Step
     @State private var analogSelected = false
-    @State private var analogPath: AnalogPath?
-
-    enum AnalogPath: String {
-        case booth
-        case dump
-    }
+    @State private var analogPath: OnboardingAnalogPath?
 
     enum Step: Int, CaseIterable {
         case welcome
@@ -62,10 +57,6 @@ struct OnboardingView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            if !analogSelected || step == .djApps {
-                appChips
-            }
-
             footer
         }
         .padding(32)
@@ -89,6 +80,10 @@ struct OnboardingView: View {
             if analogSelected {
                 return ("Analog Mixer is", "Manual Setup.",
                         "There is no DJ app folder to watch. You will pin a rec-out once, or grant a dump folder after the gig.")
+            }
+            if installedCount == 0 {
+                return ("No DJ apps", "installed.",
+                        "Choose Analog Mixer for vinyl. Supported apps: Serato DJ Pro, rekordbox, Traktor, VirtualDJ, and djay.")
             }
             return ("We found your", "DJ apps.",
                     "SetCatcher watches the folders these already record into. Nothing is installed, nothing is changed. Vinyl-only? Choose Analog Mixer.")
@@ -137,31 +132,10 @@ struct OnboardingView: View {
     private var detail: some View {
         switch step {
         case .djApps:
-            Button {
-                analogSelected = true
-                model.selectedRoute = .app(SupportedDJSoftware.analogMixerAppID)
-            } label: {
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(analogSelected ? DJToken.primary : DJToken.mutedForeground.opacity(0.35))
-                        .frame(width: 7, height: 7)
-                    Text("Analog Mixer")
-                        .font(.system(size: DJToken.TypeSize.secondary, weight: .semibold))
-                        .foregroundStyle(DJToken.foreground)
-                    SupportBadge(status: .manualSetup)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    analogSelected ? DJToken.primary.opacity(0.14) : DJToken.muted.opacity(0.6),
-                    in: RoundedRectangle(cornerRadius: DJToken.Radius.maximum)
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("onboarding.analogMixer")
+            softwareList(folderMode: false)
 
         case .folderAccess where analogSelected:
-            analogFolderDetail
+            OnboardingAnalogSetupView(analogPath: $analogPath)
 
         case .archive:
             VStack(alignment: .leading, spacing: 10) {
@@ -185,74 +159,39 @@ struct OnboardingView: View {
                     accessibilityPrefix: "onboarding"
                 )
             }
-        case .folderAccess where installedCount == 0 && !analogSelected:
-            Text("Install a DJ app, choose Analog Mixer, or use the chips below to choose folders manually.")
-                .font(.system(size: DJToken.TypeSize.secondary))
-                .foregroundStyle(DJToken.warn)
+        case .folderAccess:
+            VStack(alignment: .leading, spacing: 10) {
+                if installedCount == 0 {
+                    Text("Install a DJ app, choose Analog Mixer, or use the list below to choose folders manually.")
+                        .font(.system(size: DJToken.TypeSize.secondary))
+                        .foregroundStyle(DJToken.warn)
+                }
+                softwareList(folderMode: true)
+            }
         default:
             EmptyView()
         }
     }
 
-    @ViewBuilder
-    private var analogFolderDetail: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Button("Booth — pin rec-out") {
-                    analogPath = .booth
-                }
-                .buttonStyle(DJPrimaryButtonStyle())
-                .opacity(analogPath == .booth || analogPath == nil ? 1 : 0.55)
-                .accessibilityIdentifier("onboarding.analogBooth")
-
-                Button("Dump folder") {
-                    analogPath = .dump
-                }
-                .buttonStyle(DJHollowButtonStyle())
-                .opacity(analogPath == .dump || analogPath == nil ? 1 : 0.55)
-                .accessibilityIdentifier("onboarding.analogDump")
+    private func softwareList(folderMode: Bool) -> some View {
+        OnboardingDJAppsList(
+            results: model.onboardingDJSoftwareResults,
+            analogSelected: analogSelected,
+            folderMode: folderMode,
+            isGranted: { model.hasConfiguredRecordingsFolder(appID: $0) },
+            onSelectAnalog: {
+                analogSelected = true
+            },
+            onSelectSoftware: {
+                analogSelected = false
+                analogPath = nil
+            },
+            onChooseFolder: { result in
+                analogSelected = false
+                analogPath = nil
+                model.chooseFolder(appID: result.software.id, kind: .recordings)
             }
-
-            Text("Do not use booth, headphones, or a built-in mic. Those are not the set.")
-                .font(.system(size: DJToken.TypeSize.secondary))
-                .foregroundStyle(DJToken.warn)
-
-            if analogPath == .booth {
-                if let pinned = model.pinnedAnalogInputDevice {
-                    PathChip(path: pinned.name)
-                }
-                Button("Choose rec-out") {
-                    model.beginChooseAnalogRecOut()
-                }
-                .buttonStyle(DJPrimaryButtonStyle())
-                .accessibilityIdentifier("onboarding.analogChooseRecOut")
-            }
-
-            if analogPath == .dump {
-                Button("Choose dump folder") {
-                    model.chooseFolder(appID: SupportedDJSoftware.analogMixerAppID, kind: .recordings)
-                }
-                .buttonStyle(DJPrimaryButtonStyle())
-                .accessibilityIdentifier("onboarding.analogChooseDump")
-            }
-        }
-    }
-
-    private var appChips: some View {
-        HStack(spacing: 9) {
-            ForEach(model.probeResults.prefix(6), id: \.software.id) { result in
-                OnboardingAppChip(
-                    result: result,
-                    granted: model.hasConfiguredRecordingsFolder(appID: result.software.id),
-                    canChooseFolder: step == .folderAccess && !analogSelected
-                ) {
-                    analogSelected = false
-                    analogPath = nil
-                    model.chooseFolder(appID: result.software.id, kind: .recordings)
-                }
-            }
-            Spacer(minLength: 0)
-        }
+        )
     }
 
     private var footer: some View {
@@ -299,7 +238,7 @@ struct OnboardingView: View {
     private var canContinue: Bool {
         switch step {
         case .djApps:
-            return analogSelected || installedCount >= 1 || !model.probeResults.isEmpty
+            return analogSelected || installedCount >= 1
         case .folderAccess:
             if analogSelected {
                 return analogConfigured

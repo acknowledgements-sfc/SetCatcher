@@ -1270,8 +1270,34 @@ final class AppModel: ObservableObject {
         folderAccesses.filter { $0.kind == .recordings }.count
     }
 
+    /// Software DJ apps for first-run onboarding (excludes Capture and hardware adapters).
+    var onboardingDJSoftwareResults: [SoftwareProbeResult] {
+        probeResults.filter { SupportedDJSoftware.isOnboardingSoftwareSource(id: $0.software.id) }
+    }
+
     var installedOrRunningProbeCount: Int {
-        probeResults.filter { !$0.installedApplicationURLs.isEmpty || $0.isRunning }.count
+        onboardingDJSoftwareResults.filter { $0.isInstalled || $0.isRunning }.count
+    }
+
+    /// Preview / test helper — does not persist.
+    func previewApplyProbeResults(_ results: [SoftwareProbeResult]) {
+        probeResults = results
+    }
+
+    /// Loads selectable inputs for Analog Mixer pin without leaving the current route.
+    func prepareAnalogRecOutPicker() {
+        refreshAudioInputs()
+        var next = captureState
+        next.mode = .inputDevice
+        next.statusMessage = "Choose the mixer REC OUT / SESSION OUT input, then pin it."
+        captureState = next
+    }
+
+    /// Updates the in-sheet rec-out picker without pinning. Pin is an explicit `pinAnalogRecOut`.
+    func selectOnboardingCaptureDevice(_ deviceID: String) {
+        var next = captureState
+        next.selectedDeviceID = deviceID
+        captureState = next
     }
 
     var configuredProbeResults: [SoftwareProbeResult] {
@@ -1469,6 +1495,7 @@ final class AppModel: ObservableObject {
     }
 
     /// Presents the input-device picker flow for Analog Mixer Choose rec-out.
+    /// Onboarding uses `prepareAnalogRecOutPicker()` instead so the sheet stays up.
     func beginChooseAnalogRecOut() {
         pendingAnalogRecOutPin = true
         refreshAudioInputs()

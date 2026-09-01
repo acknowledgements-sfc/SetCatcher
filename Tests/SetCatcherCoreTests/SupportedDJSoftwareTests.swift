@@ -95,6 +95,63 @@ final class SupportedDJSoftwareTests: XCTestCase {
         XCTAssertEqual(decoded.virtualAudioDeviceNameHints, [])
     }
 
+    func testOnboardingSoftwareSourcesExcludeCaptureAndHardware() {
+        XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "serato"))
+        XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "rekordbox"))
+        XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "djay"))
+        XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "virtualdj"))
+        XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "traktor"))
+        XCTAssertFalse(SupportedDJSoftware.isOnboardingSoftwareSource(id: SupportedDJSoftware.captureAppID))
+        XCTAssertFalse(SupportedDJSoftware.isOnboardingSoftwareSource(id: SupportedDJSoftware.analogMixerAppID))
+        XCTAssertFalse(SupportedDJSoftware.isOnboardingSoftwareSource(id: SupportedDJSoftware.pioneerHardwareAppID))
+        XCTAssertFalse(SupportedDJSoftware.isOnboardingSoftwareSource(id: SupportedDJSoftware.denonHardwareAppID))
+        XCTAssertFalse(SupportedDJSoftware.isOnboardingSoftwareSource(id: SupportedDJSoftware.raneHardwareAppID))
+    }
+
+    func testOnboardingPresenceLabelUsesProbeStatus() throws {
+        let software = try XCTUnwrap(SupportedDJSoftware.all.first { $0.id == "serato" })
+        XCTAssertEqual(
+            SoftwareProbeResult(
+                software: software,
+                installedApplicationURLs: [],
+                runningApplicationBundleIdentifiers: ["com.serato.seratodj"],
+                existingRecordingURLs: [],
+                existingHistoryURLs: []
+            ).onboardingPresenceLabel,
+            "Running"
+        )
+        XCTAssertEqual(
+            SoftwareProbeResult(
+                software: software,
+                installedApplicationURLs: [URL(fileURLWithPath: "/Applications/Serato DJ Pro.app")],
+                runningApplicationBundleIdentifiers: [],
+                existingRecordingURLs: [URL(fileURLWithPath: "/Users/dj/Music/_Serato_/Recording")],
+                existingHistoryURLs: []
+            ).onboardingPresenceLabel,
+            "Installed"
+        )
+        XCTAssertEqual(
+            SoftwareProbeResult(
+                software: software,
+                installedApplicationURLs: [],
+                runningApplicationBundleIdentifiers: [],
+                existingRecordingURLs: [URL(fileURLWithPath: "/Users/dj/Music/_Serato_/Recording")],
+                existingHistoryURLs: []
+            ).onboardingPresenceLabel,
+            "Recording folder found"
+        )
+        XCTAssertEqual(
+            SoftwareProbeResult(
+                software: software,
+                installedApplicationURLs: [],
+                runningApplicationBundleIdentifiers: [],
+                existingRecordingURLs: [],
+                existingHistoryURLs: []
+            ).onboardingPresenceLabel,
+            "Not installed"
+        )
+    }
+
     func testProbeResultReportsRunningStatusFirst() throws {
         let software = try XCTUnwrap(SupportedDJSoftware.all.first { $0.id == "serato" })
         let result = SoftwareProbeResult(

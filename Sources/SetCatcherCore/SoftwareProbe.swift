@@ -43,6 +43,24 @@ public struct SoftwareProbeResult: Codable, Equatable, Sendable {
     public var isRunning: Bool {
         !runningApplicationBundleIdentifiers.isEmpty
     }
+
+    public var isInstalled: Bool {
+        !installedApplicationURLs.isEmpty
+    }
+
+    /// First-run presence label. Running wins over installed; a found folder is not "Installed".
+    public var onboardingPresenceLabel: String {
+        switch status {
+        case "running":
+            return "Running"
+        case "installed":
+            return "Installed"
+        case "folders-found":
+            return "Recording folder found"
+        default:
+            return "Not installed"
+        }
+    }
 }
 
 public struct SoftwareProbe {
