@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Layout C — Split Home / Capture · SetCatcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="home-layout-shared.css" />
+</head>
+<body>
+  <header class="page-header">
+    <h1>Layout C — Cockpit band + Capture route</h1>
+    <p>Home shows status cockpit and dashboard; arm toggle, meter, and source selector stay on Capture. “Fix now →” and band link open recovery or Capture.</p>
+    <span class="variant-tag">Variant C</span>
+    · <a href="home-layout-index.html" style="font-size:12px;color:var(--text-secondary)">← All layouts</a>
+  </header>
+
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <span class="toolbar-label">State</span>
+      <button type="button" class="state-btn" data-state="noSource">No Source</button>
+      <button type="button" class="state-btn" data-state="detected">Detected</button>
+      <button type="button" class="state-btn" data-state="ready">Ready</button>
+      <button type="button" class="state-btn active" data-state="armed">Armed</button>
+      <button type="button" class="state-btn" data-state="capturing">Capturing</button>
+      <button type="button" class="state-btn" data-state="saving">Saving</button>
+      <button type="button" class="state-btn" data-state="setProtected">Set Protected</button>
+      <button type="button" class="state-btn" data-state="attentionNeeded">Attention</button>
+    </div>
+    <div class="toolbar-group">
+      <span class="toolbar-label">Attention</span>
+      <span id="attention-buttons"></span>
+    </div>
+    <div class="toolbar-actions">
+      <label title="Force toast visible (Set Protected auto-shows toast for 5s)"><input type="checkbox" id="toggle-toast" /> Force toast</label>
+      <label><input type="checkbox" id="toggle-recovery" /> Recovery panel</label>
+    </div>
+  </div>
+
+  <div class="layout-grid">
+    <div id="app-root"></div>
+    <aside class="preview-col">
+      <h2>Menu bar preview</h2>
+      <div id="menu-preview"></div>
+      <div class="annotation" style="margin-top:16px">
+        Split view shows Home (left) and Capture (right) simultaneously for review. In the app, only one route is visible at a time.
+      </div>
+    </aside>
+  </div>
+
+  <script src="home-layout-shared.js"></script>
+  <script>HomeLayoutMock.init("c");</script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SetCatcher — Home Layout Mockups</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="home-layout-shared.css" />
+</head>
+<body>
+  <header class="page-header">
+    <h1>Protection UX — Home layout review</h1>
+    <p>Three HTML mockups for Phase 2 protection UX. Use the state switcher (8 states + 6 attention sub-states). <strong>Set Protected</strong> shows Armed in the primary row + auto-dismissing toast (5s) — per dispatch spec.</p>
+  </header>
+
+  <div class="index-grid">
+    <article class="index-card">
+      <h2>Layout A — Cockpit only</h2>
+      <p>Home is the live operations surface: cockpit, arm toggle, level meter, source selector. Capture route removed. Matches dispatch spec literally.</p>
+      <a href="home-layout-a-cockpit-only.html">Open mockup A</a>
+    </article>
+    <article class="index-card" style="border-color:rgba(251,191,36,0.35)">
+      <h2>Live Card — Sketch-aligned (recommended)</h2>
+      <p>A + compact: one card per your sketch. “Serato DJ is Armed”, since, INPUT LEVEL, Last. Route renamed Live — no dashboard.</p>
+      <a href="home-layout-live-card.html">Open Live Card mockup</a>
+    </article>
+    <article class="index-card" style="border-color:rgba(52,211,153,0.25)">
+      <h2>Layout B-Compact</h2>
+      <p>Sleek hybrid: one protection card + dashboard below. Matches “compact + Layout B” direction.</p>
+      <a href="home-layout-b-compact.html">Open mockup B-Compact</a>
+    </article>
+    <article class="index-card" style="border-color:rgba(52,211,153,0.35)">
+      <h2>Layout B — Cockpit + dashboard (chosen)</h2>
+      <p>Cockpit pinned at top; existing HANDOFF-2-HOME dashboard (tiles, recent sets) scrolls below. Inline recovery expands over dashboard content.</p>
+      <a href="home-layout-b-cockpit-top.html">Open mockup B</a>
+    </article>
+    <article class="index-card">
+      <h2>Layout C — Split routes</h2>
+      <p>Home shows cockpit status band + dashboard. Full capture controls stay on Capture route. Preserves current sidebar separation.</p>
+      <a href="home-layout-c-split.html">Open mockup C</a>
+    </article>
+  </div>
+
+  <div style="padding:0 24px 40px;color:var(--text-muted);font-size:11px;max-width:72ch;line-height:1.6">
+    <p><strong>Spec sources:</strong> dispatch-01 through dispatch-04, sketch-reference.jpg. Chosen layout: <strong>Layout B — Cockpit + dashboard</strong> (Live card cockpit over Home dashboard).</p>
+    <p><strong>Swift status:</strong> Dispatches 01–04 + Layout B compose. Presentation: menu bar + window / menu bar only / main window only (Settings + onboarding Ready).</p>
+  </div>
+</body>
+</html>

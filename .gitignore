@@ -13,6 +13,7 @@ admin/.env*.local
 # Local agent and editor state
 .agents/
 .claude/
+.cursor/
 .hermes/
 .vscode/
 skills-lock.json
