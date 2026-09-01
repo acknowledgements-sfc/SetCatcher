@@ -79,8 +79,12 @@ struct HomeIdentityBand: View {
 struct HomeSourceLanes: View {
     @EnvironmentObject private var model: AppModel
 
+    private let columns = [
+        GridItem(.adaptive(minimum: 118, maximum: 180), spacing: 10, alignment: .leading)
+    ]
+
     var body: some View {
-        HStack(spacing: 10) {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
             ForEach(model.probeResults, id: \.software.id) { result in
                 lane(result)
             }
@@ -104,7 +108,6 @@ struct HomeSourceLanes: View {
                         .lineLimit(1)
                     Text(state.displayName)
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .tracking(0.5)
                         .textCase(.uppercase)
                         .foregroundStyle(tone.color)
                         .lineLimit(1)

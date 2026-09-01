@@ -5,6 +5,13 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="SetCatcher"
 BUNDLE_DIR="$ROOT_DIR/.build/$APP_NAME.app"
 STRICT="${SETCATCHER_SMOKE_STRICT:-0}"
+FORCE_MAIN_WINDOW_ENV="SETCATCHER_FORCE_MAIN_WINDOW"
+
+cleanup() {
+    launchctl unsetenv "$FORCE_MAIN_WINDOW_ENV" >/dev/null 2>&1 || true
+    osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
 cd "$ROOT_DIR"
 
@@ -14,6 +21,7 @@ codesign --verify --deep --strict "$BUNDLE_DIR"
 osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
 sleep 1
 
+launchctl setenv "$FORCE_MAIN_WINDOW_ENV" 1
 open "$BUNDLE_DIR"
 
 for _ in {1..20}; do
@@ -25,9 +33,15 @@ tell application "System Events"
     end if
 
     tell process "$APP_NAME"
-        repeat 20 times
+        set stableChecks to 0
+        repeat 24 times
             if (count of windows) > 0 then
-                return "window-found"
+                set stableChecks to stableChecks + 1
+                if stableChecks is greater than or equal to 4 then
+                    return "stable-window-found"
+                end if
+            else
+                set stableChecks to 0
             end if
             delay 0.25
         end repeat
@@ -37,12 +51,11 @@ end tell
 return "no-window"
 APPLESCRIPT
 )"; then
-            if [[ "$WINDOW_CHECK_OUTPUT" == "window-found" ]]; then
+            if [[ "$WINDOW_CHECK_OUTPUT" == "stable-window-found" ]]; then
                 echo "SetCatcher window check passed."
             else
                 echo "SetCatcher smoke check warning: main window was not detected ($WINDOW_CHECK_OUTPUT)." >&2
                 if [[ "$STRICT" == "1" ]]; then
-                    osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
                     echo "SetCatcher smoke check failed (strict): window missing." >&2
                     exit 1
                 fi
@@ -51,14 +64,12 @@ APPLESCRIPT
             echo "SetCatcher smoke check warning: window check was blocked or unavailable." >&2
             echo "$WINDOW_CHECK_OUTPUT" >&2
             if [[ "$STRICT" == "1" ]]; then
-                osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
                 echo "SetCatcher smoke check failed (strict): accessibility blocked." >&2
                 exit 1
             fi
         fi
 
         echo "SetCatcher smoke check passed."
-        osascript -e "tell application id \"app.setcatcher.SetCatcher\" to quit" >/dev/null 2>&1 || true
         exit 0
     fi
 

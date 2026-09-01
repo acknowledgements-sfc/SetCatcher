@@ -208,6 +208,7 @@ final class AppModel: ObservableObject {
     private let activityLogStore = ActivityLogStore()
     private let appSettingsStore = AppSettingsStore()
     private let profileStore = DJProfileStore()
+    private let pendingCaptureRecoveryStore = PendingCaptureRecoveryStore()
     private let notificationService = LocalNotificationService()
     private let folderChangeMonitor = FolderChangeMonitor()
     /// Watches history-export folders so late-written exports still auto-attach.
@@ -256,6 +257,7 @@ final class AppModel: ObservableObject {
         notificationService.requestAuthorization()
         let migrationResult = dataMigration.run()
         refresh()
+        restorePendingCaptureRecovery()
         if let migrationMessage = migrationResult.userMessage {
             statusMessage = migrationMessage
         }
@@ -710,6 +712,52 @@ final class AppModel: ObservableObject {
             captureDeviceTransport: transport
         )
         recoverableStagingURL = result.stagingURL
+        let record = PendingCaptureRecoveryRecord(
+            stagingURL: result.stagingURL,
+            deviceID: result.deviceID,
+            deviceName: result.deviceName,
+            startedAt: result.startedAt,
+            endedAt: result.endedAt,
+            sourceAppID: sourceAppID,
+            captureRoute: route,
+            captureBackend: backend,
+            captureDeviceTransport: transport,
+            captureInterrupted: result.captureInterrupted,
+            captureInterruptionReason: result.captureInterruptionReason
+        )
+        do {
+            try pendingCaptureRecoveryStore.save(record)
+        } catch {
+            appendActivity(
+                kind: .diagnostics,
+                message: "Could not persist temporary recording recovery",
+                detail: error.localizedDescription
+            )
+        }
+    }
+
+    private func restorePendingCaptureRecovery() {
+        guard let record = try? pendingCaptureRecoveryStore.load() else { return }
+        let result = CaptureResult(
+            stagingURL: record.stagingURL,
+            deviceID: record.deviceID,
+            deviceName: record.deviceName,
+            startedAt: record.startedAt,
+            endedAt: record.endedAt,
+            captureRoute: record.captureRoute,
+            captureBackend: record.captureBackend,
+            captureInterrupted: record.captureInterrupted,
+            captureInterruptionReason: record.captureInterruptionReason
+        )
+        pendingCaptureRecovery = PendingCaptureRecovery(
+            result: result,
+            sourceAppID: record.sourceAppID,
+            captureRoute: record.captureRoute,
+            captureBackend: record.captureBackend,
+            captureDeviceTransport: record.captureDeviceTransport
+        )
+        recoverableStagingURL = record.stagingURL
+        lastCaptureOutcome = .failed("A temporary recording is waiting to be saved.")
     }
 
     private func ingestPendingCaptureRecovery() throws -> RecordingSession {
@@ -732,6 +780,7 @@ final class AppModel: ObservableObject {
         )
         pendingCaptureRecovery = nil
         recoverableStagingURL = nil
+        try? pendingCaptureRecoveryStore.remove()
         return session
     }
 
