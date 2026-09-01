@@ -214,4 +214,34 @@ final class DualRoutePolicyTests: XCTestCase {
         XCTAssertFalse(DualRoutePolicy.shouldFallBackToAppAudio(posture: .both, hardwarePresent: false, userSuppressedAutoSwitch: true))
         XCTAssertFalse(DualRoutePolicy.shouldFallBackToAppAudio(posture: .folderOnly, hardwarePresent: false, userSuppressedAutoSwitch: false))
     }
+
+    func testFallbackFromInputWatchingVirtualDeviceWithoutManualModeToggle() {
+        XCTAssertTrue(
+            DualRoutePolicy.shouldFallBackToAppAudio(
+                posture: .both,
+                hardwarePresent: false,
+                userSuppressedAutoSwitch: false,
+                inputCapturePhase: .watching,
+                watchingVerifiedHardware: false
+            )
+        )
+        XCTAssertFalse(
+            DualRoutePolicy.shouldFallBackToAppAudio(
+                posture: .both,
+                hardwarePresent: true,
+                userSuppressedAutoSwitch: false,
+                inputCapturePhase: .watching,
+                watchingVerifiedHardware: true
+            )
+        )
+        XCTAssertFalse(
+            DualRoutePolicy.shouldFallBackToAppAudio(
+                posture: .both,
+                hardwarePresent: false,
+                userSuppressedAutoSwitch: false,
+                inputCapturePhase: .recording,
+                watchingVerifiedHardware: false
+            )
+        )
+    }
 }

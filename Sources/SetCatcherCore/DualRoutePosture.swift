@@ -91,4 +91,32 @@ public enum DualRoutePolicy {
             return false
         }
     }
+
+    /// Whether Input Capture should yield to App audio when no verified USB feed is present.
+    ///
+    /// Input mode may auto-start watching a vendor virtual device (e.g. Serato Virtual Audio)
+    /// that hears silence while the DJ app plays to Mac speakers. That used to block fallback
+    /// because `.watching` was excluded outright — forcing a manual mode toggle to re-arm
+    /// Process Audio Tap.
+    public static func shouldFallBackToAppAudio(
+        posture: DualRoutePosture,
+        hardwarePresent: Bool,
+        userSuppressedAutoSwitch: Bool,
+        inputCapturePhase: CapturePhase,
+        watchingVerifiedHardware: Bool
+    ) -> Bool {
+        guard shouldFallBackToAppAudio(
+            posture: posture,
+            hardwarePresent: hardwarePresent,
+            userSuppressedAutoSwitch: userSuppressedAutoSwitch
+        ) else { return false }
+        switch inputCapturePhase {
+        case .recording, .saving:
+            return false
+        case .watching:
+            return !watchingVerifiedHardware
+        default:
+            return true
+        }
+    }
 }

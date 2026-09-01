@@ -2551,6 +2551,8 @@ final class AppModel: ObservableObject {
                         return
                     case .needsScreenRecordingPermission:
                         guard AppAudioCaptureService.screenCapturePermissionGranted() else { return }
+                        self.armAppAudioCapture()
+                        return
                     default:
                         break
                     }
@@ -3203,14 +3205,16 @@ extension AppModel {
             do { try appSettingsStore.save(newSettings); settings = newSettings } catch {}
         }
 
+        let watchingVerifiedHardware = captureState.phase == .watching
+            && hardwarePresent
+            && (captureState.selectedDevice?.isTrustedDJHardwareFeed == true)
         if DualRoutePolicy.shouldFallBackToAppAudio(
             posture: settings.dualRoutePosture,
             hardwarePresent: hardwarePresent,
-            userSuppressedAutoSwitch: userSuppressedPioneerAutoSwitch
+            userSuppressedAutoSwitch: userSuppressedPioneerAutoSwitch,
+            inputCapturePhase: captureState.phase,
+            watchingVerifiedHardware: watchingVerifiedHardware
         ), captureState.mode == .inputDevice,
-           captureState.phase != .recording,
-           captureState.phase != .watching,
-           captureState.phase != .saving,
            settings.pinnedAnalogInputDeviceID == nil {
             haltInputCapture(markUserDisarmed: false)
             var next = captureState
