@@ -1407,7 +1407,7 @@ final class AppModel: ObservableObject {
         return configured + discovered
     }
 
-    func chooseFolder(appID: String, kind: FolderKind) {
+    func chooseFolder(appID: String, kind: FolderKind, preferredDirectory: URL? = nil) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -1418,7 +1418,7 @@ final class AppModel: ObservableObject {
         panel.message = kind == .recordings
             ? recordingsFolderPanelMessage(appID: appID)
             : "Choose the folder where this DJ app saves history or exports."
-        panel.directoryURL = defaultFolderPanelURL(appID: appID, kind: kind)
+        panel.directoryURL = preferredDirectory ?? defaultFolderPanelURL(appID: appID, kind: kind)
 
         guard panel.runModal() == .OK, let url = panel.url else {
             return
@@ -2270,6 +2270,18 @@ final class AppModel: ObservableObject {
     }
 
     private func defaultFolderPanelURL(appID: String, kind: FolderKind) -> URL? {
+        if let probe = probeResults.first(where: { $0.software.id == appID }) {
+            let pathKind: DJPathKind = kind == .recordings ? .recordings : .history
+            for installation in probe.installations {
+                if let discovered = installation.bestPath(ofKind: pathKind) {
+                    return discovered.url
+                }
+            }
+            if let discovered = probe.familyDiscoveredPaths.first(where: { $0.kind == pathKind }) {
+                return discovered.url
+            }
+        }
+
         switch kind {
         case .recordings:
             return recordingFolders(for: appID).first

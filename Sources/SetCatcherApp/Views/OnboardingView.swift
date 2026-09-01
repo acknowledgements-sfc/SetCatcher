@@ -186,10 +186,16 @@ struct OnboardingView: View {
                 analogSelected = false
                 analogPath = nil
             },
-            onChooseFolder: { result in
+            onChooseFolder: { result, installation in
                 analogSelected = false
                 analogPath = nil
-                model.chooseFolder(appID: result.software.id, kind: .recordings)
+                let preferred = installation?.bestPath(ofKind: .recordings)?.url
+                    ?? result.familyDiscoveredPaths.first(where: { $0.kind == .recordings })?.url
+                model.chooseFolder(
+                    appID: result.software.id,
+                    kind: .recordings,
+                    preferredDirectory: preferred
+                )
             }
         )
     }

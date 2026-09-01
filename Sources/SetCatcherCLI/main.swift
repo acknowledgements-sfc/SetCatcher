@@ -42,20 +42,38 @@ private func runProbe() {
     for result in results {
         print("\(result.software.displayName): \(result.status)")
 
-        for bundleIdentifier in result.runningApplicationBundleIdentifiers {
-            print("  running: \(bundleIdentifier)")
+        if result.installations.isEmpty {
+            for bundleIdentifier in result.runningApplicationBundleIdentifiers {
+                print("  running: \(bundleIdentifier)")
+            }
+
+            for url in result.installedApplicationURLs {
+                print("  app: \(url.path)")
+            }
+
+            for url in result.existingRecordingURLs {
+                print("  recordings: \(url.path)")
+            }
+
+            for url in result.existingHistoryURLs {
+                print("  history: \(url.path)")
+            }
+            continue
         }
 
-        for url in result.installedApplicationURLs {
-            print("  app: \(url.path)")
-        }
+        for installation in result.installations {
+            print("  installation: \(installation.variantLabel)")
+            if let version = installation.bundleVersion {
+                print("    version: \(version)")
+            }
+            print("    app: \(installation.appURL.path)")
+            if installation.isRunning {
+                print("    running: \(installation.bundleIdentifier)")
+            }
 
-        for url in result.existingRecordingURLs {
-            print("  recordings: \(url.path)")
-        }
-
-        for url in result.existingHistoryURLs {
-            print("  history: \(url.path)")
+            for path in installation.discoveredPaths {
+                print("    \(path.kind.rawValue): \(path.url.path) [\(path.source.rawValue)]")
+            }
         }
     }
 }

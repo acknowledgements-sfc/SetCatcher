@@ -9,7 +9,7 @@ struct OnboardingDJAppsList: View {
     let isGranted: (String) -> Bool
     let onSelectAnalog: () -> Void
     let onSelectSoftware: () -> Void
-    let onChooseFolder: (SoftwareProbeResult) -> Void
+    let onChooseFolder: (SoftwareProbeResult, DJSoftwareInstallation?) -> Void
 
     var body: some View {
         ScrollView {
@@ -17,17 +17,44 @@ struct OnboardingDJAppsList: View {
                 if !folderMode {
                     analogRow
                 }
-                ForEach(sortedResults, id: \.software.id) { result in
+                ForEach(displayRows) { row in
                     OnboardingDJAppRow(
-                        result: result,
-                        granted: isGranted(result.software.id),
+                        result: row.result,
+                        installation: row.installation,
+                        granted: isGranted(row.result.software.id),
                         folderMode: folderMode,
                         onSelectSoftware: onSelectSoftware,
-                        onChooseFolder: { onChooseFolder(result) }
+                        onChooseFolder: { onChooseFolder(row.result, row.installation) }
                     )
                 }
             }
         }
+    }
+
+    private struct DisplayRow: Identifiable {
+        let id: String
+        let result: SoftwareProbeResult
+        let installation: DJSoftwareInstallation?
+    }
+
+    private var displayRows: [DisplayRow] {
+        var rows: [DisplayRow] = []
+        for result in sortedResults {
+            if result.installations.isEmpty {
+                rows.append(DisplayRow(id: result.software.id, result: result, installation: nil))
+            } else {
+                for installation in result.installations {
+                    rows.append(
+                        DisplayRow(
+                            id: installation.id,
+                            result: result,
+                            installation: installation
+                        )
+                    )
+                }
+            }
+        }
+        return rows
     }
 
     private var sortedResults: [SoftwareProbeResult] {
@@ -76,13 +103,32 @@ struct OnboardingDJAppsList: View {
 
 struct OnboardingDJAppRow: View {
     let result: SoftwareProbeResult
+    let installation: DJSoftwareInstallation?
     let granted: Bool
     let folderMode: Bool
     let onSelectSoftware: () -> Void
     let onChooseFolder: () -> Void
 
-    private var foundFolder: URL? {
-        result.existingRecordingURLs.first
+    private var displayTitle: String {
+        installation?.variantLabel ?? result.software.displayName
+    }
+
+    private var discoveredRecordingPaths: [DiscoveredDJPath] {
+        if let installation {
+            return installation.discoveredPaths.filter { $0.kind == .recordings }
+        }
+        return result.familyDiscoveredPaths.filter { $0.kind == .recordings }
+    }
+
+    private var discoveredHistoryPaths: [DiscoveredDJPath] {
+        if let installation {
+            return installation.discoveredPaths.filter { $0.kind == .history }
+        }
+        return result.familyDiscoveredPaths.filter { $0.kind == .history }
+    }
+
+    private var bestRecordingFolder: URL? {
+        (installation?.bestPath(ofKind: .recordings) ?? discoveredRecordingPaths.first)?.url
     }
 
     var body: some View {
@@ -94,17 +140,27 @@ struct OnboardingDJAppRow: View {
                         .frame(width: 7, height: 7)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(result.software.displayName)
+                            Text(displayTitle)
                                 .font(.system(size: DJToken.TypeSize.secondary, weight: .semibold))
                                 .foregroundStyle(textTint)
                                 .lineLimit(1)
-                            Text(result.onboardingPresenceLabel)
+                            Text(presenceLabel)
                                 .font(.system(size: DJToken.TypeSize.micro))
                                 .foregroundStyle(DJToken.mutedForeground)
                             SupportBadge(status: result.software.supportStatus)
                         }
-                        if let foundFolder {
-                            PathChip(path: foundFolder.path)
+                        if let version = installation?.bundleVersion, !version.isEmpty {
+                            Text(version)
+                                .font(.system(size: DJToken.TypeSize.micro))
+                                .foregroundStyle(DJToken.mutedForeground)
+                        }
+                        ForEach(discoveredRecordingPaths, id: \.url.path) { path in
+                            pathChip(path)
+                        }
+                        if folderMode {
+                            ForEach(discoveredHistoryPaths, id: \.url.path) { path in
+                                pathChip(path, prefix: "History")
+                            }
                         }
                     }
                     Spacer(minLength: 0)
@@ -127,6 +183,21 @@ struct OnboardingDJAppRow: View {
     }
 
     @ViewBuilder
+    private func pathChip(_ path: DiscoveredDJPath, prefix: String? = nil) -> some View {
+        HStack(spacing: 4) {
+            if let prefix {
+                Text("\(prefix):")
+                    .font(.system(size: DJToken.TypeSize.micro))
+                    .foregroundStyle(DJToken.mutedForeground)
+            }
+            PathChip(path: path.url.path)
+            Text(path.sourceLabel)
+                .font(.system(size: DJToken.TypeSize.micro))
+                .foregroundStyle(DJToken.mutedForeground)
+        }
+    }
+
+    @ViewBuilder
     private var folderAction: some View {
         if granted {
             Text("Granted")
@@ -134,12 +205,22 @@ struct OnboardingDJAppRow: View {
                 .foregroundStyle(DJToken.primary)
                 .accessibilityIdentifier("onboarding.folder.\(result.software.id)")
         } else {
-            Button(foundFolder == nil ? "Choose folder" : "Grant found folder") {
+            Button(bestRecordingFolder == nil ? "Choose folder" : "Grant found folder") {
                 onChooseFolder()
             }
             .buttonStyle(DJSecondaryButtonStyle())
             .accessibilityIdentifier("onboarding.folder.\(result.software.id)")
         }
+    }
+
+    private var presenceLabel: String {
+        if let installation, installation.isRunning {
+            return "Running"
+        }
+        if installation != nil {
+            return "Installed"
+        }
+        return result.onboardingPresenceLabel
     }
 
     private var dotTint: Color {
@@ -153,6 +234,19 @@ struct OnboardingDJAppRow: View {
 
     private var rowBackground: Color {
         granted ? DJToken.primary.opacity(0.14) : DJToken.muted.opacity(0.6)
+    }
+}
+
+private extension DiscoveredDJPath {
+    var sourceLabel: String {
+        switch source {
+        case .userPreference:
+            return "From app prefs"
+        case .catalogDefault:
+            return "Default location"
+        case .filesystemProbe:
+            return "Found on disk"
+        }
     }
 }
 
@@ -174,7 +268,7 @@ struct OnboardingDJAppRow: View {
         isGranted: { _ in false },
         onSelectAnalog: {},
         onSelectSoftware: {},
-        onChooseFolder: { _ in }
+        onChooseFolder: { _, _ in }
     )
     .padding()
     .frame(width: 656, height: 280)
@@ -200,7 +294,7 @@ struct OnboardingDJAppRow: View {
         isGranted: { _ in false },
         onSelectAnalog: {},
         onSelectSoftware: {},
-        onChooseFolder: { _ in }
+        onChooseFolder: { _, _ in }
     )
     .padding()
     .frame(width: 656, height: 280)
@@ -230,13 +324,24 @@ private func onboardingSeratoFoundPreview(colorScheme: ColorScheme = .dark) -> s
                 existingHistoryURLs: []
             )
         }
-    let found = SoftwareProbeResult(
-        software: serato,
-        installedApplicationURLs: [URL(fileURLWithPath: "/Applications/Serato DJ Pro.app")],
-        runningApplicationBundleIdentifiers: [],
-        existingRecordingURLs: [URL(fileURLWithPath: "/Users/dj/Music/_Serato_/Recording")],
-        existingHistoryURLs: []
+    let recordingURL = URL(fileURLWithPath: "/Users/dj/Music/_Serato_/Recording")
+    let installation = DJSoftwareInstallation(
+        familyID: "serato",
+        variantLabel: "Serato DJ Pro 3",
+        bundleIdentifier: "com.serato.seratodj",
+        bundleVersion: "3.2.1",
+        appURL: URL(fileURLWithPath: "/Applications/Serato DJ Pro.app"),
+        isRunning: false,
+        discoveredPaths: [
+            DiscoveredDJPath(
+                kind: .recordings,
+                url: recordingURL,
+                source: .userPreference,
+                note: "Serato prefs record_location"
+            )
+        ]
     )
+    let found = SoftwareProbeResult(software: serato, installations: [installation])
     return OnboardingDJAppsList(
         results: [found] + others,
         analogSelected: false,
@@ -244,7 +349,7 @@ private func onboardingSeratoFoundPreview(colorScheme: ColorScheme = .dark) -> s
         isGranted: { $0 == "serato" },
         onSelectAnalog: {},
         onSelectSoftware: {},
-        onChooseFolder: { _ in }
+        onChooseFolder: { _, _ in }
     )
     .padding()
     .frame(width: 656, height: 280)

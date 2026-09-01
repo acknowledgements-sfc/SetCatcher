@@ -14,6 +14,7 @@ final class SupportedDJSoftwareTests: XCTestCase {
             "setcatcher-capture",
             "pioneer-hardware",
             "analog-mixer",
+            "denon-engine",
             "denon-hardware",
             "rane-hardware"
         ])
@@ -42,6 +43,7 @@ final class SupportedDJSoftwareTests: XCTestCase {
         XCTAssertEqual(statuses["setcatcher-capture"], .manualSetup)
         XCTAssertEqual(statuses["pioneer-hardware"], .manualSetup)
         XCTAssertEqual(statuses["analog-mixer"], .manualSetup)
+        XCTAssertEqual(statuses["denon-engine"], .manualSetup)
         XCTAssertEqual(statuses["denon-hardware"], .manualSetup)
         XCTAssertEqual(statuses["rane-hardware"], .manualSetup)
     }
@@ -66,6 +68,7 @@ final class SupportedDJSoftwareTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(byID["setcatcher-capture"]).isEmpty)
         XCTAssertTrue(try XCTUnwrap(byID["pioneer-hardware"]).isEmpty)
         XCTAssertTrue(try XCTUnwrap(byID["analog-mixer"]).isEmpty)
+        XCTAssertTrue(try XCTUnwrap(byID["denon-engine"]).contains("com.denondj.engine"))
         XCTAssertTrue(try XCTUnwrap(byID["denon-hardware"]).isEmpty)
         XCTAssertTrue(try XCTUnwrap(byID["rane-hardware"]).isEmpty)
     }
@@ -73,7 +76,7 @@ final class SupportedDJSoftwareTests: XCTestCase {
     func testOnlySeratoDeclaresVirtualAudioDeviceHints() {
         let byID = Dictionary(uniqueKeysWithValues: SupportedDJSoftware.all.map { ($0.id, $0.virtualAudioDeviceNameHints) })
         XCTAssertEqual(byID["serato"], ["Serato Virtual Audio"])
-        for id in ["rekordbox", "djay", "virtualdj", "traktor", "setcatcher-capture", "pioneer-hardware", "analog-mixer", "denon-hardware", "rane-hardware"] {
+        for id in ["rekordbox", "djay", "virtualdj", "traktor", "setcatcher-capture", "pioneer-hardware", "analog-mixer", "denon-engine", "denon-hardware", "rane-hardware"] {
             XCTAssertEqual(byID[id], [], "\(id) must not declare an unverified virtual-audio hint")
         }
     }
@@ -101,6 +104,7 @@ final class SupportedDJSoftwareTests: XCTestCase {
         XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "djay"))
         XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "virtualdj"))
         XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "traktor"))
+        XCTAssertTrue(SupportedDJSoftware.isOnboardingSoftwareSource(id: "denon-engine"))
         XCTAssertFalse(SupportedDJSoftware.isOnboardingSoftwareSource(id: SupportedDJSoftware.captureAppID))
         XCTAssertFalse(SupportedDJSoftware.isOnboardingSoftwareSource(id: SupportedDJSoftware.analogMixerAppID))
         XCTAssertFalse(SupportedDJSoftware.isOnboardingSoftwareSource(id: SupportedDJSoftware.pioneerHardwareAppID))

@@ -165,6 +165,19 @@ public enum SupportedDJSoftware {
             notes: "Analog Mixer is Manual Setup. There is no DJ app folder to watch. Pin mixer REC OUT / SESSION OUT for unattended Input Capture, or grant a dump folder. This records the mixer rec-out, not a microphone. No tracklist is attached unless you import one."
         ),
         DJSoftware(
+            id: "denon-engine",
+            displayName: "Engine DJ",
+            bundleIdentifiers: [
+                "com.denondj.engine",
+                "com.inmusicbrands.EngineDJ"
+            ],
+            defaultRecordingPaths: ["~/Music/Engine DJ/Recordings"],
+            defaultHistoryPaths: ["~/Music/Engine DJ"],
+            integrationDepth: .exportImport,
+            supportStatus: .manualSetup,
+            notes: "Desktop Engine DJ library/recording paths. Prefs keys vary by release; verify on a bench Mac before raising support. Separate from Engine OS Sessions on USB (denon-hardware)."
+        ),
+        DJSoftware(
             id: "denon-hardware",
             displayName: "Denon Hardware",
             bundleIdentifiers: [],
