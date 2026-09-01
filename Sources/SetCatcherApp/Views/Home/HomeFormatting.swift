@@ -42,6 +42,17 @@ enum HomeFormatting {
         }
     }
 
+    static func liveTone(_ state: LiveProtectionState) -> StatusTone {
+        switch state.primaryDisplay {
+        case .noSource: return .neutral
+        case .detected, .armed: return .warn
+        case .ready, .setProtected: return .ok
+        case .capturing: return .danger
+        case .saving: return .info
+        case .attentionNeeded: return .danger
+        }
+    }
+
     static func setupTone(_ state: AppSetupState) -> StatusTone {
         switch state {
         case .watching, .archived:

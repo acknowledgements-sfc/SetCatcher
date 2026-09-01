@@ -87,11 +87,18 @@ internal struct MenuBarActionList: View {
             }
             .accessibilityIdentifier("menuBar.disarm")
 
-        case .ready, .detected:
+        case .ready:
             actionRow("Arm Protection", systemImage: "bolt.shield") {
                 model.toggleArmFromShortcut()
             }
             .accessibilityIdentifier("menuBar.arm")
+
+        case .detected, .noSource:
+            actionRow("Choose Protection Source", systemImage: "slider.horizontal.3") {
+                model.openMainWindow()
+                model.selectedRoute = .capture
+            }
+            .accessibilityIdentifier("menuBar.chooseProtectionSource")
 
         case .attentionNeeded:
             actionRow("Open Live", systemImage: "bolt.shield") {
@@ -100,7 +107,7 @@ internal struct MenuBarActionList: View {
             }
             .accessibilityIdentifier("menuBar.openLive")
 
-        case .saving, .noSource:
+        case .saving:
             EmptyView()
         }
     }

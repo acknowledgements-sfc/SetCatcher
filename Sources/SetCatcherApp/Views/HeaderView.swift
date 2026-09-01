@@ -6,20 +6,20 @@ struct HeaderView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
-            Image(systemName: model.protectionSymbolName)
+            Image(systemName: model.cockpitSymbolName)
                 .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(HomeFormatting.protectionTone(model.protectionState).color)
+                .foregroundStyle(HomeFormatting.liveTone(model.cockpitSnapshot.state).color)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Protection status")
                     .microLabelStyle()
-                Text(model.headlineStatus)
+                Text(model.cockpitHeadline)
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(DJToken.foreground)
-                Text(model.statusMessage)
+                Text(model.cockpitStatusDetail)
                     .font(.system(size: DJToken.TypeSize.body))
                     .foregroundStyle(DJToken.mutedForeground)
-                    .help(model.statusMessage)
+                    .help(model.cockpitStatusDetail)
             }
 
             Spacer()

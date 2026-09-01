@@ -122,14 +122,14 @@ struct OnboardingView: View {
             if analogSelected, model.hasPinnedAnalogRecOut {
                 let name = model.pinnedAnalogInputDevice?.name ?? "rec-out"
                 return ("You’re", "ready.",
-                        AnalogMixerPolicy.listeningSummary(deviceName: name))
+                        AnalogMixerPolicy.listeningSummary(deviceName: name) + " Choose how SetCatcher appears before you finish.")
             }
             if analogSelected, model.hasConfiguredRecordingsFolder(appID: SupportedDJSoftware.analogMixerAppID) {
                 return ("You’re", "ready.",
-                        "Watching the dump folder. SetCatcher copies stable files and leaves the originals unchanged.")
+                        "Watching the dump folder. SetCatcher copies stable files and leaves the originals unchanged. Choose how SetCatcher appears before you finish.")
             }
             return ("You’re", "ready.",
-                    "SetCatcher will watch granted folders and copy completed recordings into your archive.")
+                    "Choose how SetCatcher appears, then finish. It will watch granted folders and copy completed recordings into your archive.")
         }
     }
 
@@ -171,11 +171,20 @@ struct OnboardingView: View {
                     .accessibilityIdentifier("onboarding.reviewArchive")
             }
         case .ready:
-            MetricTile(
-                label: "Protected sources",
-                value: "\(model.protectedAdapterCount)",
-                tone: model.protectedAdapterCount > 0 ? .ok : .warn
-            )
+            VStack(alignment: .leading, spacing: 14) {
+                MetricTile(
+                    label: "Protected sources",
+                    value: "\(model.protectedAdapterCount)",
+                    tone: model.protectedAdapterCount > 0 ? .ok : .warn
+                )
+                AppPresentationModePicker(
+                    selection: Binding(
+                        get: { model.settings.appPresentationMode },
+                        set: { model.updateAppPresentationMode($0) }
+                    ),
+                    accessibilityPrefix: "onboarding"
+                )
+            }
         case .folderAccess where installedCount == 0 && !analogSelected:
             Text("Install a DJ app, choose Analog Mixer, or use the chips below to choose folders manually.")
                 .font(.system(size: DJToken.TypeSize.secondary))

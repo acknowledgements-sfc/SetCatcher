@@ -39,7 +39,10 @@ struct CaptureView: View {
                 Button("Keep Current") { model.dismissPendingAlternateSource() }
                     .buttonStyle(DJGhostButtonStyle())
                     .accessibilityIdentifier("capture.alternateSource.dismiss")
-                Button("Switch") { model.switchToPendingAlternateSource() }
+                Button(model.captureState.phase == .recording ? "Stop Capture to Switch" : "Switch") {
+                    model.switchToPendingAlternateSource()
+                }
+                    .disabled(model.captureState.phase == .recording || model.captureState.phase == .saving)
                     .buttonStyle(DJPrimaryButtonStyle())
                     .accessibilityIdentifier("capture.alternateSource.switch")
             }
@@ -81,6 +84,12 @@ struct CaptureView: View {
 
             Panel(title: "Session", padding: 12) {
                 VStack(alignment: .leading, spacing: 10) {
+                    sessionPrimaryControl
+
+                    if showsSessionMeter {
+                        levelMeter
+                    }
+
                     Text(model.captureState.listeningSummary)
                         .font(.system(size: DJToken.TypeSize.body))
                         .foregroundStyle(
@@ -95,7 +104,7 @@ struct CaptureView: View {
                         .font(.system(size: DJToken.TypeSize.body))
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 10) {
-                        sessionButtons
+                        sessionSecondaryButtons
                         if case .needsScreenRecordingPermission = model.captureState.phase {
                             Button("Retry") { model.armAppAudioCapture() }
                                 .accessibilityIdentifier("capture.retryAppAudio")
@@ -148,7 +157,7 @@ struct CaptureView: View {
                             .font(.system(size: DJToken.TypeSize.secondary))
                             .foregroundStyle(DJToken.mutedForeground)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("Idle silence \(model.settings.appAudioIdleSeconds)s · min take \(model.settings.appAudioMinDurationSeconds)s. Audio stays on this Mac.")
+                        Text("Idle silence \(model.settings.appAudioIdleSeconds)s · start hold \(model.settings.appAudioStartHoldSeconds)s · min take \(model.settings.appAudioMinDurationSeconds)s. Audio stays on this Mac.")
                             .font(.system(size: DJToken.TypeSize.secondary))
                             .foregroundStyle(DJToken.mutedForeground)
                     }
@@ -199,7 +208,6 @@ struct CaptureView: View {
                 }
                 .disabled(model.captureState.isWatchingOrRecording)
                 .accessibilityIdentifier("capture.refreshTargets")
-                levelMeter
             }
         }
     }
@@ -224,7 +232,7 @@ struct CaptureView: View {
                     }
                     .accessibilityIdentifier("capture.devicePicker")
                 }
-                    Button("Refresh Devices") { model.refreshAudioInputs() }
+                Button("Refresh Devices") { model.refreshAudioInputs() }
                     .accessibilityIdentifier("capture.refreshDevices")
                 if (model.pendingAnalogRecOutPinning
                     || model.selectedAppID == SupportedDJSoftware.analogMixerAppID),
@@ -235,62 +243,138 @@ struct CaptureView: View {
                     .buttonStyle(DJPrimaryButtonStyle())
                     .accessibilityIdentifier("capture.pinAnalogRecOut")
                 }
-                levelMeter
             }
         }
     }
 
     private var levelMeter: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: DJToken.Radius.badge).fill(DJToken.muted)
-                RoundedRectangle(cornerRadius: DJToken.Radius.badge).fill(DJToken.ok)
-                    .frame(width: max(4, proxy.size.width * CGFloat(model.captureState.inputLevel)))
-            }
+        CaptureLevelMeterView(level: model.captureState.inputLevel)
+    }
+
+    private var showsSessionMeter: Bool {
+        switch model.captureState.phase {
+        case .watching, .recording, .armed:
+            return true
+        default:
+            return false
         }
-        .frame(height: 8)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Input level")
-        .accessibilityValue("\(Int((model.captureState.inputLevel * 100).rounded())) percent")
-        .accessibilityIdentifier("capture.levelMeter")
     }
 
     @ViewBuilder
-    private var sessionButtons: some View {
-        if model.captureState.mode == .appAudio {
-            if model.captureState.isWatchingOrRecording {
-                if model.captureState.isRecording || model.captureState.phase == .saving {
-                    Button("Stop & Save") { model.stopCapture() }
-                        .buttonStyle(DJPrimaryButtonStyle())
-                        .disabled(model.captureState.phase == .saving)
-                        .accessibilityIdentifier("capture.stop")
-                }
-                Button("Disarm") { model.disarmCapture() }
-                    .disabled(model.captureState.phase == .saving)
-                    .accessibilityIdentifier("capture.disarm")
+    private var sessionPrimaryControl: some View {
+        if model.captureState.phase == .recording || model.captureState.phase == .saving {
+            CaptureSessionStripView(
+                elapsedText: captureElapsedHHMMSS,
+                sourceName: model.liveSourceDisplayName ?? "Capture",
+                sizeText: model.captureStagingSizeText,
+                isSaving: model.captureState.phase == .saving,
+                onStop: { model.requestStopCapture() }
+            )
+        } else if canShowArmToggle {
+            CaptureArmToggleView(
+                isArmed: model.cockpitSnapshot.state.primaryDisplay == .armed,
+                isCapturing: false,
+                isDisabled: armToggleIsDisabled,
+                disabledHint: armToggleDisabledHint,
+                detail: armToggleDetail,
+                onToggle: { toggleArmFromCapture() }
+            )
+        }
+    }
+
+    private var canShowArmToggle: Bool {
+        if model.captureState.mode == .appAudio { return true }
+        return usesUnattendedInput
+            || model.captureState.phase == .watching
+            || model.captureState.phase == .armed
+    }
+
+    private var armToggleDetail: String {
+        if model.captureState.phase == .watching {
+            let name = model.liveSourceDisplayName ?? "source"
+            return "Watching \(name) · Will capture automatically"
+        }
+        return "Tap to arm protection"
+    }
+
+    private var armToggleIsDisabled: Bool {
+        if model.captureState.phase == .saving || model.captureState.phase == .requestingPermission {
+            return true
+        }
+        if model.captureState.phase == .watching {
+            return false
+        }
+        switch model.captureState.mode {
+        case .appAudio:
+            return model.captureState.selectedTargetApp == nil
+        case .inputDevice:
+            return model.captureState.selectedDevice == nil
+        }
+    }
+
+    private var armToggleDisabledHint: String? {
+        if model.captureState.phase == .saving {
+            return "Unavailable while the current set is saving"
+        }
+        if model.captureState.phase == .requestingPermission {
+            return "Unavailable while SetCatcher requests access"
+        }
+        if model.captureState.selectedTargetApp == nil && model.captureState.mode == .appAudio {
+            return "Choose a running DJ app before arming protection"
+        }
+        if model.captureState.selectedDevice == nil && model.captureState.mode == .inputDevice {
+            return "Choose an input device before arming protection"
+        }
+        return nil
+    }
+
+    private var captureElapsedHHMMSS: String {
+        guard let started = model.recordingStartedAt else { return "00:00:00" }
+        let elapsed = max(0, Int(Date().timeIntervalSince(started)))
+        let h = elapsed / 3600
+        let m = (elapsed % 3600) / 60
+        let s = elapsed % 60
+        return String(format: "%02d:%02d:%02d", h, m, s)
+    }
+
+    private func toggleArmFromCapture() {
+        switch model.captureState.phase {
+        case .watching, .recording:
+            model.requestDisarmCapture()
+        default:
+            if model.captureState.mode == .appAudio {
+                model.armAppAudioCapture()
             } else {
-                Button("Arm") { model.armAppAudioCapture() }
-                    .buttonStyle(DJPrimaryButtonStyle())
-                    .disabled(model.captureState.targetApps.isEmpty || model.captureState.phase == .requestingPermission)
-                    .accessibilityIdentifier("capture.arm")
+                model.armInputCaptureWatching()
             }
-        } else if model.captureState.isWatchingOrRecording {
-            if model.captureState.isRecording || model.captureState.phase == .saving {
-                Button("Stop & Save") { model.stopCapture() }
-                    .buttonStyle(DJPrimaryButtonStyle())
-                    .disabled(model.captureState.phase == .saving)
-                    .accessibilityIdentifier("capture.stop")
-            }
-            Button("Disarm") { model.disarmCapture() }
-                .disabled(model.captureState.phase == .saving)
-                .accessibilityIdentifier("capture.disarm")
-        } else if usesUnattendedInput {
-            Button("Arm") { model.armInputCaptureWatching() }
+        }
+    }
+
+    @ViewBuilder
+    private var sessionSecondaryButtons: some View {
+        if model.captureState.phase == .watching {
+            Button("Start Capture Now") { model.startCaptureNow() }
+                .accessibilityIdentifier("capture.startNow")
+        }
+        if !canShowArmToggle {
+            sessionButtonsLegacy
+        } else if model.captureState.mode == .inputDevice,
+                  !usesUnattendedInput,
+                  model.captureState.phase != .watching,
+                  model.captureState.phase != .recording,
+                  model.captureState.phase != .saving {
+            Button("Start") { model.startCapture() }
                 .buttonStyle(DJPrimaryButtonStyle())
                 .disabled(model.captureState.devices.isEmpty || model.captureState.phase == .requestingPermission)
-                .accessibilityIdentifier("capture.arm")
-        } else if model.captureState.isRecording || model.captureState.phase == .saving {
-            Button("Stop") { model.stopCapture() }
+                .accessibilityIdentifier("capture.start")
+        }
+    }
+
+    /// Legacy Arm/Disarm/Stop controls when the pill toggle is not used (manual Start path).
+    @ViewBuilder
+    private var sessionButtonsLegacy: some View {
+        if model.captureState.isRecording || model.captureState.phase == .saving {
+            Button("Stop") { model.requestStopCapture() }
                 .buttonStyle(DJPrimaryButtonStyle())
                 .disabled(model.captureState.phase == .saving)
                 .accessibilityIdentifier("capture.stop")

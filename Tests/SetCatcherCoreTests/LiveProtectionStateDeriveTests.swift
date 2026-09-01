@@ -9,7 +9,7 @@ final class LiveProtectionStateDeriveTests: XCTestCase {
             hasDetectedSource: true,
             hasLiveAttention: true,
             justSaved: false,
-            isWatchingOrArmed: true
+            isWatching: true
         )
         XCTAssertEqual(LiveProtectionState.derive(input: input), .capturing)
     }
@@ -21,7 +21,7 @@ final class LiveProtectionStateDeriveTests: XCTestCase {
             hasDetectedSource: true,
             hasLiveAttention: true,
             justSaved: false,
-            isWatchingOrArmed: true
+            isWatching: true
         )
         XCTAssertEqual(LiveProtectionState.derive(input: input), .attentionNeeded)
     }
@@ -37,7 +37,7 @@ final class LiveProtectionStateDeriveTests: XCTestCase {
             hasDetectedSource: true,
             hasLiveAttention: false,
             justSaved: true,
-            isWatchingOrArmed: true
+            isWatching: true
         )
         XCTAssertEqual(LiveProtectionState.derive(input: input), .setProtected)
     }
@@ -49,8 +49,56 @@ final class LiveProtectionStateDeriveTests: XCTestCase {
             hasDetectedSource: true,
             hasLiveAttention: false,
             justSaved: false,
-            isWatchingOrArmed: true
+            isWatching: true
         )
         XCTAssertEqual(LiveProtectionState.derive(input: input), .armed)
+    }
+
+    func testSelectedSourceIsReadyUntilMonitoringActuallyStarts() {
+        let input = LiveProtectionDeriveInput(
+            capturePhase: .armed,
+            hasSelectedSource: true,
+            hasDetectedSource: true,
+            hasLiveAttention: false,
+            justSaved: false,
+            isWatching: false
+        )
+        XCTAssertEqual(LiveProtectionState.derive(input: input), .ready)
+    }
+
+    func testNoSourceDetectedAndSavingStates() {
+        XCTAssertEqual(
+            LiveProtectionState.derive(input: LiveProtectionDeriveInput(
+                capturePhase: .idle,
+                hasSelectedSource: false,
+                hasDetectedSource: false,
+                hasLiveAttention: false,
+                justSaved: false,
+                isWatching: false
+            )),
+            .noSource
+        )
+        XCTAssertEqual(
+            LiveProtectionState.derive(input: LiveProtectionDeriveInput(
+                capturePhase: .idle,
+                hasSelectedSource: false,
+                hasDetectedSource: true,
+                hasLiveAttention: false,
+                justSaved: false,
+                isWatching: false
+            )),
+            .detected
+        )
+        XCTAssertEqual(
+            LiveProtectionState.derive(input: LiveProtectionDeriveInput(
+                capturePhase: .saving,
+                hasSelectedSource: true,
+                hasDetectedSource: true,
+                hasLiveAttention: true,
+                justSaved: false,
+                isWatching: false
+            )),
+            .saving
+        )
     }
 }

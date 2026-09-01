@@ -32,7 +32,7 @@ public enum LiveProtectionState: String, Equatable, Sendable, CaseIterable {
         case .watching:
             return .armed
         case .armed:
-            return .armed
+            break
         case .idle, .requestingPermission, .needsScreenRecordingPermission:
             break
         case .recording:
@@ -44,7 +44,7 @@ public enum LiveProtectionState: String, Equatable, Sendable, CaseIterable {
             return input.hasSelectedSource ? .ready : .noSource
         }
 
-        if input.hasSelectedSource, input.isWatchingOrArmed {
+        if input.hasSelectedSource, input.isWatching {
             return .armed
         }
         if input.hasSelectedSource {
@@ -63,7 +63,7 @@ public struct LiveProtectionDeriveInput: Equatable, Sendable {
     public var hasDetectedSource: Bool
     public var hasLiveAttention: Bool
     public var justSaved: Bool
-    public var isWatchingOrArmed: Bool
+    public var isWatching: Bool
 
     public init(
         capturePhase: CapturePhase,
@@ -71,14 +71,14 @@ public struct LiveProtectionDeriveInput: Equatable, Sendable {
         hasDetectedSource: Bool,
         hasLiveAttention: Bool,
         justSaved: Bool,
-        isWatchingOrArmed: Bool
+        isWatching: Bool
     ) {
         self.capturePhase = capturePhase
         self.hasSelectedSource = hasSelectedSource
         self.hasDetectedSource = hasDetectedSource
         self.hasLiveAttention = hasLiveAttention
         self.justSaved = justSaved
-        self.isWatchingOrArmed = isWatchingOrArmed
+        self.isWatching = isWatching
     }
 }
 

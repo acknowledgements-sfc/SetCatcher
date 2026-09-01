@@ -20,7 +20,11 @@ struct DashboardView: View {
 
                 switch model.selectedRoute {
                 case .home:
-                    HomeDashboardView()
+                    // Layout B: live cockpit pinned at top; HANDOFF-2-HOME dashboard scrolls below.
+                    VStack(alignment: .leading, spacing: 24) {
+                        LiveProtectionCardView()
+                        HomeDashboardView()
+                    }
                 case .protection:
                     ProtectionDashboardView()
                 case .capture:

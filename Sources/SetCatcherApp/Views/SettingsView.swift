@@ -159,14 +159,12 @@ private var scanningPanel: some View {
                     .accessibilityIdentifier("settings.launchAtLogin.openLoginItems")
                 }
 
-                settingsToggle(
-                    title: "Open in menu bar only",
-                    explanation: "Skip opening the main window at launch. SetCatcher stays in the menu bar; open the window any time from there.",
-                    isOn: Binding(
-                        get: { model.settings.menuBarOnly },
-                        set: { model.updateMenuBarOnly(enabled: $0) }
+                AppPresentationModePicker(
+                    selection: Binding(
+                        get: { model.settings.appPresentationMode },
+                        set: { model.updateAppPresentationMode($0) }
                     ),
-                    id: "settings.menuBarOnly"
+                    accessibilityPrefix: "settings"
                 )
 
                 settingsToggle(

@@ -14,10 +14,10 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             List(selection: $model.selectedRoute) {
                 Section("SetCatcher") {
-                    Label("Home", systemImage: "house")
+                    Label("Live", systemImage: "bolt.shield")
                         .tag(Route.home)
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel("Home")
+                        .accessibilityLabel("Live")
                         .accessibilityIdentifier("sidebar.home")
                     Label("Protection", systemImage: model.protectionSymbolName)
                         .tag(Route.protection)
@@ -144,8 +144,8 @@ struct SidebarView: View {
     }
 
     private var statusStrip: some View {
-        let state = model.protectionState
-        let tone = HomeFormatting.protectionTone(state)
+        let state = model.cockpitSnapshot.state
+        let tone = HomeFormatting.liveTone(state)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "shield")
@@ -155,12 +155,12 @@ struct SidebarView: View {
                     .microLabelStyle()
             }
             HStack(spacing: 6) {
-                StatusDot(tone: tone, pulse: state == .scanning)
-                Text(state.headline)
+                StatusDot(tone: tone, pulse: state.primaryDisplay == .capturing || state.primaryDisplay == .saving)
+                Text(model.cockpitHeadline)
                     .font(.system(size: DJToken.TypeSize.body, weight: .semibold))
                     .foregroundStyle(DJToken.foreground)
             }
-            Text(statusDetail)
+            Text(model.cockpitStatusDetail)
                 .font(.system(size: DJToken.TypeSize.micro))
                 .foregroundStyle(DJToken.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -174,22 +174,8 @@ struct SidebarView: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Status")
-        .accessibilityValue("\(state.headline). \(statusDetail)")
+        .accessibilityValue("\(model.cockpitHeadline). \(model.cockpitStatusDetail)")
         .accessibilityIdentifier("sidebar.statusStrip")
-    }
-
-    private var statusDetail: String {
-        switch model.protectionState {
-        case .scanning:
-            return "Checking watched folders…"
-        case .attentionNeeded:
-            return "A saved folder is unavailable."
-        case .needsSetup:
-            let needs = model.probeResults.filter { !model.hasConfiguredRecordingsFolder(appID: $0.software.id) }.count
-            return "\(needs) app\(needs == 1 ? "" : "s") still need a folder."
-        case .protected:
-            return "All sources watched. Nothing to do."
-        }
     }
 
     @ViewBuilder

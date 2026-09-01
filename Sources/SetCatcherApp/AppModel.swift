@@ -471,13 +471,20 @@ final class AppModel: ObservableObject {
             },
             hasLiveAttention: !liveAttentionEvents.isEmpty,
             justSaved: justSavedUntil != nil,
-            isWatchingOrArmed: captureState.phase == .watching || captureState.phase == .armed
+            isWatching: captureState.phase == .watching
         ))
+    }
+
+    /// The completion toast is transient; controls and persistent status keep reflecting
+    /// whether Capture resumed watching or finished disarmed underneath it.
+    var liveOperationalState: LiveProtectionState {
+        guard liveProtectionState == .setProtected else { return liveProtectionState }
+        return captureState.phase == .watching ? .armed : .ready
     }
 
     var cockpitSnapshot: CockpitSnapshot {
         CockpitSnapshot(
-            state: liveProtectionState,
+            state: liveOperationalState,
             sourceDisplayName: liveSourceDisplayName,
             attentionEvent: liveAttentionEvents.first,
             inputLevel: captureState.inputLevel,
@@ -485,6 +492,51 @@ final class AppModel: ObservableObject {
             armedSinceText: liveArmedSinceText,
             lastProtectedFooterText: liveLastProtectedFooterText
         )
+    }
+
+    var cockpitHeadline: String {
+        let source = liveSourceDisplayName ?? "Protection"
+        switch liveOperationalState.primaryDisplay {
+        case .noSource: return "No protection source"
+        case .detected: return "\(source) detected"
+        case .ready: return "Ready"
+        case .armed, .setProtected: return "Armed"
+        case .capturing: return "Capturing"
+        case .saving: return "Saving"
+        case .attentionNeeded: return "Attention needed"
+        }
+    }
+
+    var cockpitStatusDetail: String {
+        let source = liveSourceDisplayName ?? "the selected source"
+        switch liveOperationalState.primaryDisplay {
+        case .noSource:
+            return "Add a DJ app, recording folder, or input device to begin."
+        case .detected:
+            return "\(source) is available. Finish setup to protect the next set."
+        case .ready:
+            return "\(source) is configured but not armed."
+        case .armed, .setProtected:
+            return "Watching \(source) and waiting for audio."
+        case .capturing:
+            return "Capturing \(source). Saving and recovery controls remain available."
+        case .saving:
+            return "Finalizing the recording and verifying the archive copy."
+        case .attentionNeeded:
+            return liveAttentionEvents.first?.body ?? "Protection needs attention."
+        }
+    }
+
+    var cockpitSymbolName: String {
+        switch liveOperationalState.primaryDisplay {
+        case .noSource: return "shield"
+        case .detected: return "shield.lefthalf.filled"
+        case .ready: return "checkmark.shield"
+        case .armed, .setProtected: return "bolt.shield"
+        case .capturing: return "record.circle.fill"
+        case .saving: return "arrow.down.circle.fill"
+        case .attentionNeeded: return "exclamationmark.triangle.fill"
+        }
     }
 
     var liveSourceDisplayName: String? {
