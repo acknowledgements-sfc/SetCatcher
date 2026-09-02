@@ -44,6 +44,40 @@ private struct PendingCaptureRecovery {
     let captureDeviceTransport: String?
 }
 
+private final class DJAppWorkspaceObserverBox: NSObject, @unchecked Sendable {
+    weak var model: AppModel?
+
+    func start() {
+        let center = NSWorkspace.shared.notificationCenter
+        center.addObserver(
+            self,
+            selector: #selector(appDidChange(_:)),
+            name: NSWorkspace.didLaunchApplicationNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(appDidChange(_:)),
+            name: NSWorkspace.didTerminateApplicationNotification,
+            object: nil
+        )
+    }
+
+    @objc private func appDidChange(_ notification: Notification) {
+        let bundle = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+            .bundleIdentifier ?? ""
+        let isDJ = SupportedDJSoftware.all.contains { $0.bundleIdentifiers.contains(bundle) }
+        guard isDJ else { return }
+        Task { @MainActor in
+            await model?.handleDJAppWorkspaceChange()
+        }
+    }
+
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published private(set) var probeResults: [SoftwareProbeResult] = []
@@ -234,6 +268,9 @@ final class AppModel: ObservableObject {
     private var captureInputPollTask: Task<Void, Never>?
     /// When true, auto-arm must not re-arm until the user Arms again or changes mode.
     private var userDisarmedAppAudio = false
+    /// Serializes `armAppAudioCapture` so two auto-arm Tasks cannot start overlapping taps.
+    private var isArmingAppAudio = false
+    private let djAppWorkspaceObservers = DJAppWorkspaceObserverBox()
     /// When true, Pioneer unattended Input Capture must not re-arm until Arm, posture change, or the device reappears.
     private var userDisarmedInputCapture = false
     /// When true, the DJ explicitly chose App audio and Pioneer auto-switch must wait for device reappear.
@@ -259,7 +296,10 @@ final class AppModel: ObservableObject {
         Self.lifecycleOwner = self
         notificationService.requestAuthorization()
         let migrationResult = dataMigration.run()
-        refresh()
+        // Probe walks DJ-app prefs on the main thread. Defer it until after the
+        // first frame so a file-provider stall cannot keep the extra from appearing
+        // (same reason audio enumeration is deferred below).
+        refresh(runSoftwareProbe: false)
         restorePendingCaptureRecovery()
         if let migrationMessage = migrationResult.userMessage {
             statusMessage = migrationMessage
@@ -280,19 +320,20 @@ final class AppModel: ObservableObject {
             }
         }
         startCapturePolling()
-        // Launch catch-up: heal any set whose history export landed while the
-        // app was closed, before the user ever looks at the library.
-        ingestHistoryNow()
-        // Defer audio-device enumeration and the first auto-arm pass until after the
-        // first frame. Both can touch Core Audio; this init runs during SwiftUI scene
-        // instantiation, so a HAL stall here would prevent the window from appearing.
-        // Do NOT wait for the 15s idle poll — rekordbox already running at launch
-        // would otherwise sit unarmed until that timer fires.
+        startDJAppWorkspaceObservers()
+        // Launch catch-up walks the filesystem. Do not do that on the same MainActor
+        // turn as Process Audio Tap arm — HAL start resumes onto the main actor, and a
+        // long PathResolver walk blocks `startMonitoring bound` indefinitely.
         Task { @MainActor [weak self] in
             await Task.yield()
             try? await Task.sleep(nanoseconds: 500_000_000)
             self?.refreshAudioInputs()
             await self?.refreshAppAudioTargets(attemptAutoArm: true)
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            self?.ingestHistoryNow()
+            self?.refresh()
         }
 
         Task { [weak self] in
@@ -1111,10 +1152,9 @@ final class AppModel: ObservableObject {
     func openMainWindow() {
         NSApp.setActivationPolicy(.regular)
         Self.activateApp()
-        // If a WindowGroup window already exists (the common case after launch), just bring
-        // it front — avoids spawning a duplicate. Otherwise ask SwiftUI to create one; with a
-        // MenuBarExtra present the window is created lazily and may not exist yet.
-        if let window = NSApp.windows.first(where: { $0.canBecomeKey }) {
+        // MenuBarExtra(.window) can become key. Prefer a real WindowGroup frame so the
+        // extra does not swallow Open Main Window / Settings when the 980pt window is gone.
+        if let window = NSApp.windows.first(where: { $0.canBecomeKey && $0.frame.width >= 900 }) {
             window.makeKeyAndOrderFront(nil)
         } else {
             requestOpenMainWindow?()
@@ -1252,8 +1292,10 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func refresh() {
-        probeResults = probe.probeAll()
+    func refresh(runSoftwareProbe: Bool = true) {
+        if runSoftwareProbe {
+            probeResults = probe.probeAll()
+        }
         folderAccesses = (try? folderAccessStore.all()) ?? []
         settings = (try? appSettingsStore.load()) ?? .default
         ensureArchiveRootExists()
@@ -2673,6 +2715,15 @@ final class AppModel: ObservableObject {
     private static let noAppAudioTargetsFoundMessage = "No supported DJ apps are running and shareable."
     private static let noAudioInputDevicesFoundMessage = "No audio input devices are available."
 
+    private func startDJAppWorkspaceObservers() {
+        djAppWorkspaceObservers.model = self
+        djAppWorkspaceObservers.start()
+    }
+
+    func handleDJAppWorkspaceChange() async {
+        await refreshAppAudioTargets(attemptAutoArm: true)
+    }
+
     private func startCapturePolling() {
         captureTargetPollTask?.cancel()
         captureInputPollTask?.cancel()
@@ -2682,7 +2733,7 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 if !isFirst {
                     let interval = await MainActor.run {
-                        self.captureState.isWatchingOrRecording
+                        self.captureState.isWatchingOrRecording && self.appAudioCaptureService.isMonitoring
                             ? Self.capturePollIntervalEngaged
                             : Self.capturePollIntervalIdle
                     }
@@ -2701,9 +2752,8 @@ final class AppModel: ObservableObject {
                     default:
                         break
                     }
-                    // `attemptAutoArm: true` is safe to pass unconditionally — auto-arm only
-                    // actually fires when phase is idle/armed (see `refreshAppAudioTargets`), so
-                    // while watching/recording this call only ever does the alternate-source check.
+                    // Auto-arm also recovers a dead or abandoned watch tap (see
+                    // `AppAudioWatchRecoveryPolicy`).
                     Task { await self.refreshAppAudioTargets(attemptAutoArm: true) }
                 }
             }
@@ -2866,12 +2916,27 @@ extension AppModel {
             }
             captureState = next
 
+            let shareableBundles = apps.map(\.matchedBundleIdentifier)
+            if AppAudioWatchRecoveryPolicy.shouldFinalizeAbandonedRecording(
+                phase: next.phase,
+                monitoredBundleIdentifier: appAudioCaptureService.monitoredBundleIdentifier,
+                shareableBundleIdentifiers: shareableBundles
+            ) {
+                applyCaptureSessionTick(captureSession.requestManualSave())
+                next = captureState
+            }
+            let shouldRecoverWatch = AppAudioWatchRecoveryPolicy.shouldRearm(
+                phase: next.phase,
+                isMonitoring: appAudioCaptureService.isMonitoring,
+                monitoredBundleIdentifier: appAudioCaptureService.monitoredBundleIdentifier,
+                shareableBundleIdentifiers: shareableBundles
+            )
             let canAutoArm = attemptAutoArm
                 && settings.autoArmOnDJAppFound
                 && !userDisarmedAppAudio
                 && next.mode == .appAudio
                 && !apps.isEmpty
-                && (next.phase == .idle || next.phase == .armed)
+                && (next.phase == .idle || next.phase == .armed || shouldRecoverWatch)
             if canAutoArm {
                 armAppAudioCapture()
             }
@@ -2896,7 +2961,10 @@ extension AppModel {
 
     func armAppAudioCapture() {
         userDisarmedAppAudio = false
+        guard !isArmingAppAudio else { return }
+        isArmingAppAudio = true
         Task {
+            defer { isArmingAppAudio = false }
             await refreshAppAudioTargets(attemptAutoArm: false)
             guard let target = captureState.selectedTargetApp else {
                 var next = captureState
@@ -2954,6 +3022,23 @@ extension AppModel {
             }
 
             do {
+                if appAudioCaptureService.isMonitoring {
+                    if appAudioCaptureService.monitoredBundleIdentifier == target.matchedBundleIdentifier {
+                        let tick = captureSession.prepareWatching(
+                            config: settings.silenceSessionConfig,
+                            targetDisplayName: target.software.displayName
+                        )
+                        var watching = captureState
+                        watching.phase = tick.phase
+                        watching.inputLevel = tick.inputLevel
+                        watching.appAudioSourceName = appAudioCaptureService.captureSourceDisplayName
+                        watching.statusMessage = appAudioArmedStatusMessage(tick: tick, selection: selection)
+                        captureState = watching
+                        startAppAudioPolling()
+                        return
+                    }
+                    await appAudioCaptureService.stopMonitoring()
+                }
                 try await appAudioCaptureService.startMonitoring(
                     bundleIdentifier: target.matchedBundleIdentifier,
                     displayName: target.software.displayName,
@@ -3139,6 +3224,9 @@ extension AppModel {
                 }
                 captureState = done
                 statusMessage = "App audio Capture saved"
+                if resumeWatching {
+                    Task { await refreshAppAudioTargets(attemptAutoArm: true) }
+                }
             } else {
                 var done = captureState
                 if resumeWatching {

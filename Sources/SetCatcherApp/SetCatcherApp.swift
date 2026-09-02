@@ -86,9 +86,37 @@ enum SetCatcherMain {
     }
 }
 
+/// Clerk.configure reads the keychain synchronously. Doing that in `App.init()`
+/// blocked the extra from appearing; accessing `Clerk.shared` before configure
+/// traps. Configure on the next main turn and keep account UI off until then.
+@MainActor
+final class ClerkLaunchGate: ObservableObject {
+    @Published private(set) var isConfigured = false
+
+    init(publishableKey: String?, bundleID: String, oauthCallbackURL: String) {
+        guard let publishableKey else { return }
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            Clerk.configure(
+                publishableKey: publishableKey,
+                options: .init(
+                    keychainConfig: .init(service: bundleID),
+                    redirectConfig: .init(
+                        redirectUrl: oauthCallbackURL,
+                        callbackUrlScheme: bundleID
+                    )
+                )
+            )
+            self?.isConfigured = true
+        }
+    }
+}
+
 struct SetCatcherApplication: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel()
+    @StateObject private var clerkGate: ClerkLaunchGate
 
     /// Stable id for the main WindowGroup so `openWindow(id:)` can create/surface it on demand.
     fileprivate static let mainWindowID = "main"
@@ -107,20 +135,13 @@ struct SetCatcherApplication: App {
         // NSApplication, so the implicitly-unwrapped `NSApp` global is still nil and any
         // access crashes. Activation policy is set in AppDelegate.applicationDidFinishLaunching,
         // where NSApp is guaranteed valid.
-
-        // Optional Account auth only — local archive/scan/protection never depend on Clerk.
-        if let publishableKey = Self.clerkPublishableKey {
-            Clerk.configure(
-                publishableKey: publishableKey,
-                options: .init(
-                    keychainConfig: .init(service: Self.appBundleID),
-                    redirectConfig: .init(
-                        redirectUrl: Self.oauthCallbackURL,
-                        callbackUrlScheme: Self.appBundleID
-                    )
-                )
+        _clerkGate = StateObject(
+            wrappedValue: ClerkLaunchGate(
+                publishableKey: Self.clerkPublishableKey,
+                bundleID: Self.appBundleID,
+                oauthCallbackURL: Self.oauthCallbackURL
             )
-        }
+        )
     }
 
     var body: some Scene {
@@ -175,7 +196,7 @@ struct SetCatcherApplication: App {
 
     @ViewBuilder
     private var rootView: some View {
-        if Self.isAccountAuthEnabled {
+        if Self.isAccountAuthEnabled && clerkGate.isConfigured {
             ContentView(isAccountAuthEnabled: true)
                 .environmentObject(model)
                 // Prefetch reads @Environment(Clerk.self) — must be inside .environment(Clerk.shared).
@@ -189,14 +210,10 @@ struct SetCatcherApplication: App {
 
     @ViewBuilder
     private var menuBarView: some View {
-        if Self.isAccountAuthEnabled {
-            MenuBarStatusView()
-                .environmentObject(model)
-                .environment(Clerk.shared)
-        } else {
-            MenuBarStatusView()
-                .environmentObject(model)
-        }
+        // MenuBarStatusView never reads Clerk. Accessing `Clerk.shared` from
+        // MenuBarExtra after configure traps (EXC_BREAKPOINT in Clerk.shared.getter).
+        MenuBarStatusView()
+            .environmentObject(model)
     }
 }
 

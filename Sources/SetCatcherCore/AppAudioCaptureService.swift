@@ -158,6 +158,19 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         return activeBackendKind.displayName
     }
 
+    /// Bundle or device UID the active backend is currently bound to.
+    public var monitoredBundleIdentifier: String {
+        if let process = processTapBackend as? ProcessAudioTapCaptureService,
+           !process.targetBundleIdentifier.isEmpty {
+            return process.targetBundleIdentifier
+        }
+        if let screen = screenCaptureBackend as? ScreenCaptureKitAppAudioCaptureService,
+           !screen.targetBundleIdentifier.isEmpty {
+            return screen.targetBundleIdentifier
+        }
+        return activeSourceDeviceUID ?? ""
+    }
+
     private let processTapBackend: any AppAudioCaptureBackend
     private let screenCaptureBackend: any AppAudioCaptureBackend
     private let virtualBackend: any VirtualInputAppAudioCaptureBackend
@@ -228,10 +241,13 @@ public final class AppAudioCaptureService: @unchecked Sendable {
 
     public func listShareableDJApps() async throws -> [MatchedDJApp] {
         let processTapApps = try await processTapBackend.listShareableDJApps()
+        let apps: [MatchedDJApp]
         if !processTapApps.isEmpty {
-            return processTapApps
+            apps = processTapApps
+        } else {
+            apps = try await screenCaptureBackend.listShareableDJApps()
         }
-        return try await screenCaptureBackend.listShareableDJApps()
+        return apps
     }
 
     public func startMonitoring(
@@ -242,6 +258,12 @@ public final class AppAudioCaptureService: @unchecked Sendable {
         inputDevices: [AudioInputDevice] = [],
         runningSoftwareIDs: Set<String> = []
     ) async throws {
+        if isMonitoring, monitoredBundleIdentifier == bundleIdentifier {
+            return
+        }
+        if isMonitoring {
+            await stopMonitoring()
+        }
         virtualBindDidFallBack = false
         appleAppAudioPathExhausted = false
         activeVirtualDevice = nil
@@ -514,19 +536,31 @@ public final class ProcessAudioTapCaptureService: @unchecked Sendable, AppAudioC
             )
             self.aggregateDeviceUID = aggregateUID
             self.aggregateDeviceID = aggregateDeviceID
-            try capture.start(
-                deviceID: aggregateDeviceID,
-                sourceASBD: sourceASBD,
-                prerollSeconds: prerollSeconds,
-                sourceLabel: "Process Audio Tap",
-                filePrefix: "process-tap",
-                resultMetadata: .init(
-                    deviceID: bundleIdentifier,
-                    deviceName: "\(displayName) process audio",
-                    captureBackend: .processAudioTap,
-                    deviceTransport: nil
-                )
-            )
+            // HAL CreateIOProc blocks waiting for the main run loop. Arming from
+            // @MainActor would deadlock here (sample: semaphore_wait inside
+            // AudioDeviceCreateIOProcIDWithBlock).
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                DispatchQueue.global(qos: .userInitiated).async { [capture] in
+                    do {
+                        try capture.start(
+                            deviceID: aggregateDeviceID,
+                            sourceASBD: sourceASBD,
+                            prerollSeconds: prerollSeconds,
+                            sourceLabel: "Process Audio Tap",
+                            filePrefix: "process-tap",
+                            resultMetadata: .init(
+                                deviceID: bundleIdentifier,
+                                deviceName: "\(displayName) process audio",
+                                captureBackend: .processAudioTap,
+                                deviceTransport: nil
+                            )
+                        )
+                        cont.resume(returning: ())
+                    } catch {
+                        cont.resume(throwing: error)
+                    }
+                }
+            }
             self.tapID = tapID
             self.targetBundleIdentifier = bundleIdentifier
             self.targetDisplayName = displayName
