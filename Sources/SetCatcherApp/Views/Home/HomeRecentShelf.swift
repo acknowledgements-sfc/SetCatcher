@@ -30,7 +30,7 @@ struct HomeRecentShelf: View {
                                     Waveform(
                                         seed: summary.archive.originalFilename,
                                         barCount: 28,
-                                        tint: DJToken.accent(forAppID: summary.archive.sourceAppID)
+                                        tint: DJToken.accent(forAppID: summary.archive.djAppID)
                                     )
                                     .frame(height: 36)
                                     Text(summary.context.eventName.isEmpty ? summary.archive.originalFilename : summary.context.eventName)
@@ -44,9 +44,9 @@ struct HomeRecentShelf: View {
                                     Rectangle().fill(DJToken.hairline).frame(height: 1)
                                     HStack(spacing: 6) {
                                         RoundedRectangle(cornerRadius: DJToken.Radius.swatch)
-                                            .fill(DJToken.accent(forAppID: summary.archive.sourceAppID))
+                                            .fill(DJToken.accent(forAppID: summary.archive.djAppID))
                                             .frame(width: 3, height: 10)
-                                        Text(model.displayName(for: summary.archive.sourceAppID))
+                                        Text(model.displayName(for: summary.archive.djAppID))
                                             .font(.system(size: DJToken.TypeSize.secondary))
                                             .foregroundStyle(DJToken.mutedForeground)
                                         Spacer()

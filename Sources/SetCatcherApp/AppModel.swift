@@ -953,7 +953,7 @@ final class AppModel: ObservableObject {
             guard let session = sessions.first(where: { $0.id == sessionID }) else {
                 return "Last capture saved"
             }
-            let name = displayName(for: session.sourceAppID)
+            let name = displayName(for: session.djAppID)
             if let duration = session.durationSeconds {
                 return "Last capture: \(name), \(formattedDuration(duration)) — saved"
             }

@@ -18,7 +18,7 @@ struct HomeDJAppsSection: View {
                         Spacer()
                         let state = model.setupState(for: result)
                         StatusDot(tone: HomeFormatting.setupTone(state))
-                        Text("\(state.displayName) · \(model.sessions.filter { $0.sourceAppID == result.software.id }.count) sets")
+                        Text("\(state.displayName) · \(model.sessions.filter { $0.djAppID == result.software.id }.count) sets")
                             .font(.system(size: DJToken.TypeSize.secondary))
                             .foregroundStyle(DJToken.mutedForeground)
                         Button(actionLabel(for: result)) {

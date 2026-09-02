@@ -59,7 +59,7 @@ struct SetDetailView: View {
             SetDetailPlaybackView(
                 sessionID: summary.id,
                 seed: summary.archive.originalFilename,
-                tint: DJToken.accent(forAppID: summary.archive.sourceAppID),
+                tint: DJToken.accent(forAppID: summary.archive.djAppID),
                 state: model.playbackState,
                 togglePlayback: {
                     model.togglePlayback(

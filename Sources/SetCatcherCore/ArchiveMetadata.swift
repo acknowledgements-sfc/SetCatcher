@@ -55,6 +55,11 @@ public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
         return SupportedDJSoftware.hardwareCaptureAppIDs.contains(sourceAppID)
     }
 
+    /// Library/Home badge for Capture-lane sets. Folder-watch stays unlabeled (that is the default).
+    public var captureLaneLabel: String? {
+        isCaptureLane ? "Capture" : nil
+    }
+
     private enum CodingKeys: String, CodingKey {
         case sessionID, sourceAppID, detectedAt, completedAt, sourcePath, archivePath
         case fileSize, originalFilename, durationSeconds, sourceFingerprint

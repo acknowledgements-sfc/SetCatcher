@@ -13,7 +13,7 @@ struct SetDetailSourcesView: View {
             Waveform(
                 seed: summary.archive.originalFilename,
                 barCount: 64,
-                tint: DJToken.accent(forAppID: summary.archive.sourceAppID)
+                tint: DJToken.accent(forAppID: summary.archive.djAppID)
             )
             .frame(height: 40)
             .padding(8)
@@ -23,7 +23,7 @@ struct SetDetailSourcesView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(summary.archive.originalFilename)
                         .font(.headline)
-                    Text("\(appName) | \(formatBytes(summary.archive.fileSize)) | \(formatDuration(summary.archive.durationSeconds))")
+                    Text(sourceCaption)
                         .font(.caption)
                         .foregroundStyle(DJToken.mutedForeground)
                 }
@@ -65,6 +65,14 @@ struct SetDetailSourcesView: View {
                 }
             }
         }
+    }
+
+    private var sourceCaption: String {
+        let facts = "\(appName) | \(formatBytes(summary.archive.fileSize)) | \(formatDuration(summary.archive.durationSeconds))"
+        if let lane = summary.archive.captureLaneLabel {
+            return "\(facts) · \(lane)"
+        }
+        return facts
     }
 
     private func hardwareBackupBody(_ backup: ArchiveMetadata) -> String {
@@ -140,7 +148,8 @@ struct SetDetailSourcesView: View {
                 archivePath: "/Music/SetCatcher/XDJ-XZ.wav",
                 fileSize: 90_000_000,
                 originalFilename: "XDJ-XZ.wav",
-                durationSeconds: 1800
+                durationSeconds: 1800,
+                ingestionKind: .capture
             ),
             matchedTracklist: nil
         ),
