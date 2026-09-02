@@ -48,6 +48,17 @@ rm -rf "$BUNDLE_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$EXECUTABLE_PATH" "$MACOS_DIR/$APP_NAME"
 
+# SPM resource bundles (ClerkKitUI colors/images, PhoneNumberKit) live next to
+# the swift build product. Without them, Settings → Sign in traps in Bundle.module.
+BUILD_PRODUCTS_DIR="$ROOT_DIR/.build/$CONFIGURATION"
+if [[ -d "$BUILD_PRODUCTS_DIR" ]]; then
+  shopt -s nullglob
+  for bundle in "$BUILD_PRODUCTS_DIR"/*.bundle; do
+    cp -R "$bundle" "$RESOURCES_DIR/"
+  done
+  shopt -u nullglob
+fi
+
 if [[ ! -d "$ICON_COMPOSER_SOURCE" ]]; then
   echo "error: Icon Composer file missing: $ICON_COMPOSER_SOURCE" >&2
   exit 1
@@ -148,6 +159,27 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Optional local Clerk key so Dock / Spotlight launches still show Sign in.
+# Reads admin/.env.local only; never prints the key.
+if [[ -f "$ROOT_DIR/admin/.env.local" ]]; then
+  python3 - "$ROOT_DIR/admin/.env.local" "$CONTENTS_DIR/Info.plist" <<'PY'
+import pathlib, subprocess, sys
+env_path, plist = pathlib.Path(sys.argv[1]), sys.argv[2]
+key = None
+for line in env_path.read_text().splitlines():
+    if line.startswith("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="):
+        key = line.split("=", 1)[1].strip().strip('"').strip("'")
+        break
+if key:
+    subprocess.run(
+        ["/usr/libexec/PlistBuddy", "-c", f"Add :SETCATCHER_CLERK_PUBLISHABLE_KEY string {key}", plist],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+PY
+fi
+
 SIGN_IDENTITY="$(resolve_sign_identity)"
 
 # Ad-hoc sandbox launches fail with POSIX 163 when associated-domains is present without a profile.
@@ -157,8 +189,23 @@ if [[ "$SIGN_IDENTITY" == "-" ]]; then
   ADHOC_ENTITLEMENTS="$(mktemp)"
   cp "$ENTITLEMENTS_PATH" "$ADHOC_ENTITLEMENTS"
   /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.associated-domains" "$ADHOC_ENTITLEMENTS" >/dev/null 2>&1 || true
+  # clerk-ios Bundle.module falls back to .build/.../*.bundle. Sandbox blocks that path,
+  # and putting the bundle at the .app root makes codesign report unsealed contents.
+  /usr/libexec/PlistBuddy -c "Delete :com.apple.security.app-sandbox" "$ADHOC_ENTITLEMENTS" >/dev/null 2>&1 || true
   ENTITLEMENTS_TO_SIGN="$ADHOC_ENTITLEMENTS"
 fi
+
+# Sign only real bundles (Info.plist). PhoneNumberKit's folder is resources-only.
+while IFS= read -r -d '' bundle; do
+  if [[ ! -f "$bundle/Info.plist" ]]; then
+    continue
+  fi
+  if [[ "$SIGN_IDENTITY" == "-" ]]; then
+    codesign --force --sign - "$bundle" >/dev/null
+  else
+    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$bundle" >/dev/null
+  fi
+done < <(find "$BUNDLE_DIR" -name '*.bundle' -print0)
 
 if [[ "$SIGN_IDENTITY" == "-" ]]; then
   codesign --force --sign - --entitlements "$ENTITLEMENTS_TO_SIGN" "$BUNDLE_DIR" >/dev/null
@@ -174,7 +221,7 @@ if [[ -n "$ADHOC_ENTITLEMENTS" ]]; then
   rm -f "$ADHOC_ENTITLEMENTS"
 fi
 
-codesign --verify --deep --strict "$BUNDLE_DIR"
+codesign --verify --strict "$BUNDLE_DIR"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$BUNDLE_DIR" >/dev/null 2>&1 || true
 
 echo "$BUNDLE_DIR"
