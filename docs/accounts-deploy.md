@@ -61,8 +61,8 @@ Development instance (`*.clerk.accounts.dev` / `pk_test_`) is fine for local. Fo
 
 | Client | App ID Prefix (Team ID) | Bundle ID | Redirect |
 | --- | --- | --- | --- |
-| macOS | `3JYK7Q92SF` | `app.djmemory.DJMemory` | `app.djmemory.DJMemory://callback` |
-| iPad companion | `3JYK7Q92SF` | `app.djmemory.DJMemory.iPad` | `app.djmemory.DJMemory.iPad://callback` |
+| macOS | `3JYK7Q92SF` | `app.setcatcher.SetCatcher` | `app.setcatcher.SetCatcher://callback` |
+| iPad companion | `3JYK7Q92SF` | `app.setcatcher.SetCatcher.iPad` | `app.setcatcher.SetCatcher.iPad://callback` |
 
 Associated Domains currently use `webcredentials:glorious-longhorn-36.clerk.accounts.dev` in [`packaging/DJMemory.entitlements`](../packaging/DJMemory.entitlements). After Clerk production + optional custom domain, update Associated Domains to the production Frontend API host. Local protection never depends on Native API being enabled.
 

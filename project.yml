@@ -8,6 +8,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.10"
+    DEVELOPMENT_TEAM: 3JYK7Q92SF
+    CODE_SIGN_STYLE: Automatic
 packages:
   SetCatcherPackage:
     path: .
@@ -15,6 +17,7 @@ targets:
   SetCatcheriPad:
     type: application
     platform: iOS
+    productName: SetCatcher
     sources:
       - path: Apps/SetCatcherCompanion
         excludes:
@@ -25,10 +28,15 @@ targets:
         PRODUCT_NAME: SetCatcher
         INFOPLIST_FILE: Apps/SetCatcherCompanion/Info.plist
         CODE_SIGN_ENTITLEMENTS: Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 3JYK7Q92SF
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
     entitlements:
       path: Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.app.setcatcher.shared
     dependencies:
       - package: SetCatcherPackage
         product: SetCatcherCompanion
@@ -49,9 +57,14 @@ targets:
         PRODUCT_NAME: SetCatcherShareExtension
         INFOPLIST_FILE: Apps/SetCatcherShareExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: Apps/SetCatcherShareExtension/SetCatcherShareExtension.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 3JYK7Q92SF
         TARGETED_DEVICE_FAMILY: "1,2"
     entitlements:
       path: Apps/SetCatcherShareExtension/SetCatcherShareExtension.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.app.setcatcher.shared
     dependencies:
       - package: SetCatcherPackage
         product: SetCatcherCompanion
@@ -65,3 +78,9 @@ schemes:
         SetCatcherShareExtension: all
     run:
       config: Debug
+      executable: SetCatcheriPad
+    profile:
+      config: Release
+      executable: SetCatcheriPad
+    archive:
+      config: Release

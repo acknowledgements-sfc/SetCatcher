@@ -7,33 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3E9054F337ABDD6A7360661D /* SetCatcherCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6A37202D07E272F089127C /* SetCatcherCompanionApp.swift */; };
-		40B7879EF3325D6ECB78B001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 627B0818AC4003E57E7EDAF9 /* ShareViewController.swift */; };
-		6598ECCD87FD44EF8D071534 /* SetCatcherCompanion in Frameworks */ = {isa = PBXBuildFile; productRef = 29C6DC329BCEF6EC3F5D9E33 /* SetCatcherCompanion */; };
-		8134819A41639CFE10FFC6D7 /* SetCatcherCompanion in Frameworks */ = {isa = PBXBuildFile; productRef = 8A965369A429094CB1EAF941 /* SetCatcherCompanion */; };
-		9517C7B0F547F91085A1211A /* SetCatcherShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8A1C9E1CAC02B53A13E4178B /* SetCatcherShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		97A6ACB7026CF1C80E8C7D2C /* SetCatcherCore in Frameworks */ = {isa = PBXBuildFile; productRef = 57F1CE4FBAE86586494EBA84 /* SetCatcherCore */; };
-		9FEE4ECBE15C1A8BAFBCEE5F /* SetCatcherCore in Frameworks */ = {isa = PBXBuildFile; productRef = F2811B90CC62C9A565962472 /* SetCatcherCore */; };
+		0BCEF2BF8F21439CEE92DD3F /* SetCatcherCompanion in Frameworks */ = {isa = PBXBuildFile; productRef = 453CF0ABA43157722DDEBE9A /* SetCatcherCompanion */; };
+		295E91D3051A952D4BF2A864 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC578D4E49A52AC02F1866D /* ShareViewController.swift */; };
+		49E071C3A9F305DFB7D9C6A9 /* SetCatcherCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2BCA3ACD62790CF21BFABD4E /* SetCatcherCore */; };
+		79053235C895F3C3A7771771 /* SetCatcherShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 84341CD5C532C477122F45B6 /* SetCatcherShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		8CFF15E2A454001A5369C9A9 /* SetCatcherCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E970BB10375DFFD48831BACE /* SetCatcherCompanionApp.swift */; };
+		A9F333A8C2E6DDD0EF38AF02 /* SetCatcherCore in Frameworks */ = {isa = PBXBuildFile; productRef = 03A5AF9A14F31812B436BEDA /* SetCatcherCore */; };
+		E41AB09DD661D98819F11E6F /* SetCatcherCompanion in Frameworks */ = {isa = PBXBuildFile; productRef = 825E070C6AF9304A671FBD9D /* SetCatcherCompanion */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		374AB7D2E4DA31A906907148 /* PBXContainerItemProxy */ = {
+		7C4C2F7CA645A44F6DD1A6E4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = DD2C3F1018F62D48A2460ACE /* Project object */;
+			containerPortal = 1D28EA35EF1DE8E1074850E0 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 3FE1469E8342BBD42F9ECD15;
+			remoteGlobalIDString = 1C29C7C2329B37AECC94070E;
 			remoteInfo = SetCatcherShareExtension;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		DC0FDF6B9FFF738F3F08B7CB /* Embed Foundation Extensions */ = {
+		98CCDD1715E8B77A99CE9FA8 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				9517C7B0F547F91085A1211A /* SetCatcherShareExtension.appex in Embed Foundation Extensions */,
+				79053235C895F3C3A7771771 /* SetCatcherShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -41,119 +41,97 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		1B6A37202D07E272F089127C /* SetCatcherCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetCatcherCompanionApp.swift; sourceTree = "<group>"; };
-		5F2D607DE7F6991197AD6253 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		627B0818AC4003E57E7EDAF9 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
-		8A1C9E1CAC02B53A13E4178B /* SetCatcherShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SetCatcherShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		B3ED537E6898B07F8B474113 /* SetCatcher */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SetCatcher; path = .; sourceTree = SOURCE_ROOT; };
-		B564A11D168AD897544A0244 /* SetCatcher.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SetCatcher.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8376348585880CA5677F08D3 /* SetCatcher */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SetCatcher; path = .; sourceTree = SOURCE_ROOT; };
+		84341CD5C532C477122F45B6 /* SetCatcherShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SetCatcherShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B4BF40959C749B635A1041B8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E970BB10375DFFD48831BACE /* SetCatcherCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetCatcherCompanionApp.swift; sourceTree = "<group>"; };
+		EF3C4FB12C42C2742DC64EE5 /* SetCatcher.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SetCatcher.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FBC578D4E49A52AC02F1866D /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		CFB91ABF8B795E9834D9D335 /* Frameworks */ = {
+		AC94011391323F176342129F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6598ECCD87FD44EF8D071534 /* SetCatcherCompanion in Frameworks */,
-				97A6ACB7026CF1C80E8C7D2C /* SetCatcherCore in Frameworks */,
+				E41AB09DD661D98819F11E6F /* SetCatcherCompanion in Frameworks */,
+				49E071C3A9F305DFB7D9C6A9 /* SetCatcherCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E9E03C21D8A3E6F610654187 /* Frameworks */ = {
+		D9D15EA68A26D74EC02EA384 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8134819A41639CFE10FFC6D7 /* SetCatcherCompanion in Frameworks */,
-				9FEE4ECBE15C1A8BAFBCEE5F /* SetCatcherCore in Frameworks */,
+				0BCEF2BF8F21439CEE92DD3F /* SetCatcherCompanion in Frameworks */,
+				A9F333A8C2E6DDD0EF38AF02 /* SetCatcherCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		290BE1BADF2F933BCBB07D6C /* Products */ = {
+		0AFF9F51FB73341117560CFD /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				B564A11D168AD897544A0244 /* SetCatcher.app */,
-				8A1C9E1CAC02B53A13E4178B /* SetCatcherShareExtension.appex */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		4C710874FA26534E70D043F5 /* Apps */ = {
-			isa = PBXGroup;
-			children = (
-				C5274885EAAE6D939C2ACB15 /* SetCatcherCompanion */,
-				AB755E69DE7E11A49EA95B90 /* SetCatcherShareExtension */,
-			);
-			path = Apps;
-			sourceTree = "<group>";
-		};
-		AB755E69DE7E11A49EA95B90 /* SetCatcherShareExtension */ = {
-			isa = PBXGroup;
-			children = (
-				627B0818AC4003E57E7EDAF9 /* ShareViewController.swift */,
-			);
-			path = SetCatcherShareExtension;
-			sourceTree = "<group>";
-		};
-		AC54EE0E9F43A0B88EF7F032 = {
-			isa = PBXGroup;
-			children = (
-				4C710874FA26534E70D043F5 /* Apps */,
-				B189198E990BF45FEE821C6B /* Packages */,
-				290BE1BADF2F933BCBB07D6C /* Products */,
-			);
-			sourceTree = "<group>";
-		};
-		B189198E990BF45FEE821C6B /* Packages */ = {
-			isa = PBXGroup;
-			children = (
-				B3ED537E6898B07F8B474113 /* SetCatcher */,
+				8376348585880CA5677F08D3 /* SetCatcher */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
 		};
-		C5274885EAAE6D939C2ACB15 /* SetCatcherCompanion */ = {
+		5A285BF036DAB9E21D6ECA9A = {
 			isa = PBXGroup;
 			children = (
-				1B6A37202D07E272F089127C /* SetCatcherCompanionApp.swift */,
-				5F2D607DE7F6991197AD6253 /* Info.plist */,
+				80C11D1EE971E23698B79B05 /* Apps */,
+				0AFF9F51FB73341117560CFD /* Packages */,
+				E471AB2AFEC754D18A61B5DA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		76FB6A68F9B887734591C87B /* SetCatcherCompanion */ = {
+			isa = PBXGroup;
+			children = (
+				B4BF40959C749B635A1041B8 /* Info.plist */,
+				E970BB10375DFFD48831BACE /* SetCatcherCompanionApp.swift */,
 			);
 			path = SetCatcherCompanion;
+			sourceTree = "<group>";
+		};
+		80C11D1EE971E23698B79B05 /* Apps */ = {
+			isa = PBXGroup;
+			children = (
+				76FB6A68F9B887734591C87B /* SetCatcherCompanion */,
+				81F2CF7C31738D50B80D3B26 /* SetCatcherShareExtension */,
+			);
+			path = Apps;
+			sourceTree = "<group>";
+		};
+		81F2CF7C31738D50B80D3B26 /* SetCatcherShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				FBC578D4E49A52AC02F1866D /* ShareViewController.swift */,
+			);
+			path = SetCatcherShareExtension;
+			sourceTree = "<group>";
+		};
+		E471AB2AFEC754D18A61B5DA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				EF3C4FB12C42C2742DC64EE5 /* SetCatcher.app */,
+				84341CD5C532C477122F45B6 /* SetCatcherShareExtension.appex */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		105F44336319A25E9EEA565F /* SetCatcheriPad */ = {
+		1C29C7C2329B37AECC94070E /* SetCatcherShareExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C5D755BD657520DE8E6A3311 /* Build configuration list for PBXNativeTarget "SetCatcheriPad" */;
+			buildConfigurationList = 4E402927F8A8BE478FFE78D4 /* Build configuration list for PBXNativeTarget "SetCatcherShareExtension" */;
 			buildPhases = (
-				F2F4A42DD47C5BAF8BC9D304 /* Sources */,
-				CFB91ABF8B795E9834D9D335 /* Frameworks */,
-				DC0FDF6B9FFF738F3F08B7CB /* Embed Foundation Extensions */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				2437DA0C802BEF681E328252 /* PBXTargetDependency */,
-			);
-			name = SetCatcheriPad;
-			packageProductDependencies = (
-				29C6DC329BCEF6EC3F5D9E33 /* SetCatcherCompanion */,
-				57F1CE4FBAE86586494EBA84 /* SetCatcherCore */,
-			);
-			productName = SetCatcheriPad;
-			productReference = B564A11D168AD897544A0244 /* SetCatcher.app */;
-			productType = "com.apple.product-type.application";
-		};
-		3FE1469E8342BBD42F9ECD15 /* SetCatcherShareExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 6C23EB2363397328D36900A9 /* Build configuration list for PBXNativeTarget "SetCatcherShareExtension" */;
-			buildPhases = (
-				F16F091AA2C045B3ABA1F6A9 /* Sources */,
-				E9E03C21D8A3E6F610654187 /* Frameworks */,
+				862B507B93FD018FEDC7106C /* Sources */,
+				AC94011391323F176342129F /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -161,77 +139,110 @@
 			);
 			name = SetCatcherShareExtension;
 			packageProductDependencies = (
-				8A965369A429094CB1EAF941 /* SetCatcherCompanion */,
-				F2811B90CC62C9A565962472 /* SetCatcherCore */,
+				825E070C6AF9304A671FBD9D /* SetCatcherCompanion */,
+				2BCA3ACD62790CF21BFABD4E /* SetCatcherCore */,
 			);
 			productName = SetCatcherShareExtension;
-			productReference = 8A1C9E1CAC02B53A13E4178B /* SetCatcherShareExtension.appex */;
+			productReference = 84341CD5C532C477122F45B6 /* SetCatcherShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
+		};
+		6BF4F3FA9F46CD70C6A233FA /* SetCatcheriPad */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 472C2BAEEA9BF3ABF98335F8 /* Build configuration list for PBXNativeTarget "SetCatcheriPad" */;
+			buildPhases = (
+				84EA59C9F7D68FA477498237 /* Sources */,
+				D9D15EA68A26D74EC02EA384 /* Frameworks */,
+				98CCDD1715E8B77A99CE9FA8 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				644C84DF1DEFFE69B2B23A6E /* PBXTargetDependency */,
+			);
+			name = SetCatcheriPad;
+			packageProductDependencies = (
+				453CF0ABA43157722DDEBE9A /* SetCatcherCompanion */,
+				03A5AF9A14F31812B436BEDA /* SetCatcherCore */,
+			);
+			productName = SetCatcheriPad;
+			productReference = EF3C4FB12C42C2742DC64EE5 /* SetCatcher.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		DD2C3F1018F62D48A2460ACE /* Project object */ = {
+		1D28EA35EF1DE8E1074850E0 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					1C29C7C2329B37AECC94070E = {
+						DevelopmentTeam = 3JYK7Q92SF;
+						ProvisioningStyle = Automatic;
+					};
+					6BF4F3FA9F46CD70C6A233FA = {
+						DevelopmentTeam = 3JYK7Q92SF;
+						ProvisioningStyle = Automatic;
+					};
+				};
 			};
-			buildConfigurationList = 43D85D944D56A226334B3C23 /* Build configuration list for PBXProject "SetCatcher" */;
+			buildConfigurationList = 5CAF1E556D43E90563DE3E01 /* Build configuration list for PBXProject "SetCatcher" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
 				en,
 			);
-			mainGroup = AC54EE0E9F43A0B88EF7F032;
+			mainGroup = 5A285BF036DAB9E21D6ECA9A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				E5A924BE657B86BB0FA87E1E /* XCLocalSwiftPackageReference "." */,
+				286FA44F3D1F300DC6CE0F26 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 290BE1BADF2F933BCBB07D6C /* Products */;
+			productRefGroup = E471AB2AFEC754D18A61B5DA /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				105F44336319A25E9EEA565F /* SetCatcheriPad */,
-				3FE1469E8342BBD42F9ECD15 /* SetCatcherShareExtension */,
+				6BF4F3FA9F46CD70C6A233FA /* SetCatcheriPad */,
+				1C29C7C2329B37AECC94070E /* SetCatcherShareExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		F16F091AA2C045B3ABA1F6A9 /* Sources */ = {
+		84EA59C9F7D68FA477498237 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				40B7879EF3325D6ECB78B001 /* ShareViewController.swift in Sources */,
+				8CFF15E2A454001A5369C9A9 /* SetCatcherCompanionApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F2F4A42DD47C5BAF8BC9D304 /* Sources */ = {
+		862B507B93FD018FEDC7106C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3E9054F337ABDD6A7360661D /* SetCatcherCompanionApp.swift in Sources */,
+				295E91D3051A952D4BF2A864 /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		2437DA0C802BEF681E328252 /* PBXTargetDependency */ = {
+		644C84DF1DEFFE69B2B23A6E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 3FE1469E8342BBD42F9ECD15 /* SetCatcherShareExtension */;
-			targetProxy = 374AB7D2E4DA31A906907148 /* PBXContainerItemProxy */;
+			target = 1C29C7C2329B37AECC94070E /* SetCatcherShareExtension */;
+			targetProxy = 7C4C2F7CA645A44F6DD1A6E4 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		38446A1A0D5630B41B79EAD1 /* Release */ = {
+		0CC6F891F89BB73118A74EDD /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Apps/SetCatcherShareExtension/SetCatcherShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 3JYK7Q92SF;
 				INFOPLIST_FILE = Apps/SetCatcherShareExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -246,25 +257,28 @@
 			};
 			name = Release;
 		};
-		99E58B9C147382AE3FE39E89 /* Debug */ = {
+		16793977DBF52CFA7ED69C1F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = Apps/SetCatcherShareExtension/SetCatcherShareExtension.entitlements;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 3JYK7Q92SF;
-				INFOPLIST_FILE = Apps/SetCatcherShareExtension/Info.plist;
+				INFOPLIST_FILE = Apps/SetCatcherCompanion/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = app.setcatcher.SetCatcher.iPad.ShareExtension;
-				PRODUCT_NAME = SetCatcherShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = app.setcatcher.SetCatcher.iPad;
+				PRODUCT_NAME = SetCatcher;
 				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
-			name = Debug;
+			name = Release;
 		};
-		A7A74E73FAA6DE8093A14890 /* Debug */ = {
+		40E380B7B8AF7F2344F19208 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -297,8 +311,109 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3JYK7Q92SF;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		5F38D7094E5BECEE5AC2F396 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3JYK7Q92SF;
+				INFOPLIST_FILE = Apps/SetCatcherCompanion/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.setcatcher.SetCatcher.iPad;
+				PRODUCT_NAME = SetCatcher;
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6036D4D32A5F9F392F883737 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Apps/SetCatcherShareExtension/SetCatcherShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3JYK7Q92SF;
+				INFOPLIST_FILE = Apps/SetCatcherShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.setcatcher.SetCatcher.iPad.ShareExtension;
+				PRODUCT_NAME = SetCatcherShareExtension;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B7578340E997C81CE44B3FF1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3JYK7Q92SF;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -328,131 +443,32 @@
 			};
 			name = Debug;
 		};
-		CA40121858841A6892650215 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.10;
-			};
-			name = Release;
-		};
-		E0E7E7CEAA18B4ED16C4609A /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 3JYK7Q92SF;
-				INFOPLIST_FILE = Apps/SetCatcherCompanion/Info.plist;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = app.setcatcher.SetCatcher.iPad;
-				PRODUCT_NAME = SetCatcher;
-				SDKROOT = iphoneos;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		EC731CA2EB079DE380121B91 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 3JYK7Q92SF;
-				INFOPLIST_FILE = Apps/SetCatcherCompanion/Info.plist;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = app.setcatcher.SetCatcher.iPad;
-				PRODUCT_NAME = SetCatcher;
-				SDKROOT = iphoneos;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		43D85D944D56A226334B3C23 /* Build configuration list for PBXProject "SetCatcher" */ = {
+		472C2BAEEA9BF3ABF98335F8 /* Build configuration list for PBXNativeTarget "SetCatcheriPad" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A7A74E73FAA6DE8093A14890 /* Debug */,
-				CA40121858841A6892650215 /* Release */,
+				5F38D7094E5BECEE5AC2F396 /* Debug */,
+				16793977DBF52CFA7ED69C1F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		6C23EB2363397328D36900A9 /* Build configuration list for PBXNativeTarget "SetCatcherShareExtension" */ = {
+		4E402927F8A8BE478FFE78D4 /* Build configuration list for PBXNativeTarget "SetCatcherShareExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				99E58B9C147382AE3FE39E89 /* Debug */,
-				38446A1A0D5630B41B79EAD1 /* Release */,
+				6036D4D32A5F9F392F883737 /* Debug */,
+				0CC6F891F89BB73118A74EDD /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		C5D755BD657520DE8E6A3311 /* Build configuration list for PBXNativeTarget "SetCatcheriPad" */ = {
+		5CAF1E556D43E90563DE3E01 /* Build configuration list for PBXProject "SetCatcher" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E0E7E7CEAA18B4ED16C4609A /* Debug */,
-				EC731CA2EB079DE380121B91 /* Release */,
+				B7578340E997C81CE44B3FF1 /* Debug */,
+				40E380B7B8AF7F2344F19208 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -460,30 +476,30 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		E5A924BE657B86BB0FA87E1E /* XCLocalSwiftPackageReference "." */ = {
+		286FA44F3D1F300DC6CE0F26 /* XCLocalSwiftPackageReference "." */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = .;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		29C6DC329BCEF6EC3F5D9E33 /* SetCatcherCompanion */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SetCatcherCompanion;
-		};
-		57F1CE4FBAE86586494EBA84 /* SetCatcherCore */ = {
+		03A5AF9A14F31812B436BEDA /* SetCatcherCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SetCatcherCore;
 		};
-		8A965369A429094CB1EAF941 /* SetCatcherCompanion */ = {
+		2BCA3ACD62790CF21BFABD4E /* SetCatcherCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SetCatcherCore;
+		};
+		453CF0ABA43157722DDEBE9A /* SetCatcherCompanion */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SetCatcherCompanion;
 		};
-		F2811B90CC62C9A565962472 /* SetCatcherCore */ = {
+		825E070C6AF9304A671FBD9D /* SetCatcherCompanion */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = SetCatcherCore;
+			productName = SetCatcherCompanion;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = DD2C3F1018F62D48A2460ACE /* Project object */;
+	rootObject = 1D28EA35EF1DE8E1074850E0 /* Project object */;
 }

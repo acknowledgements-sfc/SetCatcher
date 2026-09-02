@@ -39,8 +39,10 @@ final class ShareViewController: UIViewController {
         }
 
         if copied > 0, let openURL = URL(string: "app.setcatcher.SetCatcher.iPad://inbox") {
-            _ = openURL
-            // Prefer completing the extension; user opens companion to drain inbox.
+            extensionContext?.open(openURL) { _ in
+                self.finish()
+            }
+            return
         }
         finish()
     }

@@ -314,17 +314,7 @@ public final class CaptureService: @unchecked Sendable {
 
     /// AVAudioEngine's input node follows the system default unless we pin the device.
     private func bindEngineInput(to device: AudioInputDevice) throws {
-        guard let coreAudioID = AudioInputDeviceCatalog.audioDeviceID(forUID: device.id) else {
-            throw CaptureServiceError.deviceMissing
-        }
-        if engine.isRunning {
-            engine.stop()
-        }
-        do {
-            try engine.inputNode.auAudioUnit.setDeviceID(coreAudioID)
-        } catch {
-            throw CaptureServiceError.engineFailed("Could not select \(device.name): \(error.localizedDescription)")
-        }
+        try CaptureInputBinding.bind(engine: engine, to: device)
     }
 
     private static func isDiskFullError(_ error: Error, stagingDirectory: URL) -> Bool {

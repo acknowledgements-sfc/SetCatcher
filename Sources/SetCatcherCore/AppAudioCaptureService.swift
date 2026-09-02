@@ -20,28 +20,6 @@ public enum AppAudioCaptureError: Error, Equatable, Sendable {
     case streamStopped(String)
 }
 
-public enum AppAudioCaptureBackendKind: String, Equatable, Sendable {
-    case virtualInputDevice
-    case processAudioTap
-    case screenCaptureKit
-
-    public var displayName: String {
-        switch self {
-        case .virtualInputDevice: return "Virtual Input Device"
-        case .processAudioTap: return "Process Audio Tap"
-        case .screenCaptureKit: return "ScreenCaptureKit"
-        }
-    }
-
-    public var archiveBackend: CaptureArchiveBackend {
-        switch self {
-        case .virtualInputDevice: return .virtualInputDevice
-        case .processAudioTap: return .processAudioTap
-        case .screenCaptureKit: return .screenCaptureKit
-        }
-    }
-}
-
 public protocol AppAudioCaptureBackend: AnyObject, Sendable {
     var backendKind: AppAudioCaptureBackendKind { get }
     var isMonitoring: Bool { get }
