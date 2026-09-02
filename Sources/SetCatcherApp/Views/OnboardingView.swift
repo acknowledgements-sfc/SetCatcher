@@ -83,7 +83,7 @@ struct OnboardingView: View {
             }
             if installedCount == 0 {
                 return ("No DJ apps", "installed.",
-                        "Choose Analog Mixer for vinyl. Supported apps: Serato DJ Pro, rekordbox, Traktor, VirtualDJ, and djay.")
+                        "Choose Analog Mixer for vinyl. Supported apps: \(supportedDJAppNamesList).")
             }
             return ("We found your", "DJ apps.",
                     "SetCatcher watches the folders these already record into. Nothing is installed, nothing is changed. Vinyl-only? Choose Analog Mixer.")
@@ -232,6 +232,13 @@ struct OnboardingView: View {
             .keyboardShortcut(.defaultAction)
             .accessibilityIdentifier(step == .ready ? "onboarding.startSetup" : "onboarding.continue")
         }
+    }
+
+    private var supportedDJAppNamesList: String {
+        SupportedDJSoftware.all
+            .filter { $0.supportStatus == .supported }
+            .map(\.displayName)
+            .joined(separator: ", ")
     }
 
     private var installedCount: Int { model.installedOrRunningProbeCount }

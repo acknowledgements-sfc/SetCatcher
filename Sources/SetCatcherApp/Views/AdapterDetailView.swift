@@ -143,7 +143,7 @@ struct AdapterDetailView: View {
     private var analogMixerPinPanel: some View {
         Panel(title: "Rec-out pin", padding: 12) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Analog Mixer is Manual Setup. There is no DJ app folder to watch.")
+                Text("\(analogMixerDisplayName) is \(supportStatusLabel(for: SupportedDJSoftware.analogMixerAppID)). There is no DJ app folder to watch.")
                     .font(.system(size: DJToken.TypeSize.body))
                     .foregroundStyle(DJToken.foreground)
                 Text("Once: connect mixer REC OUT or SESSION OUT to this Mac, then Choose rec-out. After that, SetCatcher records when audio is detected and saves on idle silence.")
@@ -202,6 +202,15 @@ struct AdapterDetailView: View {
         }
     }
 
+    private var analogMixerDisplayName: String {
+        SupportedDJSoftware.all.first { $0.id == SupportedDJSoftware.analogMixerAppID }?.displayName ?? "Analog Mixer"
+    }
+
+    private func supportStatusLabel(for appID: String) -> String {
+        SupportedDJSoftware.all.first { $0.id == appID }?.supportStatus.displayName
+            ?? IntegrationSupportStatus.manualSetup.displayName
+    }
+
     private func setupSteps(for result: SoftwareProbeResult) -> [String] {
         switch result.software.id {
         case "serato":
@@ -233,14 +242,14 @@ struct AdapterDetailView: View {
                 "Laptop + XDJ-XZ over USB: grant the Serato or rekordbox recordings folder, then leave Input Capture armed on the XZ. Forgetting Record still produces an archive.",
                 "Overlapping folder and input recordings are one set. The DJ-software file is primary; Input Capture is the hardware backup. Sources are never moved, renamed, or deleted.",
                 "Insert the USB stick used for MASTER REC (XDJ-RX2/RX3/XZ/AZ) only when the Mac is out of the audio path.",
-                "Choose the stick or its PIONEERREC folder as the recordings folder. This path stays Manual Setup until the drive is granted and mounted.",
+                "Choose the stick or its PIONEERREC folder as the recordings folder. This path stays \(supportStatusLabel(for: SupportedDJSoftware.pioneerHardwareAppID)) until the drive is granted and mounted.",
                 "SetCatcher copies stable RECxxx.WAV files into your archive and leaves the stick unchanged.",
                 "MASTER REC files have no clock — archive time uses the file modification date.",
-                "CDJs need the Mac in the USB audio path, a DJM Capture path, or a PIONEERREC folder. A mixer that never reaches the Mac is Manual Setup."
+                "CDJs need the Mac in the USB audio path, a DJM Capture path, or a PIONEERREC folder. A mixer that never reaches the Mac is \(supportStatusLabel(for: SupportedDJSoftware.pioneerHardwareAppID))."
             ]
         case "analog-mixer":
             return [
-                "Analog Mixer is Manual Setup. There is no DJ app folder to watch.",
+                "\(analogMixerDisplayName) is \(supportStatusLabel(for: SupportedDJSoftware.analogMixerAppID)). There is no DJ app folder to watch.",
                 "Once: connect mixer REC OUT or SESSION OUT to this Mac, then Choose rec-out. After that, SetCatcher records when audio is detected and saves on idle silence.",
                 "This records the mixer rec-out, not a microphone. No tracklist is attached unless you import one.",
                 "Do not use booth, headphones, or a built-in mic. Those are not the set.",
@@ -254,13 +263,13 @@ struct AdapterDetailView: View {
                 "After the gig, mount the USB/SD and choose the Sessions folder at the media root.",
                 "SetCatcher copies stable WAVs into your archive and leaves the stick unchanged.",
                 "Engine Sessions files may have no clock — archive time uses the file modification date.",
-                "USB Input Capture for Denon stays Manual Setup until Core Audio identity is measured on a live unit.",
+                "USB Input Capture for Denon stays \(supportStatusLabel(for: SupportedDJSoftware.denonHardwareAppID)) until Core Audio identity is measured on a live unit.",
                 "Do not join Engine OS LAN for now-playing or library scrape."
             ]
         case "rane-hardware":
             return [
                 "Serato remains the primary path for Rane + DVS turntables — grant Serato’s Recording folder and use App audio Capture.",
-                "USB mix feed is Manual Setup until a live bench maps the program pair (not DVS control tone).",
+                "USB mix feed is \(supportStatusLabel(for: SupportedDJSoftware.raneHardwareAppID)) until a live bench maps the program pair (not DVS control tone).",
                 "Session Out RCA into a second interface uses Analog Mixer Choose rec-out (same pin as vinyl-only).",
                 "Do not vendor BlackHole or other HAL loopbacks."
             ]

@@ -9,7 +9,7 @@ struct HomeLastSetPanel: View {
             if let summary = model.librarySummaries.sorted(by: { $0.archive.detectedAt > $1.archive.detectedAt }).first {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Badge(title: "Archived & verified", tone: .ok)
+                        Badge(title: "Archived", tone: .ok)
                         Spacer()
                         Button("Open in Library") {
                             model.openLibrary(sessionID: summary.id)
