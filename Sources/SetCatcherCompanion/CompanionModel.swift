@@ -37,22 +37,10 @@ public final class CompanionModel {
         }
     }
 
-    public enum StatusKind: Equatable, Sendable {
-        case importIdle
-        case importing
-        case library
-        case capture
-        case account
-    }
-
-    public static let importIdleMessage = "Choose recordings to import. Source files are copied, never moved."
-
     public var selectedRoute: Route = .library
     public var sessions: [ArchiveMetadata] = []
     public var setContexts: [UUID: SetContext] = [:]
-    public var remoteCatalogSessions: [ArchiveCatalogSessionDTO] = []
-    public var statusMessage = CompanionModel.importIdleMessage
-    public var statusKind: StatusKind = .importIdle
+    public var statusMessage = "Choose recordings to import. Source files are copied, never moved."
     public var isImporting = false
     public var isCapturing = false
     public var captureElapsedSeconds: Int = 0
@@ -60,68 +48,39 @@ public final class CompanionModel {
     public var accountLicenseSummary: String?
     public var accountSyncMessage: String?
 
+    /// Metadata-only. Lets a later launch show the last license line; never stores a bearer.
+    private static let accountLicenseDefaultsKey = "setcatcher.accountLicenseSummary"
+    private static let accountSyncMessageDefaultsKey = "setcatcher.accountSyncMessage"
+
     private let paths = DefaultPathProvider()
     private let setContextStore = SetContextStore()
     private let captureService = CaptureService()
     private var captureTimer: Timer?
-    private var localSessions: [ArchiveMetadata] = []
-    private var accountBearerToken: String?
 
     public var archiveRoot: URL { paths.defaultArchiveRoot() }
-
-    /// Metadata-only. Lets a later launch show the last license line; never stores a bearer.
-    private static let accountLicenseDefaultsKey = "setcatcher.accountLicenseSummary"
-    private static let accountSyncMessageDefaultsKey = "setcatcher.accountSyncMessage"
-    private static let remoteCatalogCountDefaultsKey = "setcatcher.remoteCatalogCount"
 
     public var audioInputs: [AudioInputDevice] {
         AudioInputDeviceCatalog.listInputs()
     }
 
-    public var selectableAudioInputs: [AudioInputDevice] {
-        AudioInputDeviceCatalog.selectableInputs(from: audioInputs)
-    }
-
     public init() {
         selectedInputID = AudioInputDeviceCatalog.preferredDefault()?.id
         accountLicenseSummary = UserDefaults.standard.string(forKey: Self.accountLicenseDefaultsKey)
+        accountSyncMessage = UserDefaults.standard.string(forKey: Self.accountSyncMessageDefaultsKey)
         refresh()
-    }
-
-    public func setStatus(_ message: String, kind: StatusKind) {
-        statusMessage = message
-        statusKind = kind
     }
 
     public func refresh() {
         do {
             try ArchiveService(archiveRoot: archiveRoot).ensureArchiveRootExists()
-            localSessions = try SessionLibrary(archiveRoot: archiveRoot).archivedMetadata()
+            sessions = try SessionLibrary(archiveRoot: archiveRoot).archivedMetadata()
             setContexts = Dictionary(
                 uniqueKeysWithValues: (try setContextStore.all()).map { ($0.sessionID, $0) }
             )
-            applyDisplayedSessions()
         } catch {
-            setStatus("Could not load library: \(error.localizedDescription). Tap Import to add a recording.", kind: .library)
-            localSessions = []
+            statusMessage = "Could not load library: \(error.localizedDescription). Tap Import to add a recording."
             sessions = []
         }
-    }
-
-    private func applyDisplayedSessions() {
-        sessions = ArchiveCatalogMerger().mergedArchives(
-            localArchives: localSessions,
-            remoteSessions: remoteCatalogSessions
-        )
-    }
-
-    public func catalogAvailability(for sessionID: UUID) -> ArchiveCatalogAvailability {
-        let hasLocal = localSessions.contains { $0.sessionID == sessionID }
-        return ArchiveCatalogMerger().catalogAvailability(
-            for: sessionID,
-            hasLocalFile: hasLocal,
-            remoteSessions: remoteCatalogSessions
-        )
     }
 
     public func context(for sessionID: UUID) -> SetContext {
@@ -132,10 +91,9 @@ public final class CompanionModel {
         do {
             try setContextStore.save(context)
             setContexts[context.sessionID] = context
-            setStatus("Saved set details on this device", kind: .library)
-            pushArchiveCatalogIfNeeded()
+            statusMessage = "Saved set details on this iPad"
         } catch {
-            setStatus("Could not save set details: \(error.localizedDescription)", kind: .library)
+            statusMessage = "Could not save set details: \(error.localizedDescription)"
         }
     }
 
@@ -167,13 +125,12 @@ public final class CompanionModel {
         }
 
         if imported > 0 && failures.isEmpty {
-            setStatus("Imported \(imported) recording\(imported == 1 ? "" : "s"). Sources were copied, not moved.", kind: .importing)
+            statusMessage = "Imported \(imported) recording\(imported == 1 ? "" : "s"). Sources were copied, not moved."
             selectedRoute = .library
-            pushArchiveCatalogIfNeeded()
         } else if imported > 0 {
-            setStatus("Imported \(imported). Some failed: \(failures.joined(separator: "; "))", kind: .importing)
+            statusMessage = "Imported \(imported). Some failed: \(failures.joined(separator: "; "))"
         } else {
-            setStatus("Import failed. \(failures.first ?? "Choose a different file and try again.")", kind: .importing)
+            statusMessage = "Import failed. \(failures.first ?? "Choose a different file and try again.")"
         }
     }
 
@@ -183,7 +140,7 @@ public final class CompanionModel {
             granted = await CaptureService.requestMicrophonePermission()
         }
         guard granted else {
-            setStatus("Microphone access is off. Enable it in Settings, then try Capture again.", kind: .capture)
+            statusMessage = "Microphone access is off. Enable it in Settings, then try Capture again."
             return
         }
 
@@ -193,14 +150,14 @@ public final class CompanionModel {
             try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try session.setActive(true)
         } catch {
-            setStatus("Could not configure audio session: \(error.localizedDescription)", kind: .capture)
+            statusMessage = "Could not configure audio session: \(error.localizedDescription)"
             return
         }
         #endif
 
-        guard let device = selectableAudioInputs.first(where: { $0.id == selectedInputID })
-                ?? AudioInputDeviceCatalog.preferredDefault(from: selectableAudioInputs) else {
-            setStatus("No audio input found. Plug in an interface or allow microphone access, then try again.", kind: .capture)
+        guard let device = audioInputs.first(where: { $0.id == selectedInputID })
+                ?? AudioInputDeviceCatalog.preferredDefault() else {
+            statusMessage = "No audio input found. Plug in an interface or allow microphone access, then try again."
             return
         }
 
@@ -215,9 +172,9 @@ public final class CompanionModel {
                     self?.captureElapsedSeconds += 1
                 }
             }
-            setStatus("Capturing on this device. Stop when the set ends; the copy is archived locally.", kind: .capture)
+            statusMessage = "Capturing on this iPad. Stop when the set ends; the copy is archived locally."
         } catch {
-            setStatus("Could not start capture: \(error.localizedDescription)", kind: .capture)
+            statusMessage = "Could not start capture: \(error.localizedDescription)"
             isCapturing = false
         }
     }
@@ -239,26 +196,21 @@ public final class CompanionModel {
                 removeStagingAfterCopy: true
             )
             refresh()
-            setStatus("Capture archived on this device. Staging was removed after a successful copy.", kind: .capture)
+            statusMessage = "Capture archived on this iPad. Staging was removed after a successful copy."
             selectedRoute = .library
-            pushArchiveCatalogIfNeeded()
         } catch {
-            setStatus("Capture finished but archive failed: \(error.localizedDescription). Check Documents for a staging file.", kind: .capture)
+            statusMessage = "Capture finished but archive failed: \(error.localizedDescription). Check Documents for a staging file."
         }
     }
 
     public func syncAccount(bearerToken: String?) async {
         guard let bearerToken, !bearerToken.isEmpty else {
-            accountBearerToken = nil
             accountLicenseSummary = nil
             accountSyncMessage = nil
-            remoteCatalogSessions = []
             UserDefaults.standard.removeObject(forKey: Self.accountLicenseDefaultsKey)
-            applyDisplayedSessions()
+            UserDefaults.standard.removeObject(forKey: Self.accountSyncMessageDefaultsKey)
             return
         }
-
-        accountBearerToken = bearerToken
 
         do {
             #if canImport(UIKit)
@@ -278,70 +230,15 @@ public final class CompanionModel {
             )
             let license = try await CompanionAccountClient.fetchLicense(bearerToken: bearerToken)
             accountLicenseSummary = "\(license.license.plan) · \(license.license.status)"
-            UserDefaults.standard.set(accountLicenseSummary, forKey: Self.accountLicenseDefaultsKey)
             accountSyncMessage = license.localFeatures.note
-            setStatus("Account connected — library and import still work offline", kind: .account)
-            await syncArchiveCatalog(bearerToken: bearerToken)
+            UserDefaults.standard.set(accountLicenseSummary, forKey: Self.accountLicenseDefaultsKey)
+            UserDefaults.standard.set(accountSyncMessage, forKey: Self.accountSyncMessageDefaultsKey)
+            statusMessage = "Account connected — library and import still work offline"
         } catch {
             accountLicenseSummary = accountLicenseSummary ?? "Unavailable (local features full)"
-            UserDefaults.standard.set(accountLicenseSummary, forKey: Self.accountLicenseDefaultsKey)
             accountSyncMessage = "Could not reach the account server. Local library is unchanged."
+            UserDefaults.standard.set(accountLicenseSummary, forKey: Self.accountLicenseDefaultsKey)
+            UserDefaults.standard.set(accountSyncMessage, forKey: Self.accountSyncMessageDefaultsKey)
         }
-    }
-
-    private func syncArchiveCatalog(bearerToken: String) async {
-        let client = ArchiveCatalogHTTPClient()
-        do {
-            let pull = try await client.pullSessions(bearerToken: bearerToken)
-            remoteCatalogSessions = pull.sessions
-            applyRemoteCatalogContexts(pull.sessions)
-
-            #if canImport(UIKit)
-            let deviceName = UIDevice.current.name
-            #else
-            let deviceName = "iPad"
-            #endif
-            let dtos = localSessions.map { archive in
-                ArchiveCatalogMapper.dto(
-                    from: archive,
-                    context: setContexts[archive.sessionID],
-                    platform: .ios,
-                    originDeviceName: deviceName
-                )
-            }
-            if !dtos.isEmpty {
-                _ = try await client.pushSessions(bearerToken: bearerToken, sessions: dtos)
-            }
-
-            applyDisplayedSessions()
-            accountSyncMessage =
-                "Library catalog synced across your devices. Audio stays on this device unless you enable backup later."
-            persistCatalogSyncState(remoteCount: pull.sessions.count)
-        } catch {
-            accountSyncMessage =
-                "Could not sync the library catalog: \(error.localizedDescription). Local archives are unchanged."
-            persistCatalogSyncState(remoteCount: remoteCatalogSessions.count)
-        }
-    }
-
-    private func pushArchiveCatalogIfNeeded() {
-        guard let accountBearerToken else { return }
-        Task { await syncArchiveCatalog(bearerToken: accountBearerToken) }
-    }
-
-    private func applyRemoteCatalogContexts(_ remoteSessions: [ArchiveCatalogSessionDTO]) {
-        for remote in remoteSessions {
-            guard let remoteContext = remote.setContext else { continue }
-            let incoming = ArchiveCatalogMapper.setContext(from: remoteContext, sessionID: remote.sessionId)
-            let existing = setContexts[remote.sessionId] ?? SetContext(sessionID: remote.sessionId)
-            guard incoming.updatedAt > existing.updatedAt else { continue }
-            try? setContextStore.save(incoming)
-            setContexts[remote.sessionId] = incoming
-        }
-    }
-
-    private func persistCatalogSyncState(remoteCount: Int) {
-        UserDefaults.standard.set(accountSyncMessage, forKey: Self.accountSyncMessageDefaultsKey)
-        UserDefaults.standard.set(remoteCount, forKey: Self.remoteCatalogCountDefaultsKey)
     }
 }
