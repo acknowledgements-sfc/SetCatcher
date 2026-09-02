@@ -17,6 +17,10 @@ struct CompanionSettingsView: View {
                     Text("Full tracklists stay on this device unless you explicitly export them.")
                 }
 
+                Section("Catalog sync") {
+                    CompanionCatalogSyncPrivacyDisclosure()
+                }
+
                 Section("Account") {
                     if isAccountAuthEnabled {
                         CompanionAccountAuthSection(model: model)

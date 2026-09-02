@@ -79,6 +79,8 @@ struct SettingsView: View {
                     id: "settings.cloudArchiveBackup"
                 )
                 .disabled(!model.settings.cloudSyncEnabled)
+
+                CatalogSyncPrivacyDisclosure()
             }
         }
     }
