@@ -12,7 +12,7 @@ struct CompanionLibraryView: View {
                     ContentUnavailableView {
                         Label("No sets archived yet", systemImage: "rectangle.stack")
                     } description: {
-                        Text("Import a recording from an iPad DJ app (djay first) via Files or Share, or use Capture on this iPad. There is no Mac connection — this library stays on this device.")
+                        Text("Import a recording from an iPad DJ app (djay first) via Files or Share, or use Capture on this iPad. Sign in to sync set metadata across your Mac and iPad — audio stays on each device unless you enable backup.")
                     } actions: {
                         Button("Import") {
                             model.selectedRoute = .importSets
@@ -29,6 +29,11 @@ struct CompanionLibraryView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .monospacedDigit()
+                                if case .remoteOnly(let origin) = model.catalogAvailability(for: session.sessionID) {
+                                    Text(remoteCatalogCaption(originDeviceName: origin))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             .tag(Optional(session.sessionID))
                             .accessibilityIdentifier("ipad.library.row.\(session.sessionID.uuidString)")
@@ -49,6 +54,13 @@ struct CompanionLibraryView: View {
                 CompanionSetDetailView(model: model, sessionID: sessionID)
             }
         }
+    }
+
+    private func remoteCatalogCaption(originDeviceName: String?) -> String {
+        if let originDeviceName, !originDeviceName.isEmpty {
+            return "On another device (\(originDeviceName)). Audio is not on this iPad."
+        }
+        return "On another device. Audio is not on this iPad."
     }
 }
 

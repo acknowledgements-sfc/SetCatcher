@@ -184,6 +184,12 @@ struct SessionLibraryView: View {
                                 .font(.system(size: DJToken.TypeSize.secondary))
                                 .foregroundStyle(DJToken.mutedForeground)
                                 .lineLimit(1)
+                            if summary.isRemoteOnlyCatalog {
+                                Text(remoteCatalogLine(summary))
+                                    .font(.system(size: DJToken.TypeSize.secondary))
+                                    .foregroundStyle(DJToken.mutedForeground)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                     .frame(height: DJToken.RowHeight.library)
@@ -397,6 +403,20 @@ struct SessionLibraryView: View {
             return playedOn
         }
         return tracklist.importedAt
+    }
+
+    private func remoteCatalogLine(_ summary: LibrarySessionSummary) -> String {
+        switch summary.catalogAvailability {
+        case .remoteOnly(let originDeviceName):
+            if let originDeviceName, !originDeviceName.isEmpty {
+                return "On another device (\(originDeviceName)). Audio is not on this Mac."
+            }
+            return "On another device. Audio is not on this Mac."
+        case .localAndSynced:
+            return "Synced to your account catalog."
+        case .localFile:
+            return ""
+        }
     }
 
     private func contextLine(_ summary: LibrarySessionSummary) -> String {

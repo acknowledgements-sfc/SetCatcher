@@ -117,9 +117,11 @@ final class AppModel: ObservableObject {
     private var queuedProtectedToastAt: Date?
 
     /// Optional account license snapshot. Nil when signed out or unreachable — local features stay full.
+    @Published private(set) var remoteCatalogSessions: [ArchiveCatalogSessionDTO] = []
     @Published private(set) var accountLicenseSummary: String?
     @Published private(set) var accountSyncMessage: String?
     @Published private(set) var isAccountSyncing = false
+    private var accountBearerToken: String?
 
     /// Consumed by `SessionLibraryView` when navigating from Home (session + optional search seed).
     @Published var libraryFocusSessionID: UUID?
@@ -1201,6 +1203,55 @@ final class AppModel: ObservableObject {
         return "Automatic scanning is off"
     }
 
+    private func rebuildLibrarySummaries() {
+        let merger = ArchiveCatalogMerger()
+        let mergedArchives: [ArchiveMetadata]
+        if settings.cloudSyncEnabled {
+            mergedArchives = merger.mergedArchives(
+                localArchives: sessions,
+                remoteSessions: remoteCatalogSessions
+            )
+        } else {
+            mergedArchives = sessions
+        }
+
+        let localArchiveIDs = Set(sessions.map(\.sessionID))
+        let mergedContexts: [SetContext]
+        if settings.cloudSyncEnabled {
+            mergedContexts = merger.mergedSetContexts(
+                localContexts: Array(setContexts.values),
+                remoteSessions: remoteCatalogSessions,
+                localArchiveIDs: localArchiveIDs
+            )
+        } else {
+            mergedContexts = Array(setContexts.values)
+        }
+        let contextByID = Dictionary(uniqueKeysWithValues: mergedContexts.map { ($0.sessionID, $0) })
+
+        librarySummaries = LibrarySessionMatcher().summaries(
+            archives: mergedArchives,
+            importedTracklists: importedTracklists.values.flatMap { $0 },
+            setContexts: mergedContexts
+        ).map { summary in
+            let hasLocalFile = sessions.contains { $0.sessionID == summary.id }
+            let availability = settings.cloudSyncEnabled
+                ? merger.catalogAvailability(
+                    for: summary.id,
+                    hasLocalFile: hasLocalFile,
+                    remoteSessions: remoteCatalogSessions
+                )
+                : .localFile
+            return LibrarySessionSummary(
+                archive: summary.archive,
+                matchedTracklist: summary.matchedTracklist,
+                context: contextByID[summary.id] ?? summary.context,
+                hardwareBackup: summary.hardwareBackup,
+                id: summary.id,
+                catalogAvailability: availability
+            )
+        }
+    }
+
     func refresh() {
         probeResults = probe.probeAll()
         folderAccesses = (try? folderAccessStore.all()) ?? []
@@ -1214,11 +1265,7 @@ final class AppModel: ObservableObject {
         setContexts = Dictionary(
             uniqueKeysWithValues: ((try? setContextStore.all()) ?? []).map { ($0.sessionID, $0) }
         )
-        librarySummaries = LibrarySessionMatcher().summaries(
-            archives: sessions,
-            importedTracklists: importedTracklists.values.flatMap { $0 },
-            setContexts: Array(setContexts.values)
-        )
+        rebuildLibrarySummaries()
         activityEvents = (try? activityLogStore.all()) ?? []
         profile = (try? profileStore.load()) ?? DJProfile()
         reconcileLaunchAtLogin()
@@ -1602,6 +1649,7 @@ final class AppModel: ObservableObject {
                 detail: context.eventName.isEmpty ? nil : context.eventName
             ))
             refresh()
+            pushArchiveCatalogIfNeeded()
             statusMessage = "Set details saved"
         } catch {
             appendActivity(kind: .error, message: "Set details save failed", detail: error.localizedDescription)
@@ -1658,6 +1706,9 @@ final class AppModel: ObservableObject {
                 let archived = results.flatMap(\.archivedSessions)
                 for session in archived {
                     autopullTracklist(for: session)
+                }
+                if !archived.isEmpty {
+                    pushArchiveCatalogIfNeeded()
                 }
                 // Backstop: every periodic scan also re-sweeps history folders so
                 // exports that FSEvents missed (machine asleep, coalesced events,
@@ -1902,11 +1953,15 @@ final class AppModel: ObservableObject {
     /// Optional account sync after Clerk sign-in. Never gates archive/scan/protection.
     func syncAccountSession(bearerToken: String?) async {
         guard let bearerToken, !bearerToken.isEmpty else {
+            accountBearerToken = nil
             accountLicenseSummary = nil
             accountSyncMessage = nil
+            remoteCatalogSessions = []
+            rebuildLibrarySummaries()
             return
         }
 
+        accountBearerToken = bearerToken
         isAccountSyncing = true
         defer { isAccountSyncing = false }
 
@@ -1925,6 +1980,9 @@ final class AppModel: ObservableObject {
             accountLicenseSummary = "\(license.license.plan) · \(license.license.status)"
             accountSyncMessage = license.localFeatures.note
             statusMessage = "Account connected — local protection still works offline"
+            if settings.cloudSyncEnabled {
+                await syncArchiveCatalog(bearerToken: bearerToken)
+            }
         } catch {
             // Offline / unreachable account server must not block local features.
             accountLicenseSummary = accountLicenseSummary ?? "Unavailable (local features full)"
@@ -1934,8 +1992,63 @@ final class AppModel: ObservableObject {
     }
 
     func clearAccountSessionState() {
+        accountBearerToken = nil
         accountLicenseSummary = nil
         accountSyncMessage = nil
+        remoteCatalogSessions = []
+        rebuildLibrarySummaries()
+    }
+
+    /// Pull and push archive catalog metadata when cloud sync is on. Never uploads audio.
+    func syncArchiveCatalog(bearerToken: String) async {
+        guard settings.cloudSyncEnabled else { return }
+
+        let client = ArchiveCatalogHTTPClient()
+        do {
+            let pull = try await client.pullSessions(bearerToken: bearerToken)
+            remoteCatalogSessions = pull.sessions
+            applyRemoteCatalogContexts(pull.sessions)
+
+            let deviceName = ProcessInfo.processInfo.hostName
+            let originName = deviceName.isEmpty ? "Mac" : deviceName
+            let dtos = sessions.map { archive in
+                ArchiveCatalogMapper.dto(
+                    from: archive,
+                    context: setContexts[archive.sessionID],
+                    platform: .macos,
+                    originDeviceName: originName,
+                    audioBackedUp: settings.cloudArchiveBackupEnabled
+                )
+            }
+            if !dtos.isEmpty {
+                _ = try await client.pushSessions(bearerToken: bearerToken, sessions: dtos)
+            }
+
+            rebuildLibrarySummaries()
+            accountSyncMessage =
+                "Library catalog synced across your devices. Audio stays on this Mac unless you enable archive backup."
+        } catch {
+            accountSyncMessage =
+                "Could not sync the library catalog: \(error.localizedDescription). Local archives are unchanged."
+        }
+    }
+
+    private func pushArchiveCatalogIfNeeded() {
+        guard settings.cloudSyncEnabled, let bearerToken = accountBearerToken else { return }
+        Task {
+            await syncArchiveCatalog(bearerToken: bearerToken)
+        }
+    }
+
+    private func applyRemoteCatalogContexts(_ remoteSessions: [ArchiveCatalogSessionDTO]) {
+        for remote in remoteSessions {
+            guard let remoteContext = remote.setContext else { continue }
+            let incoming = ArchiveCatalogMapper.setContext(from: remoteContext, sessionID: remote.sessionId)
+            let existing = setContexts[remote.sessionId] ?? SetContext(sessionID: remote.sessionId)
+            guard incoming.updatedAt > existing.updatedAt else { continue }
+            try? setContextStore.save(incoming)
+            setContexts[remote.sessionId] = incoming
+        }
     }
 
     /// User-initiated metadata-only diagnostics upload. Never called from archive/scan paths.
@@ -3915,7 +4028,15 @@ extension AppModel {
         let newSettings = settings.updating(cloudSyncEnabled: enabled, cloudArchiveBackupEnabled: enabled ? settings.cloudArchiveBackupEnabled : false)
         try? appSettingsStore.save(newSettings)
         settings = newSettings
-        statusMessage = enabled ? "Cloud sync is on. Archive backup stays off until you enable it." : "Cloud sync is off. Everything stays on this Mac."
+        if !enabled {
+            remoteCatalogSessions = []
+            rebuildLibrarySummaries()
+        } else if let accountBearerToken {
+            Task { await syncArchiveCatalog(bearerToken: accountBearerToken) }
+        }
+        statusMessage = enabled
+            ? "Cloud sync is on. Set metadata syncs across devices; archive backup stays off until you enable it."
+            : "Cloud sync is off. Everything stays on this Mac."
     }
 
     func setCloudArchiveBackupEnabled(_ enabled: Bool) {

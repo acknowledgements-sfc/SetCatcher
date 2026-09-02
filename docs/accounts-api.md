@@ -60,6 +60,26 @@ User-initiated metadata-only upload. Body: `{ "metadata": { … } }`.
 
 Rejects top-level `title`, `artist`, `tracks`, and `tracklist` keys. Nested forbidden keys are stripped server-side.
 
+### `GET /api/archive/sessions`
+
+Pull archive catalog metadata for the signed-in user (no audio, no tracklists).
+
+Query: `updatedSince` (ISO8601, optional)
+
+Returns `{ sessions: [...], restrictions }`. Each session includes metadata fields and optional `setContext` (event/venue/city/tags/notes only).
+
+### `POST /api/archive/sessions`
+
+Upsert catalog rows from this device.
+
+Body: `{ "sessions": [ { "sessionId", "platform" ("macos"|"ios"), "sourceAppId", "detectedAt", "originalFilename", ... , "setContext"? } ] }`
+
+Rejects `sourcePath`, `archivePath`, `tracklist`, `tracks`, `title`, `artist`, and `manualTracklistID`.
+
+### `DELETE /api/archive/sessions/:sessionId`
+
+Soft-delete a catalog row for this user.
+
 ## Admin (Clerk session + `admin_roles` row)
 
 All admin routes require a signed-in Clerk user with a matching `admin_roles` row. Mutations require `owner`, `support`, or `release_manager` (`read_only` is view-only). Invite management: `owner`, `release_manager`, or `support`.

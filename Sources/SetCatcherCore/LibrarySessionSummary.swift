@@ -12,19 +12,27 @@ public struct LibrarySessionSummary: Identifiable, Equatable, Sendable {
     public let hardwareBackup: ArchiveMetadata?
     public let matchedTracklist: ImportedTracklist?
     public let context: SetContext
+    public let catalogAvailability: ArchiveCatalogAvailability
 
     public init(
         archive: ArchiveMetadata,
         matchedTracklist: ImportedTracklist?,
         context: SetContext? = nil,
         hardwareBackup: ArchiveMetadata? = nil,
-        id: UUID? = nil
+        id: UUID? = nil,
+        catalogAvailability: ArchiveCatalogAvailability = .localFile
     ) {
         self.id = id ?? archive.id
         self.archive = archive
         self.hardwareBackup = hardwareBackup
         self.matchedTracklist = matchedTracklist
         self.context = context ?? SetContext(sessionID: id ?? archive.id)
+        self.catalogAvailability = catalogAvailability
+    }
+
+    public var isRemoteOnlyCatalog: Bool {
+        if case .remoteOnly = catalogAvailability { return true }
+        return false
     }
 
     public var trackCount: Int {
