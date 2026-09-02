@@ -62,8 +62,15 @@ public struct CompanionRootView: View {
         }
     }
 
+    private var footerText: String {
+        if model.selectedRoute == .importSets, model.statusKind == .capture {
+            return CompanionModel.importIdleMessage
+        }
+        return model.statusMessage
+    }
+
     private var statusFooter: some View {
-        Text(model.statusMessage)
+        Text(footerText)
             .font(.footnote)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)

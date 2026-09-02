@@ -37,11 +37,22 @@ public final class CompanionModel {
         }
     }
 
+    public enum StatusKind: Equatable, Sendable {
+        case importIdle
+        case importing
+        case library
+        case capture
+        case account
+    }
+
+    public static let importIdleMessage = "Choose recordings to import. Source files are copied, never moved."
+
     public var selectedRoute: Route = .library
     public var sessions: [ArchiveMetadata] = []
     public var setContexts: [UUID: SetContext] = [:]
     public var remoteCatalogSessions: [ArchiveCatalogSessionDTO] = []
-    public var statusMessage = "Choose recordings to import. Source files are copied, never moved."
+    public var statusMessage = CompanionModel.importIdleMessage
+    public var statusKind: StatusKind = .importIdle
     public var isImporting = false
     public var isCapturing = false
     public var captureElapsedSeconds: Int = 0
@@ -71,6 +82,11 @@ public final class CompanionModel {
         refresh()
     }
 
+    public func setStatus(_ message: String, kind: StatusKind) {
+        statusMessage = message
+        statusKind = kind
+    }
+
     public func refresh() {
         do {
             try ArchiveService(archiveRoot: archiveRoot).ensureArchiveRootExists()
@@ -80,7 +96,7 @@ public final class CompanionModel {
             )
             applyDisplayedSessions()
         } catch {
-            statusMessage = "Could not load library: \(error.localizedDescription). Tap Import to add a recording."
+            setStatus("Could not load library: \(error.localizedDescription). Tap Import to add a recording.", kind: .library)
             localSessions = []
             sessions = []
         }
@@ -110,10 +126,10 @@ public final class CompanionModel {
         do {
             try setContextStore.save(context)
             setContexts[context.sessionID] = context
-            statusMessage = "Saved set details on this iPad"
+            setStatus("Saved set details on this device", kind: .library)
             pushArchiveCatalogIfNeeded()
         } catch {
-            statusMessage = "Could not save set details: \(error.localizedDescription)"
+            setStatus("Could not save set details: \(error.localizedDescription)", kind: .library)
         }
     }
 
@@ -145,13 +161,13 @@ public final class CompanionModel {
         }
 
         if imported > 0 && failures.isEmpty {
-            statusMessage = "Imported \(imported) recording\(imported == 1 ? "" : "s"). Sources were copied, not moved."
+            setStatus("Imported \(imported) recording\(imported == 1 ? "" : "s"). Sources were copied, not moved.", kind: .importing)
             selectedRoute = .library
             pushArchiveCatalogIfNeeded()
         } else if imported > 0 {
-            statusMessage = "Imported \(imported). Some failed: \(failures.joined(separator: "; "))"
+            setStatus("Imported \(imported). Some failed: \(failures.joined(separator: "; "))", kind: .importing)
         } else {
-            statusMessage = "Import failed. \(failures.first ?? "Choose a different file and try again.")"
+            setStatus("Import failed. \(failures.first ?? "Choose a different file and try again.")", kind: .importing)
         }
     }
 
@@ -161,7 +177,7 @@ public final class CompanionModel {
             granted = await CaptureService.requestMicrophonePermission()
         }
         guard granted else {
-            statusMessage = "Microphone access is off. Enable it in Settings, then try Capture again."
+            setStatus("Microphone access is off. Enable it in Settings, then try Capture again.", kind: .capture)
             return
         }
 
@@ -171,14 +187,14 @@ public final class CompanionModel {
             try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try session.setActive(true)
         } catch {
-            statusMessage = "Could not configure audio session: \(error.localizedDescription)"
+            setStatus("Could not configure audio session: \(error.localizedDescription)", kind: .capture)
             return
         }
         #endif
 
         guard let device = selectableAudioInputs.first(where: { $0.id == selectedInputID })
                 ?? AudioInputDeviceCatalog.preferredDefault(from: selectableAudioInputs) else {
-            statusMessage = "No audio input found. Plug in an interface or allow microphone access, then try again."
+            setStatus("No audio input found. Plug in an interface or allow microphone access, then try again.", kind: .capture)
             return
         }
 
@@ -193,9 +209,9 @@ public final class CompanionModel {
                     self?.captureElapsedSeconds += 1
                 }
             }
-            statusMessage = "Capturing on this iPad. Stop when the set ends; the copy is archived locally."
+            setStatus("Capturing on this device. Stop when the set ends; the copy is archived locally.", kind: .capture)
         } catch {
-            statusMessage = "Could not start capture: \(error.localizedDescription)"
+            setStatus("Could not start capture: \(error.localizedDescription)", kind: .capture)
             isCapturing = false
         }
     }
@@ -217,11 +233,11 @@ public final class CompanionModel {
                 removeStagingAfterCopy: true
             )
             refresh()
-            statusMessage = "Capture archived on this iPad. Staging was removed after a successful copy."
+            setStatus("Capture archived on this device. Staging was removed after a successful copy.", kind: .capture)
             selectedRoute = .library
             pushArchiveCatalogIfNeeded()
         } catch {
-            statusMessage = "Capture finished but archive failed: \(error.localizedDescription). Check Documents for a staging file."
+            setStatus("Capture finished but archive failed: \(error.localizedDescription). Check Documents for a staging file.", kind: .capture)
         }
     }
 
@@ -256,7 +272,7 @@ public final class CompanionModel {
             let license = try await CompanionAccountClient.fetchLicense(bearerToken: bearerToken)
             accountLicenseSummary = "\(license.license.plan) · \(license.license.status)"
             accountSyncMessage = license.localFeatures.note
-            statusMessage = "Account connected — library and import still work offline"
+            setStatus("Account connected — library and import still work offline", kind: .account)
             await syncArchiveCatalog(bearerToken: bearerToken)
         } catch {
             accountLicenseSummary = accountLicenseSummary ?? "Unavailable (local features full)"
@@ -290,7 +306,7 @@ public final class CompanionModel {
 
             applyDisplayedSessions()
             accountSyncMessage =
-                "Library catalog synced across your devices. Audio stays on this iPad unless you enable backup later."
+                "Library catalog synced across your devices. Audio stays on this device unless you enable backup later."
         } catch {
             accountSyncMessage =
                 "Could not sync the library catalog: \(error.localizedDescription). Local archives are unchanged."

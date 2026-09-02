@@ -14,7 +14,7 @@ struct CompanionSettingsView: View {
                 Section("Privacy") {
                     Text("Local library and import never depend on an account.")
                     Text("Audio files are never uploaded by default.")
-                    Text("Full tracklists stay on this iPad unless you explicitly export them.")
+                    Text("Full tracklists stay on this device unless you explicitly export them.")
                 }
 
                 Section("Account") {
