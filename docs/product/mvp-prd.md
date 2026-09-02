@@ -1,7 +1,7 @@
 # PRD: SetCatcher Mac Private Beta
 
 Status: current beta requirements  
-Last updated: August 14, 2026.
+Last updated: September 2, 2026.
 
 ## Summary
 
@@ -24,7 +24,7 @@ Active DJs create valuable recordings in workflows that depend on memory, applic
 ## Non-goals for the private beta
 
 - Charging users or enforcing paid licenses; pricing must be validated after repeated value.
-- Automatic audio upload or remote archive backup; cloud settings remain opt-in and incomplete as a service promise.
+- Automatic audio upload or remote archive backup. Remote archive backup is not available in this private beta.
 - Public hosting, social discovery, or direct publishing.
 - Windows support or Mac-to-iPad archive synchronization.
 - Perfect automatic tracklist matching for every DJ app and hardware workflow.
@@ -74,6 +74,7 @@ Active DJs create valuable recordings in workflows that depend on memory, applic
 4. SetCatcher may attach the closest eligible history automatically.
 5. User can attach or detach a tracklist manually; a manual choice is never overridden.
 6. User may export a local publish pack. Nothing is uploaded.
+7. If the user opts into catalog sync, event, venue, city, and tags may sync; private notes and manual tracklist choices remain local to that device. On Mac, the user enables catalog sync after signing in. On Companion, signing in from the disclosed Settings surface starts catalog sync.
 
 ### Journey E — Recover from lost access
 
@@ -138,12 +139,20 @@ Acceptance:
 ### P0.5 Privacy and support
 
 - No audio or full tracklist is uploaded by default.
+- Catalog sync is off while signed out and discloses its data boundary on both Settings surfaces. On Mac, it also remains off until the signed-in user enables the catalog-sync control; on Companion, signing in from that disclosed surface starts catalog sync.
+- Opt-in catalog sync may send filename, source application, dates, duration and size, device name, technical capture details, and event, venue, city, and tags.
+- Catalog sync never sends recording audio, full tracklist contents, local file paths, private notes, or manual tracklist selections.
+- Applying remote catalog context preserves each device's private notes and manual tracklist selection.
+- Remote archive backup is not available in this private beta.
 - Diagnostics redact home paths and exclude track titles/artists and sensitive file content.
 - Errors provide a next step in plain language.
 - Optional account failure does not stop local protection.
 
 Acceptance:
 
+- Given the user is signed out, then no catalog metadata is sent; on Mac, signed-in catalog sync also remains off until enabled.
+- Given the user opts into catalog sync through the applicable Settings flow, then the disclosure names the synced categories and the local-only categories before sync.
+- Given remote context is applied to a set with local private notes or a manual tracklist selection, then those local-only values remain unchanged.
 - Given a diagnostics export, then it contains operational metadata and counts without full track data or an unredacted home path.
 - Given the account service is unavailable, then local scan, archive, capture, import, and Library behavior continue.
 
@@ -212,7 +221,8 @@ Acceptance:
 
 ### Account/backend data
 
-- optional user, device, license, invite, limited diagnostics metadata, and admin audit records.
+- optional user, device, license, invite, limited diagnostics metadata, and admin audit records;
+- when the user opts into catalog sync through the applicable signed-in Settings flow: filename, source application, dates, duration and size, device name, technical capture details, and event, venue, city, and tags.
 
 ### Prohibited by default
 
@@ -220,6 +230,15 @@ Acceptance:
 - full tracklists or track titles/artists in diagnostics;
 - automatic publish content;
 - hidden collection or use of local home paths.
+
+### Local-only catalog fields
+
+- source and archive paths;
+- private notes;
+- full tracklist contents;
+- manual tracklist selections.
+
+Legacy remote private-note fields are ignored. A remote catalog merge must not replace local private notes or a local manual tracklist selection.
 
 ## Dependencies and release gates
 

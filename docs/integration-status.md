@@ -103,6 +103,16 @@ Do **not** start Traktor QML injection, SSL-API, or Twitch Live Playlist integra
 
 iPad is a **separate** app: no Mac connection; accounts only are shared. On iPad, Capture is device-input only (iPadOS cannot tap another app’s audio).
 
+## Opt-in Catalog Sync Privacy Boundary
+
+Catalog sync is **off while signed out** and its boundary is disclosed on both Settings surfaces. On Mac, it also remains off until the signed-in user enables catalog sync. On Companion, signing in from the disclosed Settings surface starts catalog sync.
+
+When the user opts in through the applicable signed-in Settings flow, catalog sync may send filename, source application, dates, duration and size, device name, technical capture details, and the user-entered event, venue, city, and tags. It does **not** send recording audio, full tracklist contents, local file paths, private notes, or manual tracklist selections.
+
+Private notes and manual tracklist selections remain local to each device. Remote catalog context may update event, venue, city, and tags, but the merge preserves local notes and a local manual selection; legacy remote note fields are ignored.
+
+Remote archive backup is separate and is **not available in this private beta**. The beta UI does not expose an archive-backup control.
+
 | Milestone | Scope | Status |
 | --- | --- | --- |
 | M11 | Capture + Pioneer hybrid | Implemented (Manual Setup until device-verified) |
@@ -110,6 +120,6 @@ iPad is a **separate** app: no Mac connection; accounts only are shared. On iPad
 | M12 | Deeper history + capture match window | Implemented (post-archive autopull + configurable 6h match window + continuous history watcher: FSEvents on history folders, backstop poll, and launch catch-up sweep; late/appended exports auto-ingest and match. Hardware Capture/Pioneer sets match the nearest matchable export from any DJ app within the window; auto-matches upgrade to a closer export while user pins stay sacred) |
 | M13 | VDJ Network Control commands | Partial |
 | M14 | VDJ native plugin | Research (Artifact B JSONL ingest implemented and unit-tested; Artifact A C++ `.bundle` scaffold exists in `docs/virtualdj-plugin-scaffold/` and compiles against the public VDJ8 SDK — no download/registration blocker. Live probe 2026-08-13: plugin did not load under tester's current VirtualDJ license tier; VirtualDJ's own guidance suggests Pro licensing may be required. Next step: retest plugin load with a Pro-tier license, then live-verify getter strings and on-air signal) |
-| M15 | Opt-in cloud sync settings | Settings flags; off by default |
+| M15 | Opt-in catalog sync | Off while signed out; Mac also requires its catalog-sync toggle, while Companion starts from sign-in on its disclosed Settings surface. Audio, full tracklists, paths, private notes, and manual selections remain local. Remote archive backup is unavailable in this beta |
 | M16 | User-initiated publish pack | Local export only |
 | M17 | Process Audio Tap Capture | Implemented; live-verified on 2026-08-14 (Serato, rekordbox 6, rekordbox 7, plus ScreenCaptureKit fallback). Current gate still requires operator listening acceptance — see the reconciliation note under the App Matrix |
