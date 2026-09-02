@@ -12,11 +12,15 @@ struct CatalogSyncPrivacyDisclosure: View {
         VStack(alignment: .leading, spacing: 8) {
             disclosureBlock(
                 title: "Syncs when catalog sync is on",
-                detail: "Event, venue, city, and tags, plus filename, source app, dates, duration and size, and device name."
+                detail: "Event, venue, city, and tags, plus filename, source app, dates, duration and size, device name, and technical capture details."
             )
             disclosureBlock(
-                title: "Never leaves this device",
-                detail: "Audio, full tracklist contents, private notes, local file paths, and manual tracklist selections."
+                title: "Not included in catalog sync",
+                detail: "Audio files, full tracklist contents, private notes, local file paths, and manual tracklist selections are not synced by catalog sync."
+            )
+            disclosureBlock(
+                title: "Archive backup",
+                detail: "Uploading archived audio is a separate explicit opt-in. Catalog sync alone does not upload audio."
             )
         }
         .accessibilityElement(children: .combine)
