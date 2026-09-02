@@ -69,6 +69,11 @@ public final class CompanionModel {
 
     public var archiveRoot: URL { paths.defaultArchiveRoot() }
 
+    /// Metadata-only. Lets a later launch show the last license line; never stores a bearer.
+    private static let accountLicenseDefaultsKey = "setcatcher.accountLicenseSummary"
+    private static let accountSyncMessageDefaultsKey = "setcatcher.accountSyncMessage"
+    private static let remoteCatalogCountDefaultsKey = "setcatcher.remoteCatalogCount"
+
     public var audioInputs: [AudioInputDevice] {
         AudioInputDeviceCatalog.listInputs()
     }
@@ -79,6 +84,7 @@ public final class CompanionModel {
 
     public init() {
         selectedInputID = AudioInputDeviceCatalog.preferredDefault()?.id
+        accountLicenseSummary = UserDefaults.standard.string(forKey: Self.accountLicenseDefaultsKey)
         refresh()
     }
 
@@ -247,6 +253,7 @@ public final class CompanionModel {
             accountLicenseSummary = nil
             accountSyncMessage = nil
             remoteCatalogSessions = []
+            UserDefaults.standard.removeObject(forKey: Self.accountLicenseDefaultsKey)
             applyDisplayedSessions()
             return
         }
@@ -271,11 +278,13 @@ public final class CompanionModel {
             )
             let license = try await CompanionAccountClient.fetchLicense(bearerToken: bearerToken)
             accountLicenseSummary = "\(license.license.plan) · \(license.license.status)"
+            UserDefaults.standard.set(accountLicenseSummary, forKey: Self.accountLicenseDefaultsKey)
             accountSyncMessage = license.localFeatures.note
             setStatus("Account connected — library and import still work offline", kind: .account)
             await syncArchiveCatalog(bearerToken: bearerToken)
         } catch {
             accountLicenseSummary = accountLicenseSummary ?? "Unavailable (local features full)"
+            UserDefaults.standard.set(accountLicenseSummary, forKey: Self.accountLicenseDefaultsKey)
             accountSyncMessage = "Could not reach the account server. Local library is unchanged."
         }
     }
@@ -307,9 +316,11 @@ public final class CompanionModel {
             applyDisplayedSessions()
             accountSyncMessage =
                 "Library catalog synced across your devices. Audio stays on this device unless you enable backup later."
+            persistCatalogSyncState(remoteCount: pull.sessions.count)
         } catch {
             accountSyncMessage =
                 "Could not sync the library catalog: \(error.localizedDescription). Local archives are unchanged."
+            persistCatalogSyncState(remoteCount: remoteCatalogSessions.count)
         }
     }
 
@@ -327,5 +338,10 @@ public final class CompanionModel {
             try? setContextStore.save(incoming)
             setContexts[remote.sessionId] = incoming
         }
+    }
+
+    private func persistCatalogSyncState(remoteCount: Int) {
+        UserDefaults.standard.set(accountSyncMessage, forKey: Self.accountSyncMessageDefaultsKey)
+        UserDefaults.standard.set(remoteCount, forKey: Self.remoteCatalogCountDefaultsKey)
     }
 }

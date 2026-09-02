@@ -8,7 +8,11 @@ const isPublicRoute = createRouteMatcher([
   "/api/waitlist",
 ]);
 
-/** Mac/iPad clients authenticate API routes with `Authorization: Bearer <session JWT>`. */
+/**
+ * Mac/iPad send `Authorization: Bearer <session JWT>`. Middleware still parses the
+ * token; handlers call `requireSignedIn()`. Do not `auth.protect()` here — Clerk
+ * handshake redirects are unusable from native clients.
+ */
 const isApiRoute = createRouteMatcher(["/api/(.*)"]);
 
 export default clerkMiddleware(async (auth, request) => {

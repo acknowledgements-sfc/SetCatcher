@@ -1,4 +1,4 @@
-# Deploy DJMemory Accounts (Clerk + Supabase + Vercel)
+# Deploy SetCatcher Accounts (Clerk + Supabase + Vercel)
 
 Last updated: September 2, 2026.
 
@@ -8,6 +8,7 @@ Last updated: September 2, 2026.
 - Migration `archive_catalog` applied: `archive_sessions`, `archive_set_contexts` (metadata + set context only).
 - Catalog API live: `GET/POST /api/archive/sessions`, `DELETE /api/archive/sessions/:sessionId` (see [`accounts-api.md`](accounts-api.md)).
 - Production deploy **2026-09-02** includes archive routes (`djmemory-admin` → `beatrevival.com`, `setcatcher.com`).
+- Clerk is identity only: native + web sessions; licenses/devices/catalog stay in this API. Native Bearer JWTs use `auth({ acceptsToken: "session_token" })` and fall back to Clerk Backend for email when `currentUser()` is empty.
 
 **Restore caveat:** waking a paused Supabase project can yield an empty database. After restore, re-run migrations 001–003 and re-insert your `admin_roles` row if admin sign-in fails.
 
@@ -62,7 +63,7 @@ Development instance (`*.clerk.accounts.dev` / `pk_test_`) is fine for local. Fo
 
 1. Open [dashboard.clerk.com](https://dashboard.clerk.com) → **DJMemory** → switch to **Production**.
 2. Copy **Production** Publishable + Secret keys into Vercel + `admin/.env.local` (replace `pk_test_` / `sk_test_`).
-3. **Paths / allowed origins:** add `https://beatrevival.com`, `https://www.beatrevival.com`, `https://djmemory-admin.vercel.app`, `http://localhost:3000`.
+3. **Paths / allowed origins:** add `https://beatrevival.com`, `https://www.beatrevival.com`, `https://setcatcher.com`, `https://www.setcatcher.com`, `https://djmemory-admin.vercel.app`, `http://localhost:3000`.
 4. Sign-in URL: `/sign-in`. Redirect URLs: same hosts + native callbacks below.
 5. Enable email magic link (and OAuth if desired).
 6. **MFA for admins:** MFA is **Clerk Pro** ($25/mo). Enforce MFA for users who hold `admin_roles` once on Pro. Hobby works for waitlist + sign-in without MFA.
@@ -74,7 +75,7 @@ Development instance (`*.clerk.accounts.dev` / `pk_test_`) is fine for local. Fo
 | macOS | `3JYK7Q92SF` | `app.setcatcher.SetCatcher` | `app.setcatcher.SetCatcher://callback` |
 | iPad companion | `3JYK7Q92SF` | `app.setcatcher.SetCatcher.iPad` | `app.setcatcher.SetCatcher.iPad://callback` |
 
-Associated Domains currently use `webcredentials:glorious-longhorn-36.clerk.accounts.dev` in [`packaging/DJMemory.entitlements`](../packaging/DJMemory.entitlements). After Clerk production + optional custom domain, update Associated Domains to the production Frontend API host. Local protection never depends on Native API being enabled.
+Associated Domains currently use `webcredentials:glorious-longhorn-36.clerk.accounts.dev` in [`packaging/SetCatcher.entitlements`](../packaging/SetCatcher.entitlements) and [`Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements`](../Apps/SetCatcherCompanion/SetCatcherCompanion.entitlements). After Clerk production + optional custom domain, update both to the production Frontend API host. Local protection never depends on Native API being enabled.
 
 ### 3. Local env
 
@@ -138,9 +139,9 @@ Vercel emails when SSL is ready. Optional: point Hover nameservers to `ns1.verce
 
 ### 5. macOS / iPad account URL
 
-Default in [`DJMemoryAccountConfiguration`](../Sources/DJMemoryCore/DJMemoryAccountConfiguration.swift) is `https://beatrevival.com`. Override with `DJMEMORY_ACCOUNT_URL` if needed (e.g. still on `https://djmemory-admin.vercel.app` before DNS completes).
+Default in [`SetCatcherAccountConfiguration`](../Sources/SetCatcherCore/SetCatcherAccountConfiguration.swift) is `https://beatrevival.com`. Override with `SETCATCHER_ACCOUNT_URL` if needed.
 
-Native Clerk sign-in reads `DJMEMORY_CLERK_PUBLISHABLE_KEY` at launch. Leave it unset to keep Account UI inactive in local/offline builds; local protection, archive, scan, import, and diagnostics export still work.
+Native Clerk sign-in reads `SETCATCHER_CLERK_PUBLISHABLE_KEY` from launch env or Info.plist. Leave it unset to keep Account UI inactive in local/offline builds; local protection, archive, scan, import, and diagnostics export still work. `scripts/build-app.sh` may copy `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` from `admin/.env.local` into the Mac app plist for Dock launches.
 
 ### 6. Smoke
 

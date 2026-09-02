@@ -10,9 +10,18 @@ public enum SetCatcherAccountConfiguration {
     }
 
     /// Optional Clerk publishable key for native Account UI.
+    /// Launch env wins. Debug device builds may also bake the same key into Info.plist
+    /// so an icon tap still shows Sign in. The key is never required for local archive.
     public static var clerkPublishableKey: String? {
-        let value = ProcessInfo.processInfo.environment["SETCATCHER_CLERK_PUBLISHABLE_KEY"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return value?.isEmpty == false ? value : nil
+        normalized(ProcessInfo.processInfo.environment["SETCATCHER_CLERK_PUBLISHABLE_KEY"])
+            ?? normalized(Bundle.main.object(forInfoDictionaryKey: "SETCATCHER_CLERK_PUBLISHABLE_KEY") as? String)
+    }
+
+    static func normalized(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        if value.hasPrefix("$(") { return nil }
+        return value
     }
 }

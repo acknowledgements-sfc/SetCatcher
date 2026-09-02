@@ -2,7 +2,9 @@
 
 Optional web accounts, Beat Revival marketing/waitlist, and support-first admin for DJMemory.
 
-Stack: **Clerk** (auth) + **Supabase** (Postgres/RLS) + **Vercel** (host).
+Stack: **Clerk** (identity / sessions only) + **Supabase** (licenses, devices, invites, catalog) + **Vercel** (host). Do not enable Clerk Billing or Organizations.
+
+Native Mac/iPad clients send `Authorization: Bearer <session JWT>`. `/api/*` must not use `auth.protect()` (handshake redirects). Email/name for first-time users is loaded via Clerk Backend when `currentUser()` is empty.
 
 Production host: **https://beatrevival.com** (Vercel project `djmemory-admin`).
 

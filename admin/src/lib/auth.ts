@@ -1,10 +1,15 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
+import { loadClerkProfile } from "./clerk-user";
 import { getServiceSupabase, type AdminRole } from "./supabase";
 
 const MUTATING_ROLES: AdminRole[] = ["owner", "support", "release_manager"];
 
+/**
+ * Cookie sessions (web admin) and native Bearer session JWTs (Mac / iPad).
+ * Do not call `auth.protect()` on `/api/*` — handshake redirects break native clients.
+ */
 export async function requireSignedIn() {
-  const session = await auth();
+  const session = await auth({ acceptsToken: "session_token" });
   if (!session.userId) {
     throw new Error("Unauthorized");
   }
@@ -16,10 +21,7 @@ export async function requireAdmin(): Promise<{
   email: string | null;
   role: AdminRole;
 }> {
-  const session = await auth();
-  if (!session.userId) {
-    throw new Error("Unauthorized");
-  }
+  const session = await requireSignedIn();
 
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -35,12 +37,8 @@ export async function requireAdmin(): Promise<{
     throw new Error("Forbidden");
   }
 
-  const user = await currentUser();
-  const email =
-    data.email ||
-    user?.primaryEmailAddress?.emailAddress ||
-    user?.emailAddresses[0]?.emailAddress ||
-    null;
+  const profile = await loadClerkProfile(session.userId);
+  const email = data.email || profile.email || null;
 
   return {
     clerkUserId: session.userId,

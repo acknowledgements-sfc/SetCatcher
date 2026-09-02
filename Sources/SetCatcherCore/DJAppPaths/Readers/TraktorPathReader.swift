@@ -30,8 +30,23 @@ struct TraktorPathReader: DJAppPathReading {
         }
 
         let settingsRoot = homeDirectory.appendingPathComponent("Documents/Native Instruments", isDirectory: true)
-        if fileManager.fileExists(atPath: settingsRoot.path) {
-            for (_, text) in DJAppPathParsing.readTextFiles(in: settingsRoot, fileManager: fileManager, maxDepth: 3) {
+        // Only Traktor* product folders. Walking the whole NI tree reads Kontakt IRs and
+        // other large files on the main thread during launch.
+        let traktorSettingsRoots: [URL]
+        if fileManager.fileExists(atPath: settingsRoot.path),
+           let children = try? fileManager.contentsOfDirectory(
+            at: settingsRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+           ) {
+            traktorSettingsRoots = children.filter { child in
+                child.lastPathComponent.lowercased().hasPrefix("traktor")
+            }
+        } else {
+            traktorSettingsRoots = []
+        }
+        for settingsFolder in traktorSettingsRoots {
+            for (_, text) in DJAppPathParsing.readTextFiles(in: settingsFolder, fileManager: fileManager, maxDepth: 3) {
                 if let value = DJAppPathParsing.firstMatch(
                     in: text,
                     patterns: [

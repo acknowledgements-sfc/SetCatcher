@@ -36,16 +36,37 @@ struct SetCatcherCompanionApp: App {
         }
     }
 
+    private func applySettingsDeepLink(_ url: URL) {
+        let host = url.host?.lowercased()
+        if host == "settings" {
+            model.selectedRoute = .settings
+        } else if host == "library" {
+            model.selectedRoute = .library
+        }
+    }
+
+    private func applyLaunchRouteIfNeeded() {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains(where: { $0.caseInsensitiveCompare("settings") == .orderedSame || $0 == "--settings" }) {
+            model.selectedRoute = .settings
+        } else if args.contains(where: { $0.caseInsensitiveCompare("library") == .orderedSame || $0 == "--library" }) {
+            model.selectedRoute = .library
+        }
+    }
+
     @ViewBuilder
     private var rootView: some View {
         if Self.isAccountAuthEnabled {
             CompanionRootView(model: model, isAccountAuthEnabled: true)
-                .environment(Clerk.shared)
+                // Prefetch reads @Environment(Clerk.self) — must be inside .environment(Clerk.shared).
                 .prefetchClerkImages()
+                .environment(Clerk.shared)
                 .onAppear {
+                    applyLaunchRouteIfNeeded()
                     CompanionInbox.drain(into: model)
                 }
                 .onOpenURL { url in
+                    applySettingsDeepLink(url)
                     Task {
                         do {
                             try await Clerk.shared.handle(url)
@@ -58,9 +79,11 @@ struct SetCatcherCompanionApp: App {
         } else {
             CompanionRootView(model: model, isAccountAuthEnabled: false)
                 .onAppear {
+                    applyLaunchRouteIfNeeded()
                     CompanionInbox.drain(into: model)
                 }
-                .onOpenURL { _ in
+                .onOpenURL { url in
+                    applySettingsDeepLink(url)
                     CompanionInbox.drain(into: model)
                 }
         }
