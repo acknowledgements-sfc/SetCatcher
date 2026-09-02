@@ -8,10 +8,14 @@ const isPublicRoute = createRouteMatcher([
   "/api/waitlist",
 ]);
 
+/** Mac/iPad clients authenticate API routes with `Authorization: Bearer <session JWT>`. */
+const isApiRoute = createRouteMatcher(["/api/(.*)"]);
+
 export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    await auth.protect();
+  if (isPublicRoute(request) || isApiRoute(request)) {
+    return;
   }
+  await auth.protect();
 });
 
 export const config = {
