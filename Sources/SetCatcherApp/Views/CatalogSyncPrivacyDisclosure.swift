@@ -10,33 +10,23 @@ struct CatalogSyncPrivacyDisclosure: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            disclosureBlock(
-                title: "Syncs when catalog sync is on",
-                detail: "Event, venue, city, and tags, plus filename, source app, dates, duration and size, device name, and technical capture details."
+            disclosureText(
+                "Catalog sync includes event, venue, city, tags, filename, source app, dates, duration and size, device name, and technical capture details."
             )
-            disclosureBlock(
-                title: "Not included in catalog sync",
-                detail: "Audio files, full tracklist contents, private notes, local file paths, and manual tracklist selections are not synced by catalog sync."
+            disclosureText(
+                "Catalog sync never uploads audio, full tracklist contents, private notes, local file paths, or manual tracklist selections."
             )
-            disclosureBlock(
-                title: "Archive backup",
-                detail: "Uploading archived audio is a separate explicit opt-in. Catalog sync alone does not upload audio."
-            )
+            disclosureText("Archive backup is separate and only runs when explicitly enabled.")
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(accessibilityIdentifier)
     }
 
-    private func disclosureBlock(title: String, detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: DJToken.TypeSize.body, weight: .medium))
-                .foregroundStyle(DJToken.foreground)
-            Text(detail)
-                .font(.system(size: DJToken.TypeSize.secondary))
-                .foregroundStyle(DJToken.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+    private func disclosureText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: DJToken.TypeSize.secondary))
+            .foregroundStyle(DJToken.mutedForeground)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

@@ -4,36 +4,34 @@ import SwiftUI
 struct CompanionCatalogSyncPrivacyDisclosure: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            disclosureBlock(
-                title: "Syncs when catalog sync is on",
-                detail: "Event, venue, city, and tags, plus filename, source app, dates, duration and size, device name, and technical capture details."
+            disclosureText(
+                "Catalog sync includes event, venue, city, tags, filename, source app, dates, duration and size, device name, and technical capture details."
             )
-            disclosureBlock(
-                title: "Not included in catalog sync",
-                detail: "Audio files, full tracklist contents, private notes, local file paths, and manual tracklist selections are not synced by catalog sync."
+            disclosureText(
+                "Catalog sync never uploads audio, full tracklist contents, private notes, local file paths, or manual tracklist selections."
             )
-            disclosureBlock(
-                title: "Archive backup",
-                detail: "Uploading archived audio is a separate explicit opt-in. Catalog sync alone does not upload audio."
-            )
+            disclosureText("Archive backup is separate and only runs when explicitly enabled.")
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("companion.privacyDisclosure")
     }
 
-    private func disclosureBlock(title: String, detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.footnote.weight(.medium))
-            Text(detail)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+    private func disclosureText(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-#Preview {
+#Preview("Catalog sync privacy / light") {
     CompanionCatalogSyncPrivacyDisclosure()
         .padding()
+        .preferredColorScheme(.light)
+}
+
+#Preview("Catalog sync privacy / dark") {
+    CompanionCatalogSyncPrivacyDisclosure()
+        .padding()
+        .preferredColorScheme(.dark)
 }
