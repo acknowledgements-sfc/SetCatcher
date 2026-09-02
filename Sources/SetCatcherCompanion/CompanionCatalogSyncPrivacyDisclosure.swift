@@ -10,7 +10,7 @@ struct CompanionCatalogSyncPrivacyDisclosure: View {
             disclosureText(
                 "Catalog sync never uploads audio, full tracklist contents, private notes, local file paths, or manual tracklist selections."
             )
-            disclosureText("Archive backup is separate and only runs when explicitly enabled.")
+            disclosureText("Remote archive backup is separate and is not available in this private beta.")
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("companion.privacyDisclosure")
