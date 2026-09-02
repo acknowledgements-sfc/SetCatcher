@@ -4,11 +4,13 @@ Last updated: August 29, 2026.
 
 ## Current Candidate Gate
 
-The current verification candidate is `codex/setcatcher-rename` at `b6a1a5e`, descended from the Phase 1 checkpoint `f7e9bb9`. The visible product rename and technical package rename are implemented locally; they have not been merged to `main` or pushed. The artifact manifest is the authority for the exact packaged commit. Regenerate the package after every candidate commit; earlier packages are verification artifacts only and must not be distributed.
+The current verification candidate is `codex/setcatcher-rename` at `b6a1a5e`, descended from the Phase 1 checkpoint `f7e9bb9`. The artifact manifest is the authority for the exact packaged commit. Regenerate the package after every candidate commit; earlier packages are verification artifacts only and must not be distributed.
+
+**Update (2026-09-02):** `main` = `origin/main` = `7b3b698` now already carries the rename plus later dual-lane-archive / companion / catalog-sync work. Re-baseline any distribution candidate from `7b3b698` rather than the `b6a1a5e` rename branch; the frozen-review automated baseline is **411 tests executed, 4 skipped, 0 failures, 0 build warnings** (see `docs/mvp-readiness-audit.md`).
 
 | Gate | Current status |
 | --- | --- |
-| Automated tests, CLI smoke, app build/smoke | Passed on renamed branch: 325 tests executed, 4 skipped, 0 failures; CLI and app smoke passed |
+| Automated tests, CLI smoke, app build/smoke | Frozen-review baseline (2026-09-02, `main`@`7b3b698`): 411 tests executed, 4 skipped, 0 failures. Historical renamed-branch run: 325 tests, 4 skipped, 0 failures; CLI and app smoke passed |
 | Release build warnings | Passed: release rebuild completed with zero warnings after the `livePeak` fix |
 | Ad-hoc package and checksum | Verification package passed with matching SHA-256; regenerate from the final clean candidate so the manifest identifies the exact commit |
 | Current-user extracted-zip launch | Passed after scoped fixes; not clean-install proof |

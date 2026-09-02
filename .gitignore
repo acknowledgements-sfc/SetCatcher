@@ -2,6 +2,7 @@
 .build/
 DerivedData/
 *.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
 *.xcuserstate
 buildServer.json
 admin/node_modules/
