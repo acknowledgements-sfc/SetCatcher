@@ -13,10 +13,14 @@ public struct TracklistAutopull {
     /// App IDs whose history folders should be searched for an export near this session.
     public static func historyAppIDs(
         sourceAppID: String,
+        companionAppID: String? = nil,
         selectedTargetAppID: String?,
         historyAccesses: [FolderAccess]
     ) -> [String] {
-        if !LibrarySessionMatcher.hardwareCaptureAppIDs.contains(sourceAppID) {
+        if let companionAppID {
+            return [companionAppID]
+        }
+        if !SupportedDJSoftware.hardwareCaptureAppIDs.contains(sourceAppID) {
             return [sourceAppID]
         }
         if let selectedTargetAppID {

@@ -127,6 +127,57 @@ final class LibrarySessionSearchTests: XCTestCase {
         XCTAssertEqual(results.map(\.archive.originalFilename), ["Alpha.wav", "Zulu.wav"])
     }
 
+    func testSourceFilterMatchesCaptureLaneCompanionAsDJApp() {
+        let captureOfSerato = LibrarySessionSummary(
+            archive: archive(
+                filename: "Tap.wav",
+                appID: SupportedDJSoftware.captureAppID,
+                companionAppID: "serato",
+                ingestionKind: .capture
+            ),
+            matchedTracklist: nil
+        )
+        let rekordboxFolder = LibrarySessionSummary(
+            archive: archive(filename: "Folder.wav", appID: "rekordbox", ingestionKind: .folderWatch),
+            matchedTracklist: nil
+        )
+
+        let results = LibrarySessionSearch().filter(
+            [captureOfSerato, rekordboxFolder],
+            query: "",
+            sourceFilter: .app("serato"),
+            appDisplayName: appDisplayName(for:)
+        )
+
+        XCTAssertEqual(results.map(\.archive.originalFilename), ["Tap.wav"])
+    }
+
+    func testSearchMatchesCaptureLaneLabelAndCompanionDisplayName() {
+        let captureOfSerato = LibrarySessionSummary(
+            archive: archive(
+                filename: "Tap.wav",
+                appID: SupportedDJSoftware.captureAppID,
+                companionAppID: "serato",
+                ingestionKind: .capture
+            ),
+            matchedTracklist: nil
+        )
+
+        let byLane = LibrarySessionSearch().filter(
+            [captureOfSerato],
+            query: "Capture",
+            appDisplayName: appDisplayName(for:)
+        )
+        let byApp = LibrarySessionSearch().filter(
+            [captureOfSerato],
+            query: "Serato DJ Pro",
+            appDisplayName: appDisplayName(for:)
+        )
+
+        XCTAssertEqual(byLane.count, 1)
+        XCTAssertEqual(byApp.count, 1)
+    }
+
     func testPioneerFilterIncludesStandaloneInputAndLinkedBackup() {
         let inputCapture = archive(
             filename: "Input.wav",
@@ -344,7 +395,9 @@ final class LibrarySessionSearchTests: XCTestCase {
         filename: String,
         appID: String = "serato",
         detectedAt: Date = Date(timeIntervalSince1970: 100),
-        captureRoute: CaptureArchiveRoute? = nil
+        captureRoute: CaptureArchiveRoute? = nil,
+        companionAppID: String? = nil,
+        ingestionKind: ArchiveIngestionKind? = nil
     ) -> ArchiveMetadata {
         let id = UUID()
         return ArchiveMetadata(
@@ -357,6 +410,8 @@ final class LibrarySessionSearchTests: XCTestCase {
             fileSize: 100,
             originalFilename: filename,
             durationSeconds: 60,
+            ingestionKind: ingestionKind,
+            companionAppID: companionAppID,
             captureRoute: captureRoute
         )
     }

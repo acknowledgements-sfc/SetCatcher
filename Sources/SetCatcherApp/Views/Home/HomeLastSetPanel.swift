@@ -25,7 +25,7 @@ struct HomeLastSetPanel: View {
                     Waveform(
                         seed: summary.archive.originalFilename,
                         barCount: 88,
-                        tint: DJToken.accent(forAppID: summary.archive.sourceAppID)
+                        tint: DJToken.accent(forAppID: summary.archive.djAppID)
                     )
                     .frame(height: 56)
                     .padding(8)

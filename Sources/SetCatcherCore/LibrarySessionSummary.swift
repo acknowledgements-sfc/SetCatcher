@@ -12,19 +12,27 @@ public struct LibrarySessionSummary: Identifiable, Equatable, Sendable {
     public let hardwareBackup: ArchiveMetadata?
     public let matchedTracklist: ImportedTracklist?
     public let context: SetContext
+    public let catalogAvailability: ArchiveCatalogAvailability
 
     public init(
         archive: ArchiveMetadata,
         matchedTracklist: ImportedTracklist?,
         context: SetContext? = nil,
         hardwareBackup: ArchiveMetadata? = nil,
-        id: UUID? = nil
+        id: UUID? = nil,
+        catalogAvailability: ArchiveCatalogAvailability = .localFile
     ) {
         self.id = id ?? archive.id
         self.archive = archive
         self.hardwareBackup = hardwareBackup
         self.matchedTracklist = matchedTracklist
         self.context = context ?? SetContext(sessionID: id ?? archive.id)
+        self.catalogAvailability = catalogAvailability
+    }
+
+    public var isRemoteOnlyCatalog: Bool {
+        if case .remoteOnly = catalogAvailability { return true }
+        return false
     }
 
     public var trackCount: Int {
@@ -59,13 +67,7 @@ public struct LibrarySessionSummary: Identifiable, Equatable, Sendable {
 public struct LibrarySessionMatcher {
     public init() {}
 
-    public static let hardwareCaptureAppIDs: Set<String> = [
-        SupportedDJSoftware.captureAppID,
-        SupportedDJSoftware.pioneerHardwareAppID,
-        SupportedDJSoftware.analogMixerAppID,
-        SupportedDJSoftware.denonHardwareAppID,
-        SupportedDJSoftware.raneHardwareAppID
-    ]
+    public static let hardwareCaptureAppIDs: Set<String> = SupportedDJSoftware.hardwareCaptureAppIDs
 
     public static let hardwareRelatedTracklistAppIDs: Set<String> = [
         SupportedDJSoftware.captureAppID,
@@ -110,7 +112,14 @@ public struct LibrarySessionMatcher {
 
         let referenceDate = archive.completedAt ?? archive.detectedAt
         let candidates: [ImportedTracklist]
-        if Self.hardwareCaptureAppIDs.contains(archive.sourceAppID) {
+        if archive.companionAppID != nil {
+            let appID = archive.djAppID
+            candidates = importedTracklists.filter {
+                $0.appID == appID
+                    && $0.kind.isMatchableToRecording
+                    && abs($0.importedAt.timeIntervalSince(referenceDate)) <= Self.captureMatchWindowSeconds
+            }
+        } else if Self.hardwareCaptureAppIDs.contains(archive.sourceAppID) {
             // A hardware Capture / Pioneer recording carries no app identity of
             // its own — its tracklist can be a history export from *any* DJ app
             // running at the time. Match the nearest matchable export inside the
@@ -122,8 +131,9 @@ public struct LibrarySessionMatcher {
                     && abs(tracklist.importedAt.timeIntervalSince(referenceDate)) <= Self.captureMatchWindowSeconds
             }
         } else {
+            let appID = archive.djAppID
             candidates = importedTracklists.filter {
-                $0.appID == archive.sourceAppID
+                $0.appID == appID
                     && $0.kind.isMatchableToRecording
                     && abs($0.importedAt.timeIntervalSince(referenceDate)) <= Self.captureMatchWindowSeconds
             }

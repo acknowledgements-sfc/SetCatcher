@@ -7,6 +7,7 @@ public struct PendingCaptureRecoveryRecord: Codable, Equatable, Sendable {
     public let startedAt: Date
     public let endedAt: Date
     public let sourceAppID: String
+    public let companionAppID: String?
     public let captureRoute: CaptureArchiveRoute
     public let captureBackend: CaptureArchiveBackend?
     public let captureDeviceTransport: String?
@@ -20,6 +21,7 @@ public struct PendingCaptureRecoveryRecord: Codable, Equatable, Sendable {
         startedAt: Date,
         endedAt: Date,
         sourceAppID: String,
+        companionAppID: String? = nil,
         captureRoute: CaptureArchiveRoute,
         captureBackend: CaptureArchiveBackend?,
         captureDeviceTransport: String?,
@@ -32,6 +34,7 @@ public struct PendingCaptureRecoveryRecord: Codable, Equatable, Sendable {
         self.startedAt = startedAt
         self.endedAt = endedAt
         self.sourceAppID = sourceAppID
+        self.companionAppID = companionAppID
         self.captureRoute = captureRoute
         self.captureBackend = captureBackend
         self.captureDeviceTransport = captureDeviceTransport

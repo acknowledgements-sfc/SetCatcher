@@ -45,7 +45,9 @@ public struct LibrarySessionSearch {
         case .all:
             return true
         case .app(let appID):
-            return summary.archive.sourceAppID == appID
+            return summary.archive.djAppID == appID
+                || summary.archive.sourceAppID == appID
+                || summary.hardwareBackup?.djAppID == appID
                 || summary.hardwareBackup?.sourceAppID == appID
         case .pioneerHardware:
             return isPioneerHardware(summary.archive)
@@ -132,7 +134,10 @@ public struct LibrarySessionSearch {
         var values = [
             summary.archive.originalFilename,
             summary.archive.sourceAppID,
+            summary.archive.djAppID,
             appDisplayName(summary.archive.sourceAppID),
+            appDisplayName(summary.archive.djAppID),
+            summary.archive.captureLaneLabel ?? "",
             summary.archive.sourcePath,
             summary.archive.archivePath,
             summary.context.eventName,

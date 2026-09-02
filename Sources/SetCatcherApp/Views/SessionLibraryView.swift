@@ -172,7 +172,7 @@ struct SessionLibraryView: View {
                         Waveform(
                             seed: summary.archive.originalFilename,
                             barCount: 28,
-                            tint: DJToken.accent(forAppID: summary.archive.sourceAppID)
+                            tint: DJToken.accent(forAppID: summary.archive.djAppID)
                         )
                         .frame(width: 56, height: 18)
 
@@ -184,6 +184,12 @@ struct SessionLibraryView: View {
                                 .font(.system(size: DJToken.TypeSize.secondary))
                                 .foregroundStyle(DJToken.mutedForeground)
                                 .lineLimit(1)
+                            if summary.isRemoteOnlyCatalog {
+                                Text(remoteCatalogLine(summary))
+                                    .font(.system(size: DJToken.TypeSize.secondary))
+                                    .foregroundStyle(DJToken.mutedForeground)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                     .frame(height: DJToken.RowHeight.library)
@@ -199,12 +205,16 @@ struct SessionLibraryView: View {
                 TableColumn("App") { summary in
                     HStack(spacing: 6) {
                         RoundedRectangle(cornerRadius: DJToken.Radius.swatch)
-                            .fill(DJToken.accent(forAppID: summary.archive.sourceAppID))
+                            .fill(DJToken.accent(forAppID: summary.archive.djAppID))
                             .frame(width: 3, height: 12)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(model.displayName(for: summary.archive.sourceAppID))
+                            Text(model.displayName(for: summary.archive.djAppID))
                             if summary.hardwareBackup != nil {
                                 Text("2 safety nets")
+                                    .font(.system(size: DJToken.TypeSize.secondary))
+                                    .foregroundStyle(DJToken.mutedForeground)
+                            } else if let lane = summary.archive.captureLaneLabel {
+                                Text(lane)
                                     .font(.system(size: DJToken.TypeSize.secondary))
                                     .foregroundStyle(DJToken.mutedForeground)
                             }
@@ -296,12 +306,12 @@ struct SessionLibraryView: View {
                         if let summary = selectedSession {
                             SetDetailView(
                                 summary: summary,
-                                appName: model.displayName(for: summary.archive.sourceAppID),
+                                appName: model.displayName(for: summary.archive.djAppID),
                                 candidateTracklists: model.candidateTracklists(for: summary.archive),
                                 activityEvents: summary.relatedActivity(in: model.activityEvents),
                                 saveContext: model.saveSetContext,
                                 attachTracklist: { model.attachTracklist(sessionID: summary.id, tracklistID: $0) },
-                                importTracklist: { model.importHistory(appID: summary.archive.sourceAppID) },
+                                importTracklist: { model.importHistory(appID: summary.archive.djAppID) },
                                 exportPublishPack: { model.exportPublishPack(sessionID: summary.id) },
                                 revealArchive: { model.revealInFinder(URL(fileURLWithPath: summary.archive.archivePath)) },
                                 revealSource: { model.revealInFinder(URL(fileURLWithPath: summary.archive.sourcePath)) },
@@ -393,6 +403,20 @@ struct SessionLibraryView: View {
             return playedOn
         }
         return tracklist.importedAt
+    }
+
+    private func remoteCatalogLine(_ summary: LibrarySessionSummary) -> String {
+        switch summary.catalogAvailability {
+        case .remoteOnly(let originDeviceName):
+            if let originDeviceName, !originDeviceName.isEmpty {
+                return "On another device (\(originDeviceName)). Audio is not on this Mac."
+            }
+            return "On another device. Audio is not on this Mac."
+        case .localAndSynced:
+            return "Synced to your account catalog."
+        case .localFile:
+            return ""
+        }
     }
 
     private func contextLine(_ summary: LibrarySessionSummary) -> String {

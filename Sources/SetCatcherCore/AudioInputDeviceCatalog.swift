@@ -1,5 +1,8 @@
 import CoreAudio
 import Foundation
+#if os(iOS)
+import AVFoundation
+#endif
 
 public enum AudioInputDeviceCatalogError: Error, Equatable, Sendable {
     case streamFormatUnavailable(OSStatus)
@@ -49,6 +52,7 @@ public enum AudioDeviceTransport: Equatable, Sendable {
 
     public init(rawValue: UInt32?) {
         guard let rawValue else { self = .unknown; return }
+        #if os(macOS)
         switch rawValue {
         case kAudioDeviceTransportTypeBuiltIn: self = .builtIn
         case kAudioDeviceTransportTypeAggregate: self = .aggregate
@@ -68,6 +72,9 @@ public enum AudioDeviceTransport: Equatable, Sendable {
             self = .continuityCapture
         default: self = .unknown
         }
+        #else
+        self = .unknown
+        #endif
     }
 }
 
@@ -132,7 +139,11 @@ public struct AudioInputDevice: Identifiable, Equatable, Sendable {
 
 public enum AudioInputDeviceCatalog {
     public static func listInputs() -> [AudioInputDevice] {
+        #if os(iOS)
+        let devices = avSessionInputDevices()
+        #else
         let devices = coreAudioInputDevices()
+        #endif
         return devices.sorted { lhs, rhs in
             if lhs.isTrustedDJHardwareFeed != rhs.isTrustedDJHardwareFeed {
                 return lhs.isTrustedDJHardwareFeed && !rhs.isTrustedDJHardwareFeed
@@ -241,6 +252,7 @@ public enum AudioInputDeviceCatalog {
     }
 
     /// Core Audio object ID for a device UID, or nil when it is not an input that currently exists.
+    #if os(macOS)
     public static func audioDeviceID(forUID uid: String) -> AudioDeviceID? {
         guard !uid.isEmpty else { return nil }
         return hardwareDeviceIDs().first { deviceID in
@@ -248,20 +260,30 @@ public enum AudioInputDeviceCatalog {
                 && cfStringProperty(deviceID, kAudioDevicePropertyDeviceUID) == uid
         }
     }
+    #endif
 
     /// Input channel count for a device UID, or `0` when the device is missing or has no inputs.
     /// USB connection alone is not enough — a device with no input channels cannot be captured.
     public static func inputChannelCount(forUID uid: String) -> Int {
+        #if os(iOS)
+        guard avSessionInputDevices().contains(where: { $0.id == uid }) else { return 0 }
+        return 2
+        #else
         guard let deviceID = audioDeviceID(forUID: uid) else { return 0 }
         return inputChannelCount(deviceID)
+        #endif
     }
 
     /// Whether the current input stream can be recorded (sample rate and at least one channel).
     public static func isSupportedCaptureFormat(forUID uid: String) -> Bool {
+        #if os(iOS)
+        return avSessionInputDevices().contains { $0.id == uid }
+        #else
         guard let deviceID = audioDeviceID(forUID: uid),
               let format = try? inputStreamFormat(for: deviceID)
         else { return false }
         return isSupportedCaptureFormat(format)
+        #endif
     }
 
     public static func isSupportedCaptureFormat(_ format: AudioStreamBasicDescription) -> Bool {
@@ -269,6 +291,7 @@ public enum AudioInputDeviceCatalog {
     }
 
     /// Current input-scope stream format for a Core Audio device.
+    #if os(macOS)
     public static func inputStreamFormat(
         for deviceID: AudioDeviceID
     ) throws -> AudioStreamBasicDescription {
@@ -292,6 +315,35 @@ public enum AudioInputDeviceCatalog {
         }
         return format
     }
+    #endif
+
+    #if os(iOS)
+    private static func avSessionInputDevices() -> [AudioInputDevice] {
+        (AVAudioSession.sharedInstance().availableInputs ?? []).map { port in
+            AudioInputDevice(
+                id: port.uid,
+                name: port.portName,
+                manufacturer: "",
+                transportType: transport(for: port.portType)
+            )
+        }
+    }
+
+    private static func transport(for portType: AVAudioSession.Port) -> AudioDeviceTransport {
+        switch portType {
+        case .builtInMic:
+            return .builtIn
+        case .bluetoothHFP, .bluetoothLE, .bluetoothA2DP:
+            return .bluetooth
+        case .usbAudio, .carAudio:
+            return .usb
+        case .headsetMic, .headphones:
+            return .unknown
+        default:
+            return .unknown
+        }
+    }
+    #endif
 
     private static func matchingVirtualSoftware(
         for device: AudioInputDevice,
@@ -315,7 +367,8 @@ public enum AudioInputDeviceCatalog {
     }
 
     private static func coreAudioInputDevices() -> [AudioInputDevice] {
-        hardwareDeviceIDs().compactMap { deviceID in
+        #if os(macOS)
+        return hardwareDeviceIDs().compactMap { deviceID in
             guard inputChannelCount(deviceID) > 0 else { return nil }
             let uid = cfStringProperty(deviceID, kAudioDevicePropertyDeviceUID)
             guard !uid.isEmpty else { return nil }
@@ -324,8 +377,12 @@ public enum AudioInputDeviceCatalog {
             let transport = AudioDeviceTransport(rawValue: transportType(deviceID))
             return AudioInputDevice(id: uid, name: name, manufacturer: manufacturer, transportType: transport)
         }
+        #else
+        return []
+        #endif
     }
 
+    #if os(macOS)
     private static func transportType(_ deviceID: AudioDeviceID) -> UInt32? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyTransportType,
@@ -397,4 +454,5 @@ public enum AudioInputDeviceCatalog {
         guard status == noErr, let value else { return "" }
         return value.takeRetainedValue() as String
     }
+    #endif
 }

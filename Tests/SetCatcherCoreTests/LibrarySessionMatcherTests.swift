@@ -232,6 +232,32 @@ final class LibrarySessionMatcherTests: XCTestCase {
         XCTAssertEqual(summaries.first?.matchedTracklist?.sourceURL.lastPathComponent, "serato.csv")
     }
 
+    func testAppAudioCaptureWithCompanionMatchesOnlyThatApp() {
+        let archive = ArchiveMetadata(
+            sessionID: UUID(),
+            sourceAppID: SupportedDJSoftware.captureAppID,
+            detectedAt: Date(timeIntervalSince1970: 1000),
+            completedAt: Date(timeIntervalSince1970: 2000),
+            sourcePath: "/tmp/capture.wav",
+            archivePath: "/archive/capture.wav",
+            fileSize: 1,
+            originalFilename: "capture.wav",
+            durationSeconds: 1000,
+            ingestionKind: .capture,
+            companionAppID: "serato",
+            captureRoute: .appAudio
+        )
+        let serato = makeTracklist(appID: "serato", filename: "serato.csv", importedAt: 1100)
+        let traktor = makeTracklist(appID: "traktor", filename: "traktor.nml", importedAt: 1050)
+
+        let summary = LibrarySessionMatcher().summaries(
+            archives: [archive],
+            importedTracklists: [serato, traktor]
+        ).first
+
+        XCTAssertEqual(summary?.matchedTracklist?.id, serato.id)
+    }
+
     func testHardwareCaptureUpgradesToCloserExport() {
         let archive = ArchiveMetadata(
             session: RecordingSession(

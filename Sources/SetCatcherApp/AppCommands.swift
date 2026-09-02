@@ -6,6 +6,7 @@ struct AppCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") {
+                model.openMainWindow()
                 model.selectedRoute = .settings
             }
             .keyboardShortcut(",", modifiers: .command)

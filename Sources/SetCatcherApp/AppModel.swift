@@ -38,9 +38,44 @@ private enum MenuBarPulseMode: Equatable {
 private struct PendingCaptureRecovery {
     let result: CaptureResult
     let sourceAppID: String
+    let companionAppID: String?
     let captureRoute: CaptureArchiveRoute
     let captureBackend: CaptureArchiveBackend?
     let captureDeviceTransport: String?
+}
+
+private final class DJAppWorkspaceObserverBox: NSObject, @unchecked Sendable {
+    weak var model: AppModel?
+
+    func start() {
+        let center = NSWorkspace.shared.notificationCenter
+        center.addObserver(
+            self,
+            selector: #selector(appDidChange(_:)),
+            name: NSWorkspace.didLaunchApplicationNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(appDidChange(_:)),
+            name: NSWorkspace.didTerminateApplicationNotification,
+            object: nil
+        )
+    }
+
+    @objc private func appDidChange(_ notification: Notification) {
+        let bundle = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+            .bundleIdentifier ?? ""
+        let isDJ = SupportedDJSoftware.all.contains { $0.bundleIdentifiers.contains(bundle) }
+        guard isDJ else { return }
+        Task { @MainActor in
+            await model?.handleDJAppWorkspaceChange()
+        }
+    }
+
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
 }
 
 @MainActor
@@ -116,9 +151,11 @@ final class AppModel: ObservableObject {
     private var queuedProtectedToastAt: Date?
 
     /// Optional account license snapshot. Nil when signed out or unreachable — local features stay full.
+    @Published private(set) var remoteCatalogSessions: [ArchiveCatalogSessionDTO] = []
     @Published private(set) var accountLicenseSummary: String?
     @Published private(set) var accountSyncMessage: String?
     @Published private(set) var isAccountSyncing = false
+    private var accountBearerToken: String?
 
     /// Consumed by `SessionLibraryView` when navigating from Home (session + optional search seed).
     @Published var libraryFocusSessionID: UUID?
@@ -231,6 +268,9 @@ final class AppModel: ObservableObject {
     private var captureInputPollTask: Task<Void, Never>?
     /// When true, auto-arm must not re-arm until the user Arms again or changes mode.
     private var userDisarmedAppAudio = false
+    /// Serializes `armAppAudioCapture` so two auto-arm Tasks cannot start overlapping taps.
+    private var isArmingAppAudio = false
+    private let djAppWorkspaceObservers = DJAppWorkspaceObserverBox()
     /// When true, Pioneer unattended Input Capture must not re-arm until Arm, posture change, or the device reappears.
     private var userDisarmedInputCapture = false
     /// When true, the DJ explicitly chose App audio and Pioneer auto-switch must wait for device reappear.
@@ -256,7 +296,10 @@ final class AppModel: ObservableObject {
         Self.lifecycleOwner = self
         notificationService.requestAuthorization()
         let migrationResult = dataMigration.run()
-        refresh()
+        // Probe walks DJ-app prefs on the main thread. Defer it until after the
+        // first frame so a file-provider stall cannot keep the extra from appearing
+        // (same reason audio enumeration is deferred below).
+        refresh(runSoftwareProbe: false)
         restorePendingCaptureRecovery()
         if let migrationMessage = migrationResult.userMessage {
             statusMessage = migrationMessage
@@ -277,19 +320,20 @@ final class AppModel: ObservableObject {
             }
         }
         startCapturePolling()
-        // Launch catch-up: heal any set whose history export landed while the
-        // app was closed, before the user ever looks at the library.
-        ingestHistoryNow()
-        // Defer audio-device enumeration and the first auto-arm pass until after the
-        // first frame. Both can touch Core Audio; this init runs during SwiftUI scene
-        // instantiation, so a HAL stall here would prevent the window from appearing.
-        // Do NOT wait for the 15s idle poll — rekordbox already running at launch
-        // would otherwise sit unarmed until that timer fires.
+        startDJAppWorkspaceObservers()
+        // Launch catch-up walks the filesystem. Do not do that on the same MainActor
+        // turn as Process Audio Tap arm — HAL start resumes onto the main actor, and a
+        // long PathResolver walk blocks `startMonitoring bound` indefinitely.
         Task { @MainActor [weak self] in
             await Task.yield()
             try? await Task.sleep(nanoseconds: 500_000_000)
             self?.refreshAudioInputs()
             await self?.refreshAppAudioTargets(attemptAutoArm: true)
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            self?.ingestHistoryNow()
+            self?.refresh()
         }
 
         Task { [weak self] in
@@ -703,6 +747,7 @@ final class AppModel: ObservableObject {
     private func stagePendingCaptureRecovery(
         _ result: CaptureResult,
         sourceAppID: String,
+        companionAppID: String? = nil,
         route: CaptureArchiveRoute,
         backend: CaptureArchiveBackend?,
         transport: String?
@@ -710,6 +755,7 @@ final class AppModel: ObservableObject {
         pendingCaptureRecovery = PendingCaptureRecovery(
             result: result,
             sourceAppID: sourceAppID,
+            companionAppID: companionAppID,
             captureRoute: route,
             captureBackend: backend,
             captureDeviceTransport: transport
@@ -722,6 +768,7 @@ final class AppModel: ObservableObject {
             startedAt: result.startedAt,
             endedAt: result.endedAt,
             sourceAppID: sourceAppID,
+            companionAppID: companionAppID,
             captureRoute: route,
             captureBackend: backend,
             captureDeviceTransport: transport,
@@ -755,6 +802,7 @@ final class AppModel: ObservableObject {
         pendingCaptureRecovery = PendingCaptureRecovery(
             result: result,
             sourceAppID: record.sourceAppID,
+            companionAppID: record.companionAppID,
             captureRoute: record.captureRoute,
             captureBackend: record.captureBackend,
             captureDeviceTransport: record.captureDeviceTransport
@@ -768,13 +816,16 @@ final class AppModel: ObservableObject {
             throw CaptureServiceError.engineFailed("No temporary capture is available to recover.")
         }
         let result = pending.result
+        let companionAppID = pending.companionAppID ?? legacyCompanionAppID(from: pending)
+        let sourceAppID = companionAppID != nil ? SupportedDJSoftware.captureAppID : pending.sourceAppID
         let session = try archiveService().ingestCapture(
             stagingURL: result.stagingURL,
             deviceID: result.deviceID,
             deviceName: result.deviceName,
             startedAt: result.startedAt,
             endedAt: result.endedAt,
-            sourceAppID: pending.sourceAppID,
+            sourceAppID: sourceAppID,
+            companionAppID: companionAppID,
             captureRoute: pending.captureRoute,
             captureBackend: pending.captureBackend,
             captureDeviceTransport: pending.captureDeviceTransport,
@@ -785,6 +836,15 @@ final class AppModel: ObservableObject {
         recoverableStagingURL = nil
         try? pendingCaptureRecoveryStore.remove()
         return session
+    }
+
+    private func legacyCompanionAppID(from pending: PendingCaptureRecovery) -> String? {
+        guard pending.companionAppID == nil,
+              pending.sourceAppID != SupportedDJSoftware.captureAppID,
+              pending.captureRoute == .appAudio else {
+            return nil
+        }
+        return pending.sourceAppID
     }
 
     func retryPendingCaptureSave() {
@@ -936,7 +996,7 @@ final class AppModel: ObservableObject {
             guard let session = sessions.first(where: { $0.id == sessionID }) else {
                 return "Last capture saved"
             }
-            let name = displayName(for: session.sourceAppID)
+            let name = displayName(for: session.djAppID)
             if let duration = session.durationSeconds {
                 return "Last capture: \(name), \(formattedDuration(duration)) — saved"
             }
@@ -1092,10 +1152,9 @@ final class AppModel: ObservableObject {
     func openMainWindow() {
         NSApp.setActivationPolicy(.regular)
         Self.activateApp()
-        // If a WindowGroup window already exists (the common case after launch), just bring
-        // it front — avoids spawning a duplicate. Otherwise ask SwiftUI to create one; with a
-        // MenuBarExtra present the window is created lazily and may not exist yet.
-        if let window = NSApp.windows.first(where: { $0.canBecomeKey }) {
+        // MenuBarExtra(.window) can become key. Prefer a real WindowGroup frame so the
+        // extra does not swallow Open Main Window / Settings when the 980pt window is gone.
+        if let window = NSApp.windows.first(where: { $0.canBecomeKey && $0.frame.width >= 900 }) {
             window.makeKeyAndOrderFront(nil)
         } else {
             requestOpenMainWindow?()
@@ -1184,8 +1243,59 @@ final class AppModel: ObservableObject {
         return "Automatic scanning is off"
     }
 
-    func refresh() {
-        probeResults = probe.probeAll()
+    private func rebuildLibrarySummaries() {
+        let merger = ArchiveCatalogMerger()
+        let mergedArchives: [ArchiveMetadata]
+        if settings.cloudSyncEnabled {
+            mergedArchives = merger.mergedArchives(
+                localArchives: sessions,
+                remoteSessions: remoteCatalogSessions
+            )
+        } else {
+            mergedArchives = sessions
+        }
+
+        let localArchiveIDs = Set(sessions.map(\.sessionID))
+        let mergedContexts: [SetContext]
+        if settings.cloudSyncEnabled {
+            mergedContexts = merger.mergedSetContexts(
+                localContexts: Array(setContexts.values),
+                remoteSessions: remoteCatalogSessions,
+                localArchiveIDs: localArchiveIDs
+            )
+        } else {
+            mergedContexts = Array(setContexts.values)
+        }
+        let contextByID = Dictionary(uniqueKeysWithValues: mergedContexts.map { ($0.sessionID, $0) })
+
+        librarySummaries = LibrarySessionMatcher().summaries(
+            archives: mergedArchives,
+            importedTracklists: importedTracklists.values.flatMap { $0 },
+            setContexts: mergedContexts
+        ).map { summary in
+            let hasLocalFile = sessions.contains { $0.sessionID == summary.id }
+            let availability = settings.cloudSyncEnabled
+                ? merger.catalogAvailability(
+                    for: summary.id,
+                    hasLocalFile: hasLocalFile,
+                    remoteSessions: remoteCatalogSessions
+                )
+                : .localFile
+            return LibrarySessionSummary(
+                archive: summary.archive,
+                matchedTracklist: summary.matchedTracklist,
+                context: contextByID[summary.id] ?? summary.context,
+                hardwareBackup: summary.hardwareBackup,
+                id: summary.id,
+                catalogAvailability: availability
+            )
+        }
+    }
+
+    func refresh(runSoftwareProbe: Bool = true) {
+        if runSoftwareProbe {
+            probeResults = probe.probeAll()
+        }
         folderAccesses = (try? folderAccessStore.all()) ?? []
         settings = (try? appSettingsStore.load()) ?? .default
         ensureArchiveRootExists()
@@ -1197,11 +1307,7 @@ final class AppModel: ObservableObject {
         setContexts = Dictionary(
             uniqueKeysWithValues: ((try? setContextStore.all()) ?? []).map { ($0.sessionID, $0) }
         )
-        librarySummaries = LibrarySessionMatcher().summaries(
-            archives: sessions,
-            importedTracklists: importedTracklists.values.flatMap { $0 },
-            setContexts: Array(setContexts.values)
-        )
+        rebuildLibrarySummaries()
         activityEvents = (try? activityLogStore.all()) ?? []
         profile = (try? profileStore.load()) ?? DJProfile()
         reconcileLaunchAtLogin()
@@ -1585,6 +1691,7 @@ final class AppModel: ObservableObject {
                 detail: context.eventName.isEmpty ? nil : context.eventName
             ))
             refresh()
+            pushArchiveCatalogIfNeeded()
             statusMessage = "Set details saved"
         } catch {
             appendActivity(kind: .error, message: "Set details save failed", detail: error.localizedDescription)
@@ -1641,6 +1748,9 @@ final class AppModel: ObservableObject {
                 let archived = results.flatMap(\.archivedSessions)
                 for session in archived {
                     autopullTracklist(for: session)
+                }
+                if !archived.isEmpty {
+                    pushArchiveCatalogIfNeeded()
                 }
                 // Backstop: every periodic scan also re-sweeps history folders so
                 // exports that FSEvents missed (machine asleep, coalesced events,
@@ -1885,11 +1995,15 @@ final class AppModel: ObservableObject {
     /// Optional account sync after Clerk sign-in. Never gates archive/scan/protection.
     func syncAccountSession(bearerToken: String?) async {
         guard let bearerToken, !bearerToken.isEmpty else {
+            accountBearerToken = nil
             accountLicenseSummary = nil
             accountSyncMessage = nil
+            remoteCatalogSessions = []
+            rebuildLibrarySummaries()
             return
         }
 
+        accountBearerToken = bearerToken
         isAccountSyncing = true
         defer { isAccountSyncing = false }
 
@@ -1908,6 +2022,9 @@ final class AppModel: ObservableObject {
             accountLicenseSummary = "\(license.license.plan) · \(license.license.status)"
             accountSyncMessage = license.localFeatures.note
             statusMessage = "Account connected — local protection still works offline"
+            if settings.cloudSyncEnabled {
+                await syncArchiveCatalog(bearerToken: bearerToken)
+            }
         } catch {
             // Offline / unreachable account server must not block local features.
             accountLicenseSummary = accountLicenseSummary ?? "Unavailable (local features full)"
@@ -1917,8 +2034,63 @@ final class AppModel: ObservableObject {
     }
 
     func clearAccountSessionState() {
+        accountBearerToken = nil
         accountLicenseSummary = nil
         accountSyncMessage = nil
+        remoteCatalogSessions = []
+        rebuildLibrarySummaries()
+    }
+
+    /// Pull and push archive catalog metadata when cloud sync is on. Never uploads audio.
+    func syncArchiveCatalog(bearerToken: String) async {
+        guard settings.cloudSyncEnabled else { return }
+
+        let client = ArchiveCatalogHTTPClient()
+        do {
+            let pull = try await client.pullSessions(bearerToken: bearerToken)
+            remoteCatalogSessions = pull.sessions
+            applyRemoteCatalogContexts(pull.sessions)
+
+            let deviceName = ProcessInfo.processInfo.hostName
+            let originName = deviceName.isEmpty ? "Mac" : deviceName
+            let dtos = sessions.map { archive in
+                ArchiveCatalogMapper.dto(
+                    from: archive,
+                    context: setContexts[archive.sessionID],
+                    platform: .macos,
+                    originDeviceName: originName,
+                    audioBackedUp: settings.cloudArchiveBackupEnabled
+                )
+            }
+            if !dtos.isEmpty {
+                _ = try await client.pushSessions(bearerToken: bearerToken, sessions: dtos)
+            }
+
+            rebuildLibrarySummaries()
+            accountSyncMessage =
+                "Library catalog synced across your devices. Audio stays on this Mac unless you enable archive backup."
+        } catch {
+            accountSyncMessage =
+                "Could not sync the library catalog: \(error.localizedDescription). Local archives are unchanged."
+        }
+    }
+
+    private func pushArchiveCatalogIfNeeded() {
+        guard settings.cloudSyncEnabled, let bearerToken = accountBearerToken else { return }
+        Task {
+            await syncArchiveCatalog(bearerToken: bearerToken)
+        }
+    }
+
+    private func applyRemoteCatalogContexts(_ remoteSessions: [ArchiveCatalogSessionDTO]) {
+        for remote in remoteSessions {
+            guard let remoteContext = remote.setContext else { continue }
+            let incoming = ArchiveCatalogMapper.setContext(from: remoteContext, sessionID: remote.sessionId)
+            let existing = setContexts[remote.sessionId] ?? SetContext(sessionID: remote.sessionId)
+            guard incoming.updatedAt > existing.updatedAt else { continue }
+            try? setContextStore.save(incoming)
+            setContexts[remote.sessionId] = incoming
+        }
     }
 
     /// User-initiated metadata-only diagnostics upload. Never called from archive/scan paths.
@@ -2543,6 +2715,15 @@ final class AppModel: ObservableObject {
     private static let noAppAudioTargetsFoundMessage = "No supported DJ apps are running and shareable."
     private static let noAudioInputDevicesFoundMessage = "No audio input devices are available."
 
+    private func startDJAppWorkspaceObservers() {
+        djAppWorkspaceObservers.model = self
+        djAppWorkspaceObservers.start()
+    }
+
+    func handleDJAppWorkspaceChange() async {
+        await refreshAppAudioTargets(attemptAutoArm: true)
+    }
+
     private func startCapturePolling() {
         captureTargetPollTask?.cancel()
         captureInputPollTask?.cancel()
@@ -2552,7 +2733,7 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 if !isFirst {
                     let interval = await MainActor.run {
-                        self.captureState.isWatchingOrRecording
+                        self.captureState.isWatchingOrRecording && self.appAudioCaptureService.isMonitoring
                             ? Self.capturePollIntervalEngaged
                             : Self.capturePollIntervalIdle
                     }
@@ -2571,9 +2752,8 @@ final class AppModel: ObservableObject {
                     default:
                         break
                     }
-                    // `attemptAutoArm: true` is safe to pass unconditionally — auto-arm only
-                    // actually fires when phase is idle/armed (see `refreshAppAudioTargets`), so
-                    // while watching/recording this call only ever does the alternate-source check.
+                    // Auto-arm also recovers a dead or abandoned watch tap (see
+                    // `AppAudioWatchRecoveryPolicy`).
                     Task { await self.refreshAppAudioTargets(attemptAutoArm: true) }
                 }
             }
@@ -2596,9 +2776,10 @@ final class AppModel: ObservableObject {
     }
 
     /// After archive, pull a nearby history export from known local history folders (soft-fail).
-    private func autopullTracklist(for session: RecordingSession) {
+    private func autopullTracklist(for session: RecordingSession, companionAppID: String? = nil) {
         let appIDs = TracklistAutopull.historyAppIDs(
             sourceAppID: session.sourceAppID,
+            companionAppID: companionAppID,
             selectedTargetAppID: captureState.selectedTargetApp?.software.id,
             historyAccesses: folderAccesses
         )
@@ -2642,10 +2823,13 @@ extension AppModel {
 
     func candidateTracklists(for archive: ArchiveMetadata) -> [ImportedTracklist] {
         let matchable = allImportedTracklists.filter(\.kind.isMatchableToRecording)
+        if archive.companionAppID != nil {
+            return matchable.filter { $0.appID == archive.djAppID }
+        }
         if LibrarySessionMatcher.hardwareCaptureAppIDs.contains(archive.sourceAppID) {
             return matchable.filter { LibrarySessionMatcher.hardwareRelatedTracklistAppIDs.contains($0.appID) }
         }
-        return matchable.filter { $0.appID == archive.sourceAppID }
+        return matchable.filter { $0.appID == archive.djAppID }
     }
 
     func setCaptureMode(_ mode: CaptureMode) {
@@ -2732,12 +2916,27 @@ extension AppModel {
             }
             captureState = next
 
+            let shareableBundles = apps.map(\.matchedBundleIdentifier)
+            if AppAudioWatchRecoveryPolicy.shouldFinalizeAbandonedRecording(
+                phase: next.phase,
+                monitoredBundleIdentifier: appAudioCaptureService.monitoredBundleIdentifier,
+                shareableBundleIdentifiers: shareableBundles
+            ) {
+                applyCaptureSessionTick(captureSession.requestManualSave())
+                next = captureState
+            }
+            let shouldRecoverWatch = AppAudioWatchRecoveryPolicy.shouldRearm(
+                phase: next.phase,
+                isMonitoring: appAudioCaptureService.isMonitoring,
+                monitoredBundleIdentifier: appAudioCaptureService.monitoredBundleIdentifier,
+                shareableBundleIdentifiers: shareableBundles
+            )
             let canAutoArm = attemptAutoArm
                 && settings.autoArmOnDJAppFound
                 && !userDisarmedAppAudio
                 && next.mode == .appAudio
                 && !apps.isEmpty
-                && (next.phase == .idle || next.phase == .armed)
+                && (next.phase == .idle || next.phase == .armed || shouldRecoverWatch)
             if canAutoArm {
                 armAppAudioCapture()
             }
@@ -2762,7 +2961,10 @@ extension AppModel {
 
     func armAppAudioCapture() {
         userDisarmedAppAudio = false
+        guard !isArmingAppAudio else { return }
+        isArmingAppAudio = true
         Task {
+            defer { isArmingAppAudio = false }
             await refreshAppAudioTargets(attemptAutoArm: false)
             guard let target = captureState.selectedTargetApp else {
                 var next = captureState
@@ -2820,6 +3022,23 @@ extension AppModel {
             }
 
             do {
+                if appAudioCaptureService.isMonitoring {
+                    if appAudioCaptureService.monitoredBundleIdentifier == target.matchedBundleIdentifier {
+                        let tick = captureSession.prepareWatching(
+                            config: settings.silenceSessionConfig,
+                            targetDisplayName: target.software.displayName
+                        )
+                        var watching = captureState
+                        watching.phase = tick.phase
+                        watching.inputLevel = tick.inputLevel
+                        watching.appAudioSourceName = appAudioCaptureService.captureSourceDisplayName
+                        watching.statusMessage = appAudioArmedStatusMessage(tick: tick, selection: selection)
+                        captureState = watching
+                        startAppAudioPolling()
+                        return
+                    }
+                    await appAudioCaptureService.stopMonitoring()
+                }
                 try await appAudioCaptureService.startMonitoring(
                     bundleIdentifier: target.matchedBundleIdentifier,
                     displayName: target.software.displayName,
@@ -2968,9 +3187,11 @@ extension AppModel {
         do {
             let result = try appAudioCaptureService.endRecordingFile(discard: discard)
             if let result, !discard {
+                let companionAppID = captureState.selectedTargetApp?.software.id
                 stagePendingCaptureRecovery(
                     result,
-                    sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID,
+                    sourceAppID: SupportedDJSoftware.captureAppID,
+                    companionAppID: companionAppID,
                     route: result.captureRoute ?? .appAudio,
                     backend: result.captureBackend ?? appAudioCaptureService.activeBackendKind.archiveBackend,
                     transport: result.deviceTransport?.archiveLabel
@@ -2979,7 +3200,7 @@ extension AppModel {
                 let session = try ingestPendingCaptureRecovery()
                 notifyForNewArchive(session)
                 refresh()
-                autopullTracklist(for: session)
+                autopullTracklist(for: session, companionAppID: companionAppID)
                 var done = captureState
                 done.lastArchivedSessionID = session.id
                 if resumeWatching {
@@ -3003,6 +3224,9 @@ extension AppModel {
                 }
                 captureState = done
                 statusMessage = "App audio Capture saved"
+                if resumeWatching {
+                    Task { await refreshAppAudioTargets(attemptAutoArm: true) }
+                }
             } else {
                 var done = captureState
                 if resumeWatching {
@@ -3892,7 +4116,15 @@ extension AppModel {
         let newSettings = settings.updating(cloudSyncEnabled: enabled, cloudArchiveBackupEnabled: enabled ? settings.cloudArchiveBackupEnabled : false)
         try? appSettingsStore.save(newSettings)
         settings = newSettings
-        statusMessage = enabled ? "Cloud sync is on. Archive backup stays off until you enable it." : "Cloud sync is off. Everything stays on this Mac."
+        if !enabled {
+            remoteCatalogSessions = []
+            rebuildLibrarySummaries()
+        } else if let accountBearerToken {
+            Task { await syncArchiveCatalog(bearerToken: accountBearerToken) }
+        }
+        statusMessage = enabled
+            ? "Cloud sync is on. Set metadata syncs across devices; archive backup stays off until you enable it."
+            : "Cloud sync is off. Everything stays on this Mac."
     }
 
     func setCloudArchiveBackupEnabled(_ enabled: Bool) {

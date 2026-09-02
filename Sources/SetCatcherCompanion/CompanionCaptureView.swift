@@ -17,15 +17,15 @@ struct CompanionCaptureView: View {
                 }
 
                 Section("Input") {
-                    if model.audioInputs.isEmpty {
+                    if model.selectableAudioInputs.isEmpty {
                         Text("No inputs yet. Enable Microphone access, then pull to refresh.")
                             .foregroundStyle(.secondary)
                     } else {
                         Picker("Device", selection: Binding(
-                            get: { model.selectedInputID ?? model.audioInputs.first?.id ?? "" },
+                            get: { model.selectedInputID ?? model.selectableAudioInputs.first?.id ?? "" },
                             set: { model.selectedInputID = $0 }
                         )) {
-                            ForEach(model.audioInputs) { device in
+                            ForEach(model.selectableAudioInputs) { device in
                                 Text(device.name).tag(device.id)
                             }
                         }

@@ -14,7 +14,7 @@ struct CompanionSettingsView: View {
                 Section("Privacy") {
                     Text("Local library and import never depend on an account.")
                     Text("Audio files are never uploaded by default.")
-                    Text("Full tracklists stay on this iPad unless you explicitly export them.")
+                    Text("Full tracklists stay on this device unless you explicitly export them.")
                 }
 
                 Section("Account") {
@@ -54,7 +54,7 @@ private struct CompanionAccountAuthSection: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Sign in for your SetCatcher account. Accounts are the only thing shared with the Mac app — this iPad does not connect to a Mac for Capture or archives. Local import still works offline.")
+            Text("Sign in to sync set metadata with your Mac. Audio stays on each device unless you enable backup later. Local import still works offline.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 

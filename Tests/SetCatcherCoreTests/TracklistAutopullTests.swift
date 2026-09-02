@@ -52,6 +52,16 @@ final class TracklistAutopullTests: XCTestCase {
         XCTAssertEqual(ids, ["serato"])
     }
 
+    func testHistoryAppIDsUsesCompanionAppIDForAppAudioCapture() {
+        let ids = TracklistAutopull.historyAppIDs(
+            sourceAppID: SupportedDJSoftware.captureAppID,
+            companionAppID: "serato",
+            selectedTargetAppID: "rekordbox",
+            historyAccesses: []
+        )
+        XCTAssertEqual(ids, ["serato"])
+    }
+
     func testHistoryAppIDsUsesSelectedTargetForHardwareCapture() {
         let ids = TracklistAutopull.historyAppIDs(
             sourceAppID: SupportedDJSoftware.captureAppID,

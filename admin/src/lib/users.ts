@@ -1,4 +1,4 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { loadClerkProfile } from "./clerk-user";
 import { writeAuditEvent } from "./audit";
 import { getServiceSupabase, type DbUser } from "./supabase";
 
@@ -18,16 +18,9 @@ export async function ensureAppUser(clerkUserId: string): Promise<DbUser> {
     return existing as DbUser;
   }
 
-  const clerkUser = await currentUser();
-  const email =
-    clerkUser?.primaryEmailAddress?.emailAddress ||
-    clerkUser?.emailAddresses[0]?.emailAddress ||
-    `${clerkUserId}@users.clerk.local`;
-  const displayName =
-    clerkUser?.fullName ||
-    clerkUser?.username ||
-    clerkUser?.firstName ||
-    null;
+  const profile = await loadClerkProfile(clerkUserId);
+  const email = profile.email || `${clerkUserId}@users.clerk.local`;
+  const displayName = profile.displayName;
 
   const { data: created, error: insertError } = await supabase
     .from("users")

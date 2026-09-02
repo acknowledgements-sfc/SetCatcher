@@ -205,6 +205,15 @@ public enum SupportedDJSoftware {
     public static let denonHardwareAppID = "denon-hardware"
     public static let raneHardwareAppID = "rane-hardware"
 
+    /// Archive `sourceAppID` values for Capture lane recordings (input device, app audio, hardware USB).
+    public static let hardwareCaptureAppIDs: Set<String> = [
+        captureAppID,
+        pioneerHardwareAppID,
+        analogMixerAppID,
+        denonHardwareAppID,
+        raneHardwareAppID
+    ]
+
     /// Catalog sources that are hardware adapters (no installed bundle to probe).
     public static let hardwareAdapterAppIDs: Set<String> = [
         pioneerHardwareAppID,

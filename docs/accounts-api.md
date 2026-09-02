@@ -1,15 +1,17 @@
-# DJMemory Accounts API
+# SetCatcher Accounts API
 
-Last updated: August 9, 2026.
+Last updated: September 2, 2026.
 
 Authority: [`docs/onboarding-accounts-security.md`](onboarding-accounts-security.md).
 
-The macOS (and future iPad) app stays fully usable without sign-in. This API backs optional licensing, beta invites, device registration, and opt-in diagnostics metadata. It must never become a dependency of local archive/scan/protection paths.
+The macOS and iPad apps stay fully usable without sign-in. This API backs optional licensing, beta invites, device registration, and opt-in diagnostics metadata. It must never become a dependency of local archive/scan/protection paths.
+
+Clerk is identity only (session JWT). Licenses, devices, invites, diagnostics, archive catalog, and admin roles live in Supabase via this API — not Clerk Billing or Organizations.
 
 ## Base URL
 
 - Local: `http://localhost:3000`
-- Production: `https://beatrevival.com` (Vercel project `djmemory-admin`; also `NEXT_PUBLIC_ACCOUNT_URL` / client `DJMEMORY_ACCOUNT_URL`; Mac and iPad share [`DJMemoryAccountConfiguration`](../Sources/DJMemoryCore/DJMemoryAccountConfiguration.swift)). Fallback: `https://djmemory-admin.vercel.app` until DNS is live.
+- Production: `https://beatrevival.com` (Vercel project `djmemory-admin`; also `NEXT_PUBLIC_ACCOUNT_URL` / client `SETCATCHER_ACCOUNT_URL`; Mac and iPad share [`SetCatcherAccountConfiguration`](../Sources/SetCatcherCore/SetCatcherAccountConfiguration.swift)). Fallback: `https://djmemory-admin.vercel.app`.
 
 ## Privacy boundaries
 
@@ -38,7 +40,7 @@ Inserts a `beta_invites` row with `status: pending` and `created_by_clerk_id: nu
 
 Optional after sign-in. Do not call from archive/scan/protection paths. Offline or unreachable = full local features.
 
-macOS Settings → Account uses ClerkKit `AuthView` / `UserButton`, then calls these endpoints with `Authorization: Bearer <session token>`.
+macOS Settings → Account and iPad Settings use ClerkKit `AuthView` / `UserButton`, then call these endpoints with `Authorization: Bearer <session JWT>`. Handlers accept session tokens only (`auth({ acceptsToken: "session_token" })`). If `currentUser()` is empty (typical for native Bearer), the API loads email/name via Clerk Backend `users.getUser`.
 
 ### `POST /api/devices`
 
@@ -59,6 +61,26 @@ Returns user + active license snapshot and an explicit `localFeatures.archiveSca
 User-initiated metadata-only upload. Body: `{ "metadata": { … } }`.
 
 Rejects top-level `title`, `artist`, `tracks`, and `tracklist` keys. Nested forbidden keys are stripped server-side.
+
+### `GET /api/archive/sessions`
+
+Pull archive catalog metadata for the signed-in user (no audio, no tracklists).
+
+Query: `updatedSince` (ISO8601, optional)
+
+Returns `{ sessions: [...], restrictions }`. Each session includes metadata fields and optional `setContext` (event/venue/city/tags/notes only).
+
+### `POST /api/archive/sessions`
+
+Upsert catalog rows from this device.
+
+Body: `{ "sessions": [ { "sessionId", "platform" ("macos"|"ios"), "sourceAppId", "detectedAt", "originalFilename", ... , "setContext"? } ] }`
+
+Rejects `sourcePath`, `archivePath`, `tracklist`, `tracks`, `title`, `artist`, and `manualTracklistID`.
+
+### `DELETE /api/archive/sessions/:sessionId`
+
+Soft-delete a catalog row for this user.
 
 ## Admin (Clerk session + `admin_roles` row)
 

@@ -263,4 +263,101 @@ final class DJAppPathDiscoveryTests: XCTestCase {
             })
         )
     }
+
+    func testTraktorSettingsWalkSkipsNonTraktorNativeInstrumentsFolders() throws {
+        let home = try XCTUnwrap(tempRoot)
+        let kontaktIR = home.appendingPathComponent(
+            "Documents/Native Instruments/Kontakt/ir_samples",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: kontaktIR, withIntermediateDirectories: true)
+        try Data(repeating: 0xFF, count: 1_000_000).write(to: kontaktIR.appendingPathComponent("impulse"))
+
+        let recordings = home.appendingPathComponent("Music/traktor-rec", isDirectory: true)
+        try fileManager.createDirectory(at: recordings, withIntermediateDirectories: true)
+        let traktorSettings = home.appendingPathComponent(
+            "Documents/Native Instruments/Traktor 4/settings.xml"
+        )
+        try fileManager.createDirectory(at: traktorSettings.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("<entry name=\"MixRecorder.Path\">\(recordings.path)</entry>".utf8)
+            .write(to: traktorSettings)
+
+        let software = try XCTUnwrap(SupportedDJSoftware.all.first { $0.id == "traktor" })
+        let started = Date()
+        let paths = TraktorPathReader().readPaths(
+            installation: DJSoftwareInstallation(
+                familyID: "traktor",
+                variantLabel: "Traktor Pro 4",
+                bundleIdentifier: "com.native-instruments.Traktor",
+                bundleVersion: "4.0.0",
+                appURL: URL(fileURLWithPath: "/Applications/Traktor.app"),
+                isRunning: false,
+                discoveredPaths: []
+            ),
+            software: software,
+            homeDirectory: home,
+            fileManager: fileManager
+        )
+        XCTAssertLessThan(Date().timeIntervalSince(started), 1.0)
+        XCTAssertTrue(
+            paths.contains(where: {
+                $0.kind == .recordings
+                    && $0.source == .userPreference
+                    && $0.url.standardizedFileURL.path == recordings.standardizedFileURL.path
+            })
+        )
+    }
+
+    func testDjayContainerWalkSkipsRecordingsAndExtensionlessBinaries() throws {
+        let home = try XCTUnwrap(tempRoot)
+        let bundleID = "com.algoriddim.direct.djay-pro-2-mac"
+        let containerDocs = home.appendingPathComponent(
+            "Library/Containers/\(bundleID)/Data/Documents",
+            isDirectory: true
+        )
+        let recordingsDump = containerDocs.appendingPathComponent("Recordings", isDirectory: true)
+        try fileManager.createDirectory(at: recordingsDump, withIntermediateDirectories: true)
+        try Data(repeating: 0xFF, count: 1_000_000).write(to: recordingsDump.appendingPathComponent("set"))
+        try Data(repeating: 0x00, count: 1_000_000).write(to: containerDocs.appendingPathComponent("librarypack"))
+
+        let recordingDir = home.appendingPathComponent("Music/djay/Recordings", isDirectory: true)
+        try fileManager.createDirectory(at: recordingDir, withIntermediateDirectories: true)
+        let prefsDir = home.appendingPathComponent("Library/Preferences", isDirectory: true)
+        try fileManager.createDirectory(at: prefsDir, withIntermediateDirectories: true)
+        let prefs = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <dict>
+            <key>recordingPath</key>
+            <string>\(recordingDir.path)</string>
+        </dict>
+        </plist>
+        """
+        try prefs.write(to: prefsDir.appendingPathComponent("\(bundleID).plist"), atomically: true, encoding: .utf8)
+
+        let software = try XCTUnwrap(SupportedDJSoftware.all.first { $0.id == "djay" })
+        let started = Date()
+        let paths = DjayPathReader().readPaths(
+            installation: DJSoftwareInstallation(
+                familyID: "djay",
+                variantLabel: "djay Pro 2",
+                bundleIdentifier: "com.algoriddim.direct.djay-pro-2-mac",
+                bundleVersion: "5.1",
+                appURL: URL(fileURLWithPath: "/Applications/djay Pro 2.app"),
+                isRunning: false,
+                discoveredPaths: []
+            ),
+            software: software,
+            homeDirectory: home,
+            fileManager: fileManager
+        )
+        XCTAssertLessThan(Date().timeIntervalSince(started), 1.0)
+        XCTAssertTrue(
+            paths.contains(where: {
+                $0.kind == .recordings
+                    && $0.source == .userPreference
+                    && $0.url.standardizedFileURL.path == recordingDir.standardizedFileURL.path
+            })
+        )
+    }
 }

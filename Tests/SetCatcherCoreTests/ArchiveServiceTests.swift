@@ -178,7 +178,8 @@ final class ArchiveServiceTests: XCTestCase {
             deviceName: "Serato Virtual Audio",
             startedAt: startedAt,
             endedAt: startedAt.addingTimeInterval(120),
-            sourceAppID: "serato",
+            sourceAppID: SupportedDJSoftware.captureAppID,
+            companionAppID: "serato",
             captureRoute: .appAudio,
             captureBackend: .virtualInputDevice,
             captureDeviceTransport: "virtual"
@@ -194,6 +195,24 @@ final class ArchiveServiceTests: XCTestCase {
         XCTAssertEqual(metadata.captureDeviceUID, "serato-virtual-uid")
         XCTAssertEqual(metadata.captureDeviceName, "Serato Virtual Audio")
         XCTAssertEqual(metadata.captureDeviceTransport, "virtual")
+        XCTAssertEqual(metadata.sourceAppID, SupportedDJSoftware.captureAppID)
+        XCTAssertEqual(metadata.companionAppID, "serato")
+        XCTAssertEqual(metadata.ingestionKind, .capture)
+    }
+
+    func testFolderScanWritesFolderWatchIngestionKind() throws {
+        let sourceURL = tempRoot.appendingPathComponent("source.wav")
+        let archiveRoot = tempRoot.appendingPathComponent("Archive", isDirectory: true)
+        try Data("audio-content".utf8).write(to: sourceURL)
+        let service = ArchiveService(archiveRoot: archiveRoot)
+        let session = try service.archive(sourceURL: sourceURL, sourceAppID: "serato")
+        let archiveURL = try XCTUnwrap(session.archiveURL)
+        let data = try Data(contentsOf: service.metadataURL(for: archiveURL))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let metadata = try decoder.decode(ArchiveMetadata.self, from: data)
+        XCTAssertEqual(metadata.ingestionKind, .folderWatch)
+        XCTAssertNil(metadata.companionAppID)
         XCTAssertEqual(metadata.sourceAppID, "serato")
     }
 
@@ -218,6 +237,8 @@ final class ArchiveServiceTests: XCTestCase {
         XCTAssertNil(metadata.captureBackend)
         XCTAssertNil(metadata.captureDeviceUID)
         XCTAssertEqual(metadata.sourceAppID, "serato")
+        XCTAssertNil(metadata.ingestionKind)
+        XCTAssertNil(metadata.companionAppID)
     }
 
     func testVerifyCopiesRejectsSizeMismatchAndRemovesIncompleteCopy() throws {
