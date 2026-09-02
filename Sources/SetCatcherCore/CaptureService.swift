@@ -21,6 +21,8 @@ public struct CaptureResult: Equatable, Sendable {
     public let deviceTransport: AudioDeviceTransport?
     public let captureInterrupted: Bool
     public let captureInterruptionReason: String?
+    /// Non-fatal write problems during the take, if any. `nil` means every buffer landed.
+    public let writeFailure: CaptureWriteFailure?
 
     public init(
         stagingURL: URL,
@@ -32,7 +34,8 @@ public struct CaptureResult: Equatable, Sendable {
         captureBackend: CaptureArchiveBackend? = nil,
         deviceTransport: AudioDeviceTransport? = nil,
         captureInterrupted: Bool = false,
-        captureInterruptionReason: String? = nil
+        captureInterruptionReason: String? = nil,
+        writeFailure: CaptureWriteFailure? = nil
     ) {
         self.stagingURL = stagingURL
         self.deviceID = deviceID
@@ -44,6 +47,7 @@ public struct CaptureResult: Equatable, Sendable {
         self.deviceTransport = deviceTransport
         self.captureInterrupted = captureInterrupted
         self.captureInterruptionReason = captureInterruptionReason
+        self.writeFailure = writeFailure
     }
 }
 
@@ -78,7 +82,7 @@ public final class CaptureService: @unchecked Sendable {
     private let sampleHandlerQueue = DispatchQueue(label: "app.setcatcher.InputCapture.sample")
     private var writeFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
-    private var lastWriteErrorDetail: String?
+    private var writeTracker = CaptureWriteTracker()
     private var prerollBuffers: [AVAudioPCMBuffer] = []
     private var prerollFrames: AVAudioFrameCount = 0
     private var prerollFrameBudget: AVAudioFrameCount = 0
@@ -168,7 +172,7 @@ public final class CaptureService: @unchecked Sendable {
         sampleHandlerQueue.sync {
             writeFormat = processingFormat
             converter = audioConverter
-            lastWriteErrorDetail = nil
+            writeTracker.reset()
             prerollBuffers.removeAll()
             prerollFrames = 0
             prerollFrameBudget = AVAudioFrameCount(max(0, prerollSeconds) * CaptureAudioFormat.sampleRate)
@@ -218,7 +222,7 @@ public final class CaptureService: @unchecked Sendable {
             prerollFrames = 0
             audioFile = newAudioFile
             stagingURL = url
-            lastWriteErrorDetail = nil
+            writeTracker.reset()
             startedAt = Date().addingTimeInterval(-Double(flushedFrames) / CaptureAudioFormat.sampleRate)
             isRecording = true
         }
@@ -227,14 +231,14 @@ public final class CaptureService: @unchecked Sendable {
     public func endRecordingFile(discard: Bool) throws -> CaptureResult? {
         var wasRecording = false
         var finalizedURL: URL?
-        var writeError: String?
+        var writeFailure: CaptureWriteFailure?
         var recordingStart: Date?
         sampleHandlerQueue.sync {
             wasRecording = isRecording
             audioFile = nil
             isRecording = false
             finalizedURL = stagingURL
-            writeError = lastWriteErrorDetail
+            writeFailure = writeTracker.failure
             recordingStart = startedAt
             stagingURL = nil
             startedAt = nil
@@ -243,9 +247,9 @@ public final class CaptureService: @unchecked Sendable {
         let endedAt = Date()
         let started = recordingStart ?? endedAt
         guard let stagingURL = finalizedURL else { throw CaptureServiceError.engineFailed("Capture staging file is missing.") }
-        if let detail = writeError {
+        if let writeFailure, writeFailure.isFatal {
             try? fileManager.removeItem(at: stagingURL)
-            throw CaptureServiceError.engineFailed(detail)
+            throw CaptureServiceError.engineFailed(writeFailure.summary)
         }
         if discard {
             try? fileManager.removeItem(at: stagingURL)
@@ -263,7 +267,8 @@ public final class CaptureService: @unchecked Sendable {
             endedAt: endedAt,
             captureRoute: .inputDevice,
             captureBackend: nil,
-            deviceTransport: boundTransport
+            deviceTransport: boundTransport,
+            writeFailure: writeFailure
         )
         return result
     }
@@ -284,7 +289,7 @@ public final class CaptureService: @unchecked Sendable {
             isRecording = false
             stagingURL = nil
             startedAt = nil
-            lastWriteErrorDetail = nil
+            writeTracker.reset()
             prerollBuffers.removeAll()
             prerollFrames = 0
             prerollFrameBudget = 0
@@ -337,7 +342,9 @@ public final class CaptureService: @unchecked Sendable {
         let sourceBuffer: AVAudioPCMBuffer
         if let pair = recOutPair {
             guard let stereo = CaptureChannelPairExtractor.extractStereo(from: buffer, pair: pair) else {
-                lastWriteErrorDetail = "Capture could not extract REC OUT pair \(pair.oneBasedLabel)."
+                writeTracker.recordFailure {
+                    "Capture could not extract REC OUT pair \(pair.oneBasedLabel)."
+                }
                 return
             }
             sourceBuffer = stereo
@@ -359,16 +366,21 @@ public final class CaptureService: @unchecked Sendable {
             writeFormat: writeFormat
         )
         if let detail = conversion.error {
-            lastWriteErrorDetail = "Capture \(detail)"
+            writeTracker.recordFailure { "Capture \(detail)" }
         } else if let converted = conversion.buffer {
             if isRecording, let audioFile {
-                lastWriteErrorDetail = CapturePCMWriter.write(buffer: converted, to: audioFile).map { "Capture \($0)" }
+                if let detail = CapturePCMWriter.write(buffer: converted, to: audioFile) {
+                    writeTracker.recordFailure {
+                        "Capture \(detail)" + CapturePCMWriter.formatContext(buffer: converted, file: audioFile)
+                    }
+                } else {
+                    writeTracker.recordSuccess()
+                }
             } else {
                 appendPreroll(converted)
-                lastWriteErrorDetail = nil
             }
         } else {
-            lastWriteErrorDetail = "Capture could not convert to the capture format."
+            writeTracker.recordFailure { "Capture could not convert to the capture format." }
         }
     }
 

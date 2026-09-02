@@ -56,8 +56,12 @@ public enum CapturePCMWriter {
             return nil
         } catch {
             let nsError = error as NSError
-            return "could not write audio: \(error.localizedDescription) [\(nsError.domain)#\(nsError.code)] "
-                + "buffer=\(buffer.format) file=\(audioFile.processingFormat)"
+            return "could not write audio: \(error.localizedDescription) [\(nsError.domain)#\(nsError.code)]"
         }
+    }
+
+    /// Buffer/file format diagnostics. Built only for the first write failure of a take.
+    public static func formatContext(buffer: AVAudioPCMBuffer, file: AVAudioFile) -> String {
+        " buffer=\(buffer.format) file=\(file.processingFormat)"
     }
 }

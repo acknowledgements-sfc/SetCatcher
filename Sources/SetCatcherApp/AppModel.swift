@@ -2577,6 +2577,20 @@ final class AppModel: ObservableObject {
         return "\(result.folderURL.path): waiting for \(names)"
     }
 
+    /// Surface a take that was archived with dropped buffers. The audio is kept — a set with a
+    /// gap beats a deleted set — but the user is told, and it lands in the activity log, because
+    /// a silently gapped archive is worse than a loud one.
+    private func reportWriteFailureIfNeeded(_ failure: CaptureWriteFailure?, sessionID: UUID) {
+        guard let failure else { return }
+        statusMessage = failure.summary
+        appendActivity(
+            kind: .error,
+            message: "Recording saved with gaps",
+            detail: "Set \(sessionID.uuidString): \(failure.failedBufferCount) buffer(s) failed "
+                + "to write. \(failure.detail)"
+        )
+    }
+
     private func notifyForNewArchive(_ session: RecordingSession) {
         guard settings.notifyAfterArchiving else { return }
         let meta = ArchiveMetadata(session: session, originalFilename: session.sourceURL.lastPathComponent)
@@ -3224,6 +3238,7 @@ extension AppModel {
                 }
                 captureState = done
                 statusMessage = "App audio Capture saved"
+                reportWriteFailureIfNeeded(result.writeFailure, sessionID: session.id)
                 if resumeWatching {
                     Task { await refreshAppAudioTargets(attemptAutoArm: true) }
                 }
@@ -3866,6 +3881,7 @@ extension AppModel {
                 }
                 captureState = done
                 statusMessage = "Capture saved"
+                reportWriteFailureIfNeeded(result.writeFailure, sessionID: session.id)
             } else if resumeWatching {
                 let tick = captureSession.resumeWatchingAfterSave(
                     discarded: true,
@@ -4089,6 +4105,7 @@ extension AppModel {
             done.statusMessage = "Capture saved. Import a tracklist from Set Detail when you have an export."
             captureState = done
             statusMessage = "Capture saved"
+            reportWriteFailureIfNeeded(result.writeFailure, sessionID: session.id)
         } catch let error as CaptureServiceError {
             applyCaptureFailure(error)
         } catch {
@@ -4288,6 +4305,7 @@ extension AppModel {
             done.statusMessage = "Interrupted take saved to your archive."
             captureState = done
             statusMessage = done.statusMessage
+            reportWriteFailureIfNeeded(result.writeFailure, sessionID: session.id)
         } catch {
             var failed = captureState
             failed.phase = .armed
