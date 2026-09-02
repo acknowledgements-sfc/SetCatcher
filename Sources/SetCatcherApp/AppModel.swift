@@ -38,6 +38,7 @@ private enum MenuBarPulseMode: Equatable {
 private struct PendingCaptureRecovery {
     let result: CaptureResult
     let sourceAppID: String
+    let companionAppID: String?
     let captureRoute: CaptureArchiveRoute
     let captureBackend: CaptureArchiveBackend?
     let captureDeviceTransport: String?
@@ -703,6 +704,7 @@ final class AppModel: ObservableObject {
     private func stagePendingCaptureRecovery(
         _ result: CaptureResult,
         sourceAppID: String,
+        companionAppID: String? = nil,
         route: CaptureArchiveRoute,
         backend: CaptureArchiveBackend?,
         transport: String?
@@ -710,6 +712,7 @@ final class AppModel: ObservableObject {
         pendingCaptureRecovery = PendingCaptureRecovery(
             result: result,
             sourceAppID: sourceAppID,
+            companionAppID: companionAppID,
             captureRoute: route,
             captureBackend: backend,
             captureDeviceTransport: transport
@@ -722,6 +725,7 @@ final class AppModel: ObservableObject {
             startedAt: result.startedAt,
             endedAt: result.endedAt,
             sourceAppID: sourceAppID,
+            companionAppID: companionAppID,
             captureRoute: route,
             captureBackend: backend,
             captureDeviceTransport: transport,
@@ -755,6 +759,7 @@ final class AppModel: ObservableObject {
         pendingCaptureRecovery = PendingCaptureRecovery(
             result: result,
             sourceAppID: record.sourceAppID,
+            companionAppID: record.companionAppID,
             captureRoute: record.captureRoute,
             captureBackend: record.captureBackend,
             captureDeviceTransport: record.captureDeviceTransport
@@ -768,13 +773,16 @@ final class AppModel: ObservableObject {
             throw CaptureServiceError.engineFailed("No temporary capture is available to recover.")
         }
         let result = pending.result
+        let companionAppID = pending.companionAppID ?? legacyCompanionAppID(from: pending)
+        let sourceAppID = companionAppID != nil ? SupportedDJSoftware.captureAppID : pending.sourceAppID
         let session = try archiveService().ingestCapture(
             stagingURL: result.stagingURL,
             deviceID: result.deviceID,
             deviceName: result.deviceName,
             startedAt: result.startedAt,
             endedAt: result.endedAt,
-            sourceAppID: pending.sourceAppID,
+            sourceAppID: sourceAppID,
+            companionAppID: companionAppID,
             captureRoute: pending.captureRoute,
             captureBackend: pending.captureBackend,
             captureDeviceTransport: pending.captureDeviceTransport,
@@ -785,6 +793,15 @@ final class AppModel: ObservableObject {
         recoverableStagingURL = nil
         try? pendingCaptureRecoveryStore.remove()
         return session
+    }
+
+    private func legacyCompanionAppID(from pending: PendingCaptureRecovery) -> String? {
+        guard pending.companionAppID == nil,
+              pending.sourceAppID != SupportedDJSoftware.captureAppID,
+              pending.captureRoute == .appAudio else {
+            return nil
+        }
+        return pending.sourceAppID
     }
 
     func retryPendingCaptureSave() {
@@ -2596,9 +2613,10 @@ final class AppModel: ObservableObject {
     }
 
     /// After archive, pull a nearby history export from known local history folders (soft-fail).
-    private func autopullTracklist(for session: RecordingSession) {
+    private func autopullTracklist(for session: RecordingSession, companionAppID: String? = nil) {
         let appIDs = TracklistAutopull.historyAppIDs(
             sourceAppID: session.sourceAppID,
+            companionAppID: companionAppID,
             selectedTargetAppID: captureState.selectedTargetApp?.software.id,
             historyAccesses: folderAccesses
         )
@@ -2642,10 +2660,13 @@ extension AppModel {
 
     func candidateTracklists(for archive: ArchiveMetadata) -> [ImportedTracklist] {
         let matchable = allImportedTracklists.filter(\.kind.isMatchableToRecording)
+        if archive.companionAppID != nil {
+            return matchable.filter { $0.appID == archive.djAppID }
+        }
         if LibrarySessionMatcher.hardwareCaptureAppIDs.contains(archive.sourceAppID) {
             return matchable.filter { LibrarySessionMatcher.hardwareRelatedTracklistAppIDs.contains($0.appID) }
         }
-        return matchable.filter { $0.appID == archive.sourceAppID }
+        return matchable.filter { $0.appID == archive.djAppID }
     }
 
     func setCaptureMode(_ mode: CaptureMode) {
@@ -2968,9 +2989,11 @@ extension AppModel {
         do {
             let result = try appAudioCaptureService.endRecordingFile(discard: discard)
             if let result, !discard {
+                let companionAppID = captureState.selectedTargetApp?.software.id
                 stagePendingCaptureRecovery(
                     result,
-                    sourceAppID: captureState.selectedTargetApp?.software.id ?? SupportedDJSoftware.captureAppID,
+                    sourceAppID: SupportedDJSoftware.captureAppID,
+                    companionAppID: companionAppID,
                     route: result.captureRoute ?? .appAudio,
                     backend: result.captureBackend ?? appAudioCaptureService.activeBackendKind.archiveBackend,
                     transport: result.deviceTransport?.archiveLabel
@@ -2979,7 +3002,7 @@ extension AppModel {
                 let session = try ingestPendingCaptureRecovery()
                 notifyForNewArchive(session)
                 refresh()
-                autopullTracklist(for: session)
+                autopullTracklist(for: session, companionAppID: companionAppID)
                 var done = captureState
                 done.lastArchivedSessionID = session.id
                 if resumeWatching {

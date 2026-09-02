@@ -116,6 +116,31 @@ final class PerformanceSessionLinkerTests: XCTestCase {
         XCTAssertEqual(group.hardwareBackup?.archivePath, "/unchanged-archive.wav")
     }
 
+    func testLegacyMisTaggedAppAudioLinksWithFolder() {
+        let capture = archive(
+            id: UUID(),
+            app: "serato",
+            detectedAt: t0,
+            completedAt: t0.addingTimeInterval(3600),
+            path: "/c.wav",
+            captureRoute: .appAudio
+        )
+        let folder = archive(
+            id: UUID(),
+            app: "serato",
+            detectedAt: t0.addingTimeInterval(3610),
+            completedAt: t0.addingTimeInterval(3620),
+            duration: 3500,
+            path: "/s.wav",
+            ingestionKind: .folderWatch
+        )
+        let groups = PerformanceSessionLinker.groups(from: [capture, folder])
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups[0].primary.sourceAppID, "serato")
+        XCTAssertEqual(groups[0].hardwareBackup?.sourceAppID, "serato")
+        XCTAssertTrue(groups[0].hardwareBackup?.isCaptureLane == true)
+    }
+
     func testAttachmentWhenFolderJoinsExistingCapture() {
         let capture = archive(id: UUID(), app: SupportedDJSoftware.captureAppID, detectedAt: t0, completedAt: t0.addingTimeInterval(3600), path: "/c.wav")
         let folder = archive(id: UUID(), app: "serato", detectedAt: t0.addingTimeInterval(3610), completedAt: t0.addingTimeInterval(3620), path: "/s.wav")
@@ -222,7 +247,10 @@ final class PerformanceSessionLinkerTests: XCTestCase {
         duration: Double? = nil,
         path: String,
         archive: String? = nil,
-        size: Int64 = 1
+        size: Int64 = 1,
+        captureRoute: CaptureArchiveRoute? = nil,
+        ingestionKind: ArchiveIngestionKind? = nil,
+        companionAppID: String? = nil
     ) -> ArchiveMetadata {
         ArchiveMetadata(
             sessionID: id,
@@ -234,7 +262,10 @@ final class PerformanceSessionLinkerTests: XCTestCase {
             fileSize: size,
             originalFilename: URL(fileURLWithPath: path).lastPathComponent,
             durationSeconds: duration,
-            sourceFingerprint: id.uuidString
+            sourceFingerprint: id.uuidString,
+            ingestionKind: ingestionKind,
+            companionAppID: companionAppID,
+            captureRoute: captureRoute
         )
     }
 }

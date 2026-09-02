@@ -34,12 +34,14 @@ public struct SessionLibrary {
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
 
         return urls
             .filter { $0.pathExtension.lowercased() == "json" }
             .compactMap { url -> ArchiveMetadata? in
-                guard let data = try? Data(contentsOf: url) else { return nil }
-                return try? decoder.decode(ArchiveMetadata.self, from: data)
+                try? ArchiveMetadataMigration.loadRepaired(from: url, decoder: decoder, encoder: encoder)
             }
             .sorted { $0.detectedAt > $1.detectedAt }
     }

@@ -202,7 +202,8 @@ public enum AppAudioProbeRunner {
                         deviceID: result.deviceID,
                         deviceName: result.deviceName,
                         startedAt: recordingStartedAt,
-                        sourceAppID: chosen.software.id,
+                        sourceAppID: SupportedDJSoftware.captureAppID,
+                        companionAppID: chosen.software.id,
                         captureRoute: result.captureRoute ?? .appAudio,
                         captureBackend: result.captureBackend ?? service.activeBackendKind.archiveBackend,
                         captureDeviceTransport: result.deviceTransport?.archiveLabel

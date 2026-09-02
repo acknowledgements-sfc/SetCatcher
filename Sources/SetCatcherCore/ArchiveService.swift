@@ -62,6 +62,7 @@ public struct ArchiveService {
         startedAt: Date,
         endedAt: Date = Date(),
         sourceAppID: String = SupportedDJSoftware.captureAppID,
+        companionAppID: String? = nil,
         removeStagingAfterCopy: Bool = true,
         captureRoute: CaptureArchiveRoute? = nil,
         captureBackend: CaptureArchiveBackend? = nil,
@@ -77,6 +78,7 @@ public struct ArchiveService {
                 startedAt: startedAt,
                 endedAt: endedAt,
                 sourceAppID: sourceAppID,
+                companionAppID: companionAppID,
                 removeStagingAfterCopy: removeStagingAfterCopy,
                 captureRoute: captureRoute,
                 captureBackend: captureBackend,
@@ -126,7 +128,8 @@ public struct ArchiveService {
             try writeMetadata(
                 for: session,
                 originalFilename: sourceURL.lastPathComponent,
-                sourceFingerprint: sourceFingerprint
+                sourceFingerprint: sourceFingerprint,
+                ingestionKind: .folderWatch
             )
             return session
         } catch {
@@ -143,6 +146,7 @@ public struct ArchiveService {
         startedAt: Date,
         endedAt: Date,
         sourceAppID: String,
+        companionAppID: String?,
         removeStagingAfterCopy: Bool,
         captureRoute: CaptureArchiveRoute?,
         captureBackend: CaptureArchiveBackend?,
@@ -165,7 +169,12 @@ public struct ArchiveService {
         let syntheticSourceURL = URL(fileURLWithPath: "/SetCatcherCapture/\(sanitizedDevice)/\(deviceID)/\(syntheticSourceName)")
         let fileSize = try stagingURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         let sourceFingerprint = try contentFingerprint(for: stagingURL)
-        let destinationURL = uniqueDestinationURL(for: syntheticSourceURL, sourceAppID: sourceAppID, detectedAt: startedAt)
+        let destinationURL = uniqueDestinationURL(
+            for: syntheticSourceURL,
+            sourceAppID: sourceAppID,
+            namingAppID: companionAppID ?? sourceAppID,
+            detectedAt: startedAt
+        )
         try fileManager.copyItem(at: stagingURL, to: destinationURL)
         do {
             try verifyCopyIfNeeded(sourceURL: stagingURL, destinationURL: destinationURL, expectedSize: fileSize)
@@ -186,6 +195,8 @@ public struct ArchiveService {
                 for: session,
                 originalFilename: syntheticSourceName,
                 sourceFingerprint: sourceFingerprint,
+                ingestionKind: .capture,
+                companionAppID: companionAppID,
                 captureRoute: captureRoute,
                 captureBackend: captureBackend,
                 captureDeviceUID: deviceID,
@@ -314,6 +325,8 @@ public struct ArchiveService {
         for session: RecordingSession,
         originalFilename: String,
         sourceFingerprint: String,
+        ingestionKind: ArchiveIngestionKind? = nil,
+        companionAppID: String? = nil,
         captureRoute: CaptureArchiveRoute? = nil,
         captureBackend: CaptureArchiveBackend? = nil,
         captureDeviceUID: String? = nil,
@@ -335,6 +348,8 @@ public struct ArchiveService {
             originalFilename: originalFilename,
             durationSeconds: durationReader.durationSeconds(for: archiveURL),
             sourceFingerprint: sourceFingerprint,
+            ingestionKind: ingestionKind,
+            companionAppID: companionAppID,
             captureRoute: captureRoute,
             captureBackend: captureBackend,
             captureDeviceUID: captureDeviceUID,
@@ -350,7 +365,12 @@ public struct ArchiveService {
         try data.write(to: metadataURL(for: archiveURL), options: [.atomic])
     }
 
-    private func uniqueDestinationURL(for sourceURL: URL, sourceAppID: String, detectedAt: Date) -> URL {
+    private func uniqueDestinationURL(
+        for sourceURL: URL,
+        sourceAppID: String,
+        namingAppID: String? = nil,
+        detectedAt: Date
+    ) -> URL {
         let dateFormatter = DateFormatter()
         dateFormatter.calendar = calendar
         dateFormatter.timeZone = calendar.timeZone
@@ -361,7 +381,8 @@ public struct ArchiveService {
         timeFormatter.timeZone = calendar.timeZone
         timeFormatter.dateFormat = "HHmm"
 
-        let appName = SupportedDJSoftware.all.first { $0.id == sourceAppID }?.displayName ?? sourceAppID
+        let appIDForName = namingAppID ?? sourceAppID
+        let appName = SupportedDJSoftware.all.first { $0.id == appIDForName }?.displayName ?? appIDForName
         let ext = sourceURL.pathExtension
         let renderedName = namingTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? Self.defaultNamingTemplate

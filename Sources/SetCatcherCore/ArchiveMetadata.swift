@@ -15,6 +15,12 @@ public enum CaptureArchiveBackend: String, Codable, Equatable, Sendable {
     case setcatcherVirtualDriver
 }
 
+/// Which archive lane produced this sidecar.
+public enum ArchiveIngestionKind: String, Codable, Equatable, Sendable {
+    case capture
+    case folderWatch
+}
+
 public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
     public let sessionID: UUID
     public let sourceAppID: String
@@ -26,6 +32,8 @@ public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
     public let originalFilename: String
     public let durationSeconds: Double?
     public let sourceFingerprint: String?
+    public let ingestionKind: ArchiveIngestionKind?
+    public let companionAppID: String?
     public let captureRoute: CaptureArchiveRoute?
     public let captureBackend: CaptureArchiveBackend?
     public let captureDeviceUID: String?
@@ -36,9 +44,21 @@ public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
 
     public var id: UUID { sessionID }
 
+    /// DJ app identity for tracklist matching and display — companion when capture lane knows the app.
+    public var djAppID: String { companionAppID ?? sourceAppID }
+
+    /// True when this sidecar belongs to the Capture lane (not a folder-scan copy).
+    public var isCaptureLane: Bool {
+        if ingestionKind == .capture { return true }
+        if ingestionKind == .folderWatch { return false }
+        if captureRoute != nil { return true }
+        return SupportedDJSoftware.hardwareCaptureAppIDs.contains(sourceAppID)
+    }
+
     private enum CodingKeys: String, CodingKey {
         case sessionID, sourceAppID, detectedAt, completedAt, sourcePath, archivePath
         case fileSize, originalFilename, durationSeconds, sourceFingerprint
+        case ingestionKind, companionAppID
         case captureRoute, captureBackend, captureDeviceUID, captureDeviceName, captureDeviceTransport
         case captureInterrupted, captureInterruptionReason
     }
@@ -55,6 +75,8 @@ public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
         originalFilename = try container.decode(String.self, forKey: .originalFilename)
         durationSeconds = try container.decodeIfPresent(Double.self, forKey: .durationSeconds)
         sourceFingerprint = try container.decodeIfPresent(String.self, forKey: .sourceFingerprint)
+        ingestionKind = try container.decodeIfPresent(ArchiveIngestionKind.self, forKey: .ingestionKind)
+        companionAppID = try container.decodeIfPresent(String.self, forKey: .companionAppID)
         captureRoute = try container.decodeIfPresent(CaptureArchiveRoute.self, forKey: .captureRoute)
         captureBackend = try container.decodeIfPresent(CaptureArchiveBackend.self, forKey: .captureBackend)
         captureDeviceUID = try container.decodeIfPresent(String.self, forKey: .captureDeviceUID)
@@ -76,6 +98,8 @@ public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
         try container.encode(originalFilename, forKey: .originalFilename)
         try container.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
         try container.encodeIfPresent(sourceFingerprint, forKey: .sourceFingerprint)
+        try container.encodeIfPresent(ingestionKind, forKey: .ingestionKind)
+        try container.encodeIfPresent(companionAppID, forKey: .companionAppID)
         try container.encodeIfPresent(captureRoute, forKey: .captureRoute)
         try container.encodeIfPresent(captureBackend, forKey: .captureBackend)
         try container.encodeIfPresent(captureDeviceUID, forKey: .captureDeviceUID)
@@ -98,6 +122,8 @@ public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
         self.originalFilename = originalFilename
         self.durationSeconds = nil
         self.sourceFingerprint = nil
+        self.ingestionKind = nil
+        self.companionAppID = nil
         self.captureRoute = nil
         self.captureBackend = nil
         self.captureDeviceUID = nil
@@ -118,6 +144,8 @@ public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
         originalFilename: String,
         durationSeconds: Double?,
         sourceFingerprint: String? = nil,
+        ingestionKind: ArchiveIngestionKind? = nil,
+        companionAppID: String? = nil,
         captureRoute: CaptureArchiveRoute? = nil,
         captureBackend: CaptureArchiveBackend? = nil,
         captureDeviceUID: String? = nil,
@@ -136,6 +164,8 @@ public struct ArchiveMetadata: Identifiable, Codable, Equatable, Sendable {
         self.originalFilename = originalFilename
         self.durationSeconds = durationSeconds
         self.sourceFingerprint = sourceFingerprint
+        self.ingestionKind = ingestionKind
+        self.companionAppID = companionAppID
         self.captureRoute = captureRoute
         self.captureBackend = captureBackend
         self.captureDeviceUID = captureDeviceUID

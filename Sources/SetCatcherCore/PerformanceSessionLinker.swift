@@ -40,11 +40,14 @@ public enum PerformanceSessionLinker {
     ]
 
     public static func groups(from archives: [ArchiveMetadata]) -> [PerformanceGroup] {
-        let captures = archives.filter { $0.sourceAppID == SupportedDJSoftware.captureAppID }
-        let folders = archives.filter { folderProtectedAppIDs.contains($0.sourceAppID) }
+        let captures = archives.filter(\.isCaptureLane)
+        let folders = archives.filter {
+            $0.ingestionKind == .folderWatch
+                || (folderProtectedAppIDs.contains($0.sourceAppID) && !$0.isCaptureLane)
+        }
         let leftovers = archives.filter {
-            $0.sourceAppID != SupportedDJSoftware.captureAppID
-                && !folderProtectedAppIDs.contains($0.sourceAppID)
+            !$0.isCaptureLane && !folderProtectedAppIDs.contains($0.sourceAppID)
+                && $0.ingestionKind != .folderWatch
         }
 
         var usedFolderIDs = Set<UUID>()
