@@ -74,7 +74,7 @@ final class DiagnosticsReportTests: XCTestCase {
             activityEvents: [
                 ActivityEvent(
                     kind: .importTracklist,
-                    message: "Imported 1 track",
+                    message: "Imported from /Users/private-dj/Music/_Serato_/History Export/private-set.csv",
                     detail: "/Users/private-dj/Music/_Serato_/History Export/private-set.csv",
                     createdAt: activityAt
                 )
@@ -93,6 +93,10 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertEqual(report.software.first?.recordingFolderPaths, ["~/Music/_Serato_/Recording"])
         XCTAssertEqual(report.imports.first?.sourcePath, "~/Music/_Serato_/History Export/private-set.csv")
         XCTAssertEqual(report.archives.first?.sourcePath, "~/Music/_Serato_/Recording/set.wav")
+        XCTAssertEqual(
+            report.recentActivity.first?.message,
+            "Imported from ~/Music/_Serato_/History Export/private-set.csv"
+        )
         XCTAssertEqual(report.recentActivity.first?.detail, "~/Music/_Serato_/History Export/private-set.csv")
         XCTAssertEqual(report.imports.first?.trackCount, 1)
 
