@@ -16,7 +16,6 @@ public struct ArchiveCatalogSetContextDTO: Codable, Equatable, Sendable {
     public var venue: String
     public var city: String
     public var tags: String
-    public var notes: String
     public var updatedAt: Date?
 
     public init(
@@ -24,14 +23,12 @@ public struct ArchiveCatalogSetContextDTO: Codable, Equatable, Sendable {
         venue: String = "",
         city: String = "",
         tags: String = "",
-        notes: String = "",
         updatedAt: Date? = nil
     ) {
         self.eventName = eventName
         self.venue = venue
         self.city = city
         self.tags = tags
-        self.notes = notes
         self.updatedAt = updatedAt
     }
 }
@@ -149,20 +146,27 @@ public enum ArchiveCatalogMapper {
             venue: context.venue,
             city: context.city,
             tags: context.tags,
-            notes: context.notes,
             updatedAt: context.updatedAt
         )
     }
 
     public static func setContext(from dto: ArchiveCatalogSetContextDTO, sessionID: UUID) -> SetContext {
+        mergingSyncedFields(from: dto, into: nil, sessionID: sessionID)
+    }
+
+    public static func mergingSyncedFields(
+        from dto: ArchiveCatalogSetContextDTO,
+        into localContext: SetContext?,
+        sessionID: UUID
+    ) -> SetContext {
         SetContext(
             sessionID: sessionID,
             eventName: dto.eventName,
             venue: dto.venue,
             city: dto.city,
             tags: dto.tags,
-            notes: dto.notes,
-            manualTracklistID: nil,
+            notes: localContext?.notes ?? "",
+            manualTracklistID: localContext?.manualTracklistID,
             updatedAt: dto.updatedAt ?? Date()
         )
     }
@@ -218,7 +222,11 @@ public struct ArchiveCatalogMerger {
             let incoming = ArchiveCatalogMapper.setContext(from: remoteContext, sessionID: sessionID)
             if let existing = merged[sessionID] {
                 if incoming.updatedAt > existing.updatedAt {
-                    merged[sessionID] = incoming
+                    merged[sessionID] = ArchiveCatalogMapper.mergingSyncedFields(
+                        from: remoteContext,
+                        into: existing,
+                        sessionID: sessionID
+                    )
                 }
             } else if !localArchiveIDs.contains(sessionID) {
                 merged[sessionID] = incoming

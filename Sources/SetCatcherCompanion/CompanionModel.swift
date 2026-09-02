@@ -335,8 +335,13 @@ public final class CompanionModel {
             let incoming = ArchiveCatalogMapper.setContext(from: remoteContext, sessionID: remote.sessionId)
             let existing = setContexts[remote.sessionId] ?? SetContext(sessionID: remote.sessionId)
             guard incoming.updatedAt > existing.updatedAt else { continue }
-            try? setContextStore.save(incoming)
-            setContexts[remote.sessionId] = incoming
+            let merged = ArchiveCatalogMapper.mergingSyncedFields(
+                from: remoteContext,
+                into: existing,
+                sessionID: remote.sessionId
+            )
+            try? setContextStore.save(merged)
+            setContexts[remote.sessionId] = merged
         }
     }
 

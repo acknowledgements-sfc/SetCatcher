@@ -49,6 +49,64 @@ struct ArchiveCatalogSyncTests {
         #expect(dto.originalFilename == "set.wav")
         #expect(dto.setContext?.eventName == "Friday Night")
         #expect(dto.setContext?.venue == "Club")
+
+        let data = try! JSONEncoder().encode(dto)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(!json.contains("notes"))
+        #expect(!json.contains("Great crowd"))
+    }
+
+    @Test("Legacy remote notes are ignored")
+    func legacyRemoteNotesAreIgnored() throws {
+        let data = Data(
+            #"{"eventName":"Remote Event","venue":"Club","city":"LA","tags":"house","notes":"legacy private note","updatedAt":"2026-09-02T12:00:00Z"}"#.utf8
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let dto = try decoder.decode(ArchiveCatalogSetContextDTO.self, from: data)
+        let context = ArchiveCatalogMapper.setContext(from: dto, sessionID: UUID())
+
+        #expect(context.eventName == "Remote Event")
+        #expect(context.notes.isEmpty)
+        #expect(context.manualTracklistID == nil)
+    }
+
+    @Test("Remote sync preserves local-only context")
+    func remoteSyncPreservesLocalOnlyContext() {
+        let sessionID = UUID()
+        let tracklistID = UUID()
+        let local = SetContext(
+            sessionID: sessionID,
+            eventName: "Old Event",
+            venue: "Old Venue",
+            city: "Oakland",
+            tags: "old",
+            notes: "Keep this private",
+            manualTracklistID: tracklistID,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let remote = ArchiveCatalogSetContextDTO(
+            eventName: "New Event",
+            venue: "New Venue",
+            city: "San Francisco",
+            tags: "house",
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+
+        let merged = ArchiveCatalogMapper.mergingSyncedFields(
+            from: remote,
+            into: local,
+            sessionID: sessionID
+        )
+
+        #expect(merged.eventName == "New Event")
+        #expect(merged.venue == "New Venue")
+        #expect(merged.city == "San Francisco")
+        #expect(merged.tags == "house")
+        #expect(merged.notes == "Keep this private")
+        #expect(merged.manualTracklistID == tracklistID)
+        #expect(merged.updatedAt == Date(timeIntervalSince1970: 200))
     }
 
     @Test("Merger adds remote-only stubs")
@@ -167,6 +225,8 @@ struct ArchiveCatalogSyncTests {
         let localContext = SetContext(
             sessionID: sessionID,
             eventName: "Old",
+            notes: "Local note",
+            manualTracklistID: UUID(uuidString: "00000000-0000-0000-0000-000000000004"),
             updatedAt: Date(timeIntervalSince1970: 100)
         )
         let remoteContext = ArchiveCatalogSetContextDTO(
@@ -203,5 +263,7 @@ struct ArchiveCatalogSyncTests {
             localArchiveIDs: [sessionID]
         )
         #expect(merged.first?.eventName == "New")
+        #expect(merged.first?.notes == "Local note")
+        #expect(merged.first?.manualTracklistID == UUID(uuidString: "00000000-0000-0000-0000-000000000004"))
     }
 }
