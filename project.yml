@@ -37,6 +37,8 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.app.setcatcher.shared
+        com.apple.developer.associated-domains:
+          - webcredentials:glorious-longhorn-36.clerk.accounts.dev
     dependencies:
       - package: SetCatcherPackage
         product: SetCatcherCompanion
