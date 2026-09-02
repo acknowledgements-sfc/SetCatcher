@@ -1,6 +1,15 @@
 # Deploy DJMemory Accounts (Clerk + Supabase + Vercel)
 
-Last updated: August 9, 2026.
+Last updated: September 2, 2026.
+
+## Status (2026-09-02)
+
+- Supabase project **DJMemory** (`alywaxyxnaxwbbsiaafs`, `us-west-1`). Was **INACTIVE**; restored 2026-09-02 and migrations **001–003** reapplied (see note below).
+- Migration `archive_catalog` applied: `archive_sessions`, `archive_set_contexts` (metadata + set context only).
+- Catalog API live: `GET/POST /api/archive/sessions`, `DELETE /api/archive/sessions/:sessionId` (see [`accounts-api.md`](accounts-api.md)).
+- Production deploy **2026-09-02** includes archive routes (`djmemory-admin` → `beatrevival.com`, `setcatcher.com`).
+
+**Restore caveat:** waking a paused Supabase project can yield an empty database. After restore, re-run migrations 001–003 and re-insert your `admin_roles` row if admin sign-in fails.
 
 ## Status (2026-08-09)
 
@@ -27,6 +36,7 @@ Last updated: August 9, 2026.
 | `https://beatrevival.com/api/devices` | Device register (auth) |
 | `https://beatrevival.com/api/license` | License snapshot (auth) |
 | `https://beatrevival.com/api/diagnostics` | Diagnostics metadata (auth) |
+| `https://beatrevival.com/api/archive/sessions` | Archive catalog pull/push (auth; metadata only) |
 
 Fallback while DNS propagates: `https://djmemory-admin.vercel.app` (same project).
 
