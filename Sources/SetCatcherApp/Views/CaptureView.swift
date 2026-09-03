@@ -141,7 +141,7 @@ struct CaptureView: View {
                                 .foregroundStyle(DJToken.mutedForeground)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        Text("CDJs need the Mac in the USB audio path, a DJM Capture path, or a PIONEERREC folder. A mixer that never reaches the Mac is Manual Setup.")
+                        Text("CDJs need the Mac in the USB audio path, a DJM Capture path, or a PIONEERREC folder. A mixer that never reaches the Mac is \(pioneerHardwareSupportStatusLabel).")
                             .font(.system(size: DJToken.TypeSize.secondary))
                             .foregroundStyle(DJToken.warn)
                     }
@@ -164,6 +164,11 @@ struct CaptureView: View {
                 }
             }
         }
+    }
+
+    private var pioneerHardwareSupportStatusLabel: String {
+        SupportedDJSoftware.all.first { $0.id == SupportedDJSoftware.pioneerHardwareAppID }?.supportStatus.displayName
+            ?? IntegrationSupportStatus.manualSetup.displayName
     }
 
     private var introCopy: String {
