@@ -315,7 +315,7 @@ public final class CompanionModel {
 
             applyDisplayedSessions()
             accountSyncMessage =
-                "Library catalog synced across your devices. Audio stays on this device unless you enable backup later."
+                "Library catalog synced across your devices. Audio stays on this device; remote archive backup is unavailable in this beta."
             persistCatalogSyncState(remoteCount: pull.sessions.count)
         } catch {
             accountSyncMessage =

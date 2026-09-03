@@ -47,6 +47,7 @@ struct ArchiveCatalogSyncTests {
         #expect(dto.platform == .macos)
         #expect(dto.sourceAppId == "serato")
         #expect(dto.originalFilename == "set.wav")
+        #expect(dto.audioBackedUp == false)
         #expect(dto.setContext?.eventName == "Friday Night")
         #expect(dto.setContext?.venue == "Club")
 

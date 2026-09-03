@@ -112,8 +112,7 @@ public enum ArchiveCatalogMapper {
         from archive: ArchiveMetadata,
         context: SetContext?,
         platform: ArchiveCatalogPlatform,
-        originDeviceName: String?,
-        audioBackedUp: Bool = false
+        originDeviceName: String?
     ) -> ArchiveCatalogSessionDTO {
         ArchiveCatalogSessionDTO(
             sessionId: archive.sessionID,
@@ -134,7 +133,7 @@ public enum ArchiveCatalogMapper {
             captureDeviceTransport: archive.captureDeviceTransport,
             captureInterrupted: archive.captureInterrupted,
             captureInterruptionReason: archive.captureInterruptionReason,
-            audioBackedUp: audioBackedUp,
+            audioBackedUp: false,
             updatedAt: Date(),
             setContext: context.map(contextDTO(from:))
         )
