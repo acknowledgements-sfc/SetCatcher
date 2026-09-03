@@ -72,13 +72,8 @@ struct SettingsView: View {
                     isOn: Binding(get: { model.settings.cloudSyncEnabled }, set: { model.setCloudSyncEnabled($0) }),
                     id: "settings.cloudSync"
                 )
-                settingsToggle(
-                    title: "Opt in to archive backup",
-                    explanation: "Explicit backup of archived recordings. Requires cloud sync. Never silent.",
-                    isOn: Binding(get: { model.settings.cloudArchiveBackupEnabled }, set: { model.setCloudArchiveBackupEnabled($0) }),
-                    id: "settings.cloudArchiveBackup"
-                )
-                .disabled(!model.settings.cloudSyncEnabled)
+
+                CatalogSyncPrivacyDisclosure()
             }
         }
     }

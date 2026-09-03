@@ -12,7 +12,7 @@ struct CompanionLibraryView: View {
                     ContentUnavailableView {
                         Label("No sets archived yet", systemImage: "rectangle.stack")
                     } description: {
-                        Text("Import a recording from a DJ app on this device (djay first) via Files or Share, or use Capture on this device. Sign in to sync set metadata across your Mac and this device — audio stays on each device unless you enable backup.")
+                        Text("Import a recording from a DJ app on this device (djay first) via Files or Share, or use Capture on this device. Sign in to sync set metadata across your Mac and this device — audio stays on each device. Remote archive backup is not available in this private beta.")
                     } actions: {
                         Button("Import") {
                             model.selectedRoute = .importSets
