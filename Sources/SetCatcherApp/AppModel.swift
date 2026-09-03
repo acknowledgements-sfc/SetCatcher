@@ -2058,8 +2058,7 @@ final class AppModel: ObservableObject {
                     from: archive,
                     context: setContexts[archive.sessionID],
                     platform: .macos,
-                    originDeviceName: originName,
-                    audioBackedUp: settings.cloudArchiveBackupEnabled
+                    originDeviceName: originName
                 )
             }
             if !dtos.isEmpty {
@@ -2068,7 +2067,7 @@ final class AppModel: ObservableObject {
 
             rebuildLibrarySummaries()
             accountSyncMessage =
-                "Library catalog synced across your devices. Audio stays on this Mac unless you enable archive backup."
+                "Library catalog synced across your devices. Audio stays on this Mac; remote archive backup is unavailable in this beta."
         } catch {
             accountSyncMessage =
                 "Could not sync the library catalog: \(error.localizedDescription). Local archives are unchanged."
@@ -2088,8 +2087,13 @@ final class AppModel: ObservableObject {
             let incoming = ArchiveCatalogMapper.setContext(from: remoteContext, sessionID: remote.sessionId)
             let existing = setContexts[remote.sessionId] ?? SetContext(sessionID: remote.sessionId)
             guard incoming.updatedAt > existing.updatedAt else { continue }
-            try? setContextStore.save(incoming)
-            setContexts[remote.sessionId] = incoming
+            let merged = ArchiveCatalogMapper.mergingSyncedFields(
+                from: remoteContext,
+                into: existing,
+                sessionID: remote.sessionId
+            )
+            try? setContextStore.save(merged)
+            setContexts[remote.sessionId] = merged
         }
     }
 
@@ -4130,7 +4134,7 @@ extension AppModel {
     }
 
     func setCloudSyncEnabled(_ enabled: Bool) {
-        let newSettings = settings.updating(cloudSyncEnabled: enabled, cloudArchiveBackupEnabled: enabled ? settings.cloudArchiveBackupEnabled : false)
+        let newSettings = settings.updating(cloudSyncEnabled: enabled, cloudArchiveBackupEnabled: false)
         try? appSettingsStore.save(newSettings)
         settings = newSettings
         if !enabled {
@@ -4140,19 +4144,15 @@ extension AppModel {
             Task { await syncArchiveCatalog(bearerToken: accountBearerToken) }
         }
         statusMessage = enabled
-            ? "Cloud sync is on. Set metadata syncs across devices; archive backup stays off until you enable it."
+            ? "Cloud sync is on. Set metadata syncs across devices; remote archive backup is unavailable in this beta."
             : "Cloud sync is off. Everything stays on this Mac."
     }
 
-    func setCloudArchiveBackupEnabled(_ enabled: Bool) {
-        guard settings.cloudSyncEnabled || !enabled else {
-            statusMessage = "Turn on cloud sync before enabling archive backup."
-            return
-        }
-        let newSettings = settings.updating(cloudArchiveBackupEnabled: enabled)
+    func setCloudArchiveBackupEnabled(_: Bool) {
+        let newSettings = settings.updating(cloudArchiveBackupEnabled: false)
         try? appSettingsStore.save(newSettings)
         settings = newSettings
-        statusMessage = enabled ? "Archive backup is opted in. SetCatcher will never upload audio automatically." : "Archive backup is off."
+        statusMessage = "Remote archive backup is unavailable in this beta."
     }
 
     func exportPublishPack(sessionID: UUID) {

@@ -211,7 +211,7 @@ public struct DiagnosticsReportBuilder {
             .map {
                 DiagnosticsActivity(
                     kind: $0.kind.rawValue,
-                    message: $0.message,
+                    message: redactedText($0.message),
                     detail: $0.detail.map(redactedText(_:)),
                     createdAt: $0.createdAt
                 )
