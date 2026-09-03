@@ -58,7 +58,7 @@ private struct CompanionAccountAuthSection: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Sign in to sync set metadata with your Mac. Audio stays on each device unless you enable backup later. Local import still works offline.")
+            Text("Sign in to sync set metadata with your Mac. Audio stays on each device. Remote archive backup is not available in this private beta. Local import still works offline.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 

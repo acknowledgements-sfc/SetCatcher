@@ -5,7 +5,7 @@ struct CompanionCatalogSyncPrivacyDisclosure: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             disclosureText(
-                "Catalog sync includes event, venue, city, tags, filename, source app, dates, duration and size, device name, and technical capture details."
+                "Catalog sync includes a session identifier, originating platform, event, venue, city, tags, filename, source app, dates, duration and size, device name, and technical catalog and capture details."
             )
             disclosureText(
                 "Catalog sync never uploads audio, full tracklist contents, private notes, local file paths, or manual tracklist selections."
