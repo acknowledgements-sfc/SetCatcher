@@ -8,9 +8,15 @@ This audit maps the v0.1 PRD acceptance criteria to current implementation evide
 
 The Phase 1 library/playback fixes are committed at `f7e9bb9`. The technical SetCatcher rename and app-owned data migration are committed at `b6a1a5e` on `codex/setcatcher-rename`. The renamed branch passes the full test suite, release build, debug app packaging, strict signature verification, and app smoke. This section supersedes only the current-candidate statements below; dated historical results remain unchanged.
 
+**Update (2026-09-02):** `main` = `origin/main` = `7b3b698` now already contains the rename plus later dual-lane-archive, iPad-companion, and archive-catalog-sync work; the `codex/setcatcher-rename` / `255a6b0` references in this document are historical baselines, not the current tip. See the Frozen review baseline under Automated Evidence.
+
 External beta is still blocked by Developer ID signing, notarization, clean-Mac validation, and remaining human UI/listening checks. The available signing identity is Apple Development only.
 
 ## Automated Evidence
+
+Frozen review baseline (2026-09-02, `main` at `7b3b698` = `origin/main`):
+
+- `swift test`: **411 tests executed, 4 skipped, 0 failures**; `swift build` completed with **0 warnings**. This is the authoritative current-commit baseline. The 2026-08-29 figures below are retained as dated history at their stated commits.
 
 Current local gate baseline (2026-08-29, base `main` at `255a6b0` before scoped readiness fixes):
 
@@ -142,7 +148,7 @@ Tester: Rob (internal). macOS 26.6 (25G72). SetCatcher `0.1.0` / commit `2d0d4f5
 - **Parser limitations:** see `docs/integration-status.md` (VDJ plugin research; capture match window partial)
 - **Signing / notarization:** ad-hoc sandboxed local beta; **not notarized** (Developer ID absent on this Mac; see `docs/signing-and-notarization.md`). Round 2 did **not** require notarization.
 - **Accounts / admin:** optional web app in `admin/` (Clerk + Supabase + Vercel); macOS Settings deep-links via `settings.openAccount` — local protection never depends on it
-- **Minimum macOS:** 14.2
+- **Minimum macOS:** the Mac app is built from `Package.swift`, which sets **macOS 15.0** — the authoritative product minimum. `project.yml` defines only iOS targets (`SetCatcheriPad`, `SetCatcherShareExtension`, both `platform: iOS`); its global `deploymentTarget.macOS: 14.0` is an unused default with no Mac-app target behind it, not a competing minimum. The Process Audio Tap capture path separately requires **macOS 14.2+** as a capability floor. (The earlier "14.2" here conflated that capture-API floor with the product minimum.)
 - **Landing route:** Home
 - **Folder permission recovery:** Protection / Recovery UI — choose a different folder, or clear saved folder (sources are never deleted)
 - **Current packaging caveat:** current-user ad-hoc launch passes, but external beta remains blocked until Developer ID signing, notarization, and clean-Mac launch succeed.
