@@ -73,7 +73,7 @@ Active DJs create valuable recordings in workflows that depend on memory, applic
 3. User imports or selects an available track history.
 4. SetCatcher may attach the closest eligible history automatically.
 5. User can attach or detach a tracklist manually; a manual choice is never overridden.
-6. User may export a local publish pack. Nothing is uploaded.
+6. User may export a local publish pack. That export remains local and uploads nothing.
 7. If the user opts into catalog sync, event, venue, city, and tags may sync; private notes and manual tracklist choices remain local to that device. On Mac, the user enables catalog sync after signing in. On Companion, signing in from the disclosed Settings surface starts catalog sync.
 
 ### Journey E — Recover from lost access
@@ -140,7 +140,7 @@ Acceptance:
 
 - No audio or full tracklist is uploaded by default.
 - Catalog sync is off while signed out and discloses its data boundary on both Settings surfaces. On Mac, it also remains off until the signed-in user enables the catalog-sync control; on Companion, signing in from that disclosed surface starts catalog sync.
-- Opt-in catalog sync may send filename, source application, dates, duration and size, device name, technical capture details, and event, venue, city, and tags.
+- Opt-in catalog sync may send a session identifier, originating platform, filename, source application, dates, duration and size, device name, technical catalog and capture details, and event, venue, city, and tags.
 - Catalog sync never sends recording audio, full tracklist contents, local file paths, private notes, or manual tracklist selections.
 - Applying remote catalog context preserves each device's private notes and manual tracklist selection.
 - Remote archive backup is not available in this private beta.
@@ -222,7 +222,7 @@ Acceptance:
 ### Account/backend data
 
 - optional user, device, license, invite, limited diagnostics metadata, and admin audit records;
-- when the user opts into catalog sync through the applicable signed-in Settings flow: filename, source application, dates, duration and size, device name, technical capture details, and event, venue, city, and tags.
+- when the user opts into catalog sync through the applicable signed-in Settings flow: session identifier, originating platform, filename, source application, dates, duration and size, device name, technical catalog and capture details, and event, venue, city, and tags.
 
 ### Prohibited by default
 

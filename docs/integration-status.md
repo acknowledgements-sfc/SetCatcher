@@ -107,7 +107,7 @@ iPad is a **separate** app: no Mac connection; accounts only are shared. On iPad
 
 Catalog sync is **off while signed out** and its boundary is disclosed on both Settings surfaces. On Mac, it also remains off until the signed-in user enables catalog sync. On Companion, signing in from the disclosed Settings surface starts catalog sync.
 
-When the user opts in through the applicable signed-in Settings flow, catalog sync may send filename, source application, dates, duration and size, device name, technical capture details, and the user-entered event, venue, city, and tags. It does **not** send recording audio, full tracklist contents, local file paths, private notes, or manual tracklist selections.
+When the user opts in through the applicable signed-in Settings flow, catalog sync may send a session identifier, originating platform, filename, source application, dates, duration and size, device name, technical catalog and capture details, and the user-entered event, venue, city, and tags. It does **not** send recording audio, full tracklist contents, local file paths, private notes, or manual tracklist selections.
 
 Private notes and manual tracklist selections remain local to each device. Remote catalog context may update event, venue, city, and tags, but the merge preserves local notes and a local manual selection; legacy remote note fields are ignored.
 
